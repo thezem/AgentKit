@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import type { CodexClient } from './codex-client.ts'
 import type { AccountState, CodexAccount, LoginInfo, LoginStartResult, LoginStrategy } from './types.ts'
+import { sleep } from './utils.ts'
 
 export class CodexAuth {
   private readonly client: CodexClient
@@ -67,13 +68,15 @@ export class CodexAuth {
       child.once('error', reject)
     })
 
-    const refreshed = await this.getAccount(true)
-    if (!refreshed.account) {
+    await this.client.restartTransport()
+
+    const refreshed = await this.waitForExternalLogin()
+    if (!refreshed) {
       throw new Error('Device auth completed but app-server still reports no account')
     }
 
-    await this.client.options.auth?.onLoginComplete?.(refreshed.account)
-    return refreshed.account
+    await this.client.options.auth?.onLoginComplete?.(refreshed)
+    return refreshed
   }
 
   async logout(): Promise<void> {
@@ -82,5 +85,18 @@ export class CodexAuth {
 
   async getRateLimits(): Promise<unknown> {
     return this.client.raw.request('account/rateLimits/read')
+  }
+
+  private async waitForExternalLogin(): Promise<CodexAccount | null> {
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      const refreshed = await this.getAccount(true)
+      if (refreshed.account) {
+        return refreshed.account
+      }
+
+      await sleep(1000)
+    }
+
+    return null
   }
 }

@@ -83,7 +83,7 @@ export class CodexClient {
   readonly auth: CodexAuth
   readonly threads: CodexThreadsApi
 
-  private readonly transport: AppServerTransport
+  private transport: AppServerTransport
   private readonly events = new EventEmitter()
   private readonly sessions = new Map<string, CodexSession>()
   private readonly pendingLogins = new Map<string, Deferred<CodexAccount>>()
@@ -98,7 +98,10 @@ export class CodexClient {
     }
     this.auth = new CodexAuth(this)
     this.threads = new CodexThreadsApi(this)
+    this.attachTransportListeners()
+  }
 
+  private attachTransportListeners(): void {
     this.transport.onNotification((message) => {
       void this.handleNotification(message)
     })
@@ -149,6 +152,16 @@ export class CodexClient {
 
   async close(): Promise<void> {
     this.transport.close()
+  }
+
+  async restartTransport(): Promise<void> {
+    this.transport.close()
+    this.transport = await AppServerTransport.start({
+      codexPath: this.options.codexPath,
+      clientInfo: this.options.clientInfo,
+      env: this.options.env,
+    })
+    this.attachTransportListeners()
   }
 
   async runThread(thread: CodexThread, input: UserInput, options?: RunOptions): Promise<RunResult> {
