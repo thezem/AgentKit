@@ -1,0 +1,19 @@
+{
+  "name": "codex-client",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Drop-in high-level wrapper for codex app-server with ChatGPT-first auth.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "example": "node --experimental-strip-types examples/basic.ts",
+    "smoke": "node --experimental-strip-types examples/basic.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "dependencies": {}
+}
