@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process'
 import type { CodexClient } from './codex-client.ts'
 import type { AccountState, CodexAccount, LoginInfo, LoginStartResult, LoginStrategy } from './types.ts'
-import { sleep } from './utils.ts'
 
 export class CodexAuth {
   private readonly client: CodexClient
@@ -52,31 +51,9 @@ export class CodexAuth {
   async loginWithDeviceCode(): Promise<CodexAccount> {
     const command = this.client.options.codexPath ?? (process.platform === 'win32' ? 'codex.cmd' : 'codex')
     const child = spawn(command, ['login', '--device-auth'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: 'inherit',
       env: process.env,
       shell: process.platform === 'win32',
-    })
-
-    let verificationUri: string | undefined
-    let userCode: string | undefined
-
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', (chunk: string) => {
-      const urlMatch = chunk.match(/https:\/\/\S+/)
-      const codeMatch = chunk.match(/\b[A-Z0-9]{4}-[A-Z0-9]{5,}\b/i)
-      if (urlMatch) verificationUri = urlMatch[0]
-      if (codeMatch) userCode = codeMatch[0]
-    })
-
-    while (!verificationUri && !userCode && !child.killed && child.exitCode === null) {
-      await sleep(100)
-    }
-
-    await this.client.options.auth?.onLoginRequired?.({
-      strategy: 'device-code',
-      verificationUri,
-      userCode,
-      expiresInMinutes: 15,
     })
 
     await new Promise<void>((resolve, reject) => {

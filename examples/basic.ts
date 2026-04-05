@@ -2,6 +2,8 @@ import { createCodex } from '../src/index.ts'
 
 const loginStrategy = process.env.CODEXKIT_LOGIN === 'device-code' ? 'device-code' : 'browser'
 
+console.log(`Starting codexkit example with ${loginStrategy} auth...`)
+
 const codex = await createCodex({
   auth: {
     autoLogin: false,
@@ -33,15 +35,21 @@ const codex = await createCodex({
   },
 })
 
+console.log('Checking login state...')
+if (loginStrategy === 'device-code') {
+  console.log('Launching native Codex device auth flow...')
+}
 await codex.auth.ensureLoggedIn()
+console.log('Login ready.')
 
 const session = codex.session('basic-demo')
-const result = await session.run('Briefly explain what files are in this package and what it does.')
+console.log('Starting session...')
+// const result = await session.run('Briefly explain what files are in this package and what it does.')
 
-console.log('Result:')
-console.log(result.text)
-
-const stream = await session.stream('Now summarize the architecture in one short paragraph.')
+// console.log('Result:')
+// console.log(result.text)
+const stream = await session.stream('tell me another joke about programmers')
+console.log('Waiting for Codex response...')
 for await (const event of stream) {
   if (event.type === 'message.delta') {
     process.stdout.write(event.text)
@@ -49,4 +57,5 @@ for await (const event of stream) {
 }
 
 console.log()
+console.log('Done.')
 await codex.close()
