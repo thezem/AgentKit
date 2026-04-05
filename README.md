@@ -34,6 +34,12 @@ const codex = await createCodex({
       if (info.url) {
         console.log('Open this URL to sign in with ChatGPT:')
         console.log(info.url)
+        console.log('Waiting for browser login to complete...')
+      }
+    },
+    onLoginComplete(account) {
+      if (account.type === 'chatgpt') {
+        console.log(`Signed in as ${account.email} (${account.planType})`)
       }
     },
   },
@@ -84,6 +90,12 @@ Device-code fallback uses the CLI:
 
 ```ts
 await codex.auth.loginWithDeviceCode()
+```
+
+The example also supports device auth directly:
+
+```bash
+CODEXKIT_LOGIN=device-code bun examples/basic.ts
 ```
 
 ## Raw access
