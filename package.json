@@ -1,5 +1,5 @@
 {
-  "name": "codex-client",
+  "name": "@ouim/codexkit",
   "version": "0.1.0",
   "type": "module",
   "description": "Drop-in high-level wrapper for codex app-server with ChatGPT-first auth.",

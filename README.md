@@ -1,6 +1,6 @@
-# codex-client
+# codexkit
 
-Small Node wrapper around `codex app-server`.
+Small Node wrapper around `codex app-server`, intended to ship as `@ouim/codexkit`.
 
 It gives you:
 
