@@ -8,6 +8,7 @@ It gives you:
 - simple thread and session APIs
 - streaming events for messages, reasoning, MCP progress, approvals, and tool input
 - raw JSON-RPC access when you need the full app-server surface
+- a deployable HTTP server for prompts and workflow actions
 
 ## Install
 
@@ -20,6 +21,89 @@ Requires:
 
 - Node.js 22.6+
 - `codex` on your PATH
+
+## Server MVP
+
+You can run Codexkit as a small single-machine HTTP daemon:
+
+```bash
+npm run server
+```
+
+Default server behavior:
+
+- binds to `127.0.0.1:3789`
+- loads actions from `./actions`
+- stores job metadata in `./data/jobs`
+- expects Codex to already be authenticated on the machine
+
+Useful env vars:
+
+- `PORT` or `CODEXKIT_PORT`
+- `HOST` or `CODEXKIT_HOST`
+- `CODEXKIT_API_KEY`
+- `CODEXKIT_ACTIONS_DIR`
+- `CODEXKIT_DATA_DIR`
+- `CODEXKIT_DEFAULT_CWD`
+- `CODEXKIT_MODEL`
+- `CODEXKIT_SANDBOX_MODE`
+- `CODEXKIT_APPROVAL_POLICY`
+
+If you bind to a non-local host, set `CODEXKIT_API_KEY`.
+
+### Basic endpoints
+
+```bash
+curl http://127.0.0.1:3789/health
+curl http://127.0.0.1:3789/account
+curl http://127.0.0.1:3789/actions
+```
+
+Run a direct prompt:
+
+```bash
+curl -X POST http://127.0.0.1:3789/run \
+  -H "content-type: application/json" \
+  -d '{"prompt":"Summarize this repository","cwd":"'"$(pwd)"'"}'
+```
+
+Run a named action:
+
+```bash
+curl -X POST http://127.0.0.1:3789/actions/repo-summary \
+  -H "content-type: application/json" \
+  -d '{"cwd":"'"$(pwd)"'"}'
+```
+
+With API auth:
+
+```bash
+curl -X POST http://127.0.0.1:3789/actions/review-pr \
+  -H "authorization: Bearer $CODEXKIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"input":{"repo":"owner/repo","prNumber":123},"cwd":"'"$(pwd)"'"}'
+```
+
+### Actions
+
+Codexkit currently supports two action types in `./actions`:
+
+- `.md` files for simple prompt actions
+- `.ts` or `.js` files for script workflows
+
+Script workflows export a default action object:
+
+```ts
+import { defineAction } from '../server/action-runtime.ts'
+
+export default defineAction({
+  name: 'hello',
+  async run(ctx, input) {
+    await ctx.log('running hello workflow')
+    return ctx.runPrompt(`Say hello to ${JSON.stringify(input)}`)
+  },
+})
+```
 
 ## Quick start
 

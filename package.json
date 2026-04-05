@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "example": "node --experimental-strip-types examples/basic.ts",
-    "smoke": "node --experimental-strip-types examples/basic.ts"
+    "smoke": "node --experimental-strip-types examples/basic.ts",
+    "server": "node --experimental-strip-types server/index.ts"
   },
   "engines": {
     "node": ">=22.6"
