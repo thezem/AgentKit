@@ -1,57 +1,117 @@
 # codexkit
 
-High-level Node SDK for building on top of `codex app-server`.
+TypeScript SDK for building on top of coding agents already installed on the user's machine.
 
-`@ouim/codexkit` is for developers who want to integrate Codex into their own tools without speaking raw JSON-RPC or managing the full app-server lifecycle themselves.
+`@ouim/codexkit` is an integration layer for developers who want to embed tools like Codex and Claude Code into their own products without learning every provider's runtime details from scratch.
 
-It is not trying to replace Codex CLI. It is trying to be the ergonomic TypeScript layer you build on top of when you want to create:
+The core idea is simple:
 
-- internal dev tools
-- bots and automations
-- review workflows
-- coding assistants
-- API backends and local services
-- experiments that may later expand toward Codex- or Claude-style coding runtimes
+- the user already has the agent CLI or SDK installed
+- the user is already authenticated in their environment
+- your app uses Codexkit to talk to that local agent runtime
 
-Today, this package is Codex-first. The broader idea is to make the integration layer clean enough that higher-level systems can be built on top of it.
+This package is not trying to replace Codex CLI or Claude Code. It is trying to make them programmable from Node in a way that feels consistent, typed, and product-friendly.
 
-## Why It Exists
+## What It Is
 
-The raw `codex app-server` surface is powerful, but not pleasant to build against directly.
+Codexkit is a host-side SDK for local coding agents.
 
-You have to deal with:
+That means it helps you build:
 
-- transport startup and teardown
-- JSON-RPC requests and notifications
-- auth flow handling
-- thread and turn lifecycle
-- streamed item events
+- devtools
+- desktop apps
+- editor integrations
+- bots and workflow runners
+- orchestration layers
+- internal products that want to reuse the user's existing agent setup
+
+Instead of making every builder learn:
+
+- Codex app-server JSON-RPC
+- Claude Agent SDK session/runtime quirks
+- auth assumptions
+- process lifecycle edge cases
+- streaming and approval semantics
+
+Codexkit aims to provide a cleaner integration layer on top.
+
+## Current Reality
+
+Today, the implementation in this repo is Codex-focused.
+
+It already wraps:
+
+- `codex app-server`
+- ChatGPT browser login
+- CLI device auth
+- thread/session lifecycle
+- turn streaming
 - approval requests
 - tool input requests
 
-Codexkit wraps those details in a small Node API so you can focus on your product instead of protocol plumbing.
+The product direction is broader:
 
-## What You Get
+- support local Codex integrations well
+- add Claude support deliberately
+- expose shared concepts where they are real
+- keep provider-specific escape hatches where they matter
+
+So the honest framing is:
+
+- Codex support exists now
+- Claude support is planned
+- the package identity is broader than a raw Codex wrapper
+
+## Why It Exists
+
+If you build directly on provider runtimes, you quickly run into too much host-side complexity.
+
+For Codex, that means:
+
+- transport startup and teardown
+- JSON-RPC notifications
+- auth flow handling
+- thread/turn coordination
+- approval and tool-input events
+
+For Claude, that means:
+
+- long-lived runtime ownership
+- prompt queue management
+- streamed SDK message handling
+- tool approval callbacks
+- session resume and interruption semantics
+
+Codexkit exists so application developers can build on these systems without rebuilding that integration layer from zero every time.
+
+## Product Shape
+
+Think of Codexkit as:
+
+- one SDK
+- multiple providers
+- one host-side mental model
+- provider-specific escape hatches when needed
+
+The long-term shape should be closer to:
+
+- `provider: 'codex'`
+- `provider: 'claude'`
+
+than to:
+
+- one fake abstraction that pretends both runtimes are identical
+
+## What You Get Today
+
+Current implemented surface:
 
 - `createCodex()` to start and manage `codex app-server`
 - ChatGPT browser login and device-auth helpers
 - high-level thread and session APIs
 - streamed turn events for messages, reasoning, MCP progress, approvals, and tool input
 - raw request access when you need the full app-server surface
-- TypeScript types for the important runtime objects
-
-## Current Positioning
-
-This repo is best understood as an SDK, not a full hosted automation product.
-
-That means:
-
-- the package itself should be small, composable, and pleasant to embed
-- examples and downstream apps can implement servers, bots, and workflows on top
-- Codex support should be excellent and explicit
-- broader multi-runtime ambitions should not weaken the core SDK story
-
-If you want to build your own deployable service later, this package should be the foundation for that, not the service itself.
+- TypeScript types for the runtime objects you actually interact with
 
 ## Install
 
@@ -59,12 +119,10 @@ If you want to build your own deployable service later, this package should be t
 npm install @ouim/codexkit
 ```
 
-Requirements:
+Requirements right now:
 
 - Node.js `22.6+`
 - `codex` on your `PATH`
-
-This repo currently uses source imports directly, so in local development you can also run it from the repository checkout.
 
 ## Quick Start
 
@@ -103,7 +161,7 @@ console.log(result.text)
 await codex.close()
 ```
 
-## Core API
+## Codex API Today
 
 ### Create a Client
 
@@ -121,7 +179,7 @@ const codex = await createCodex({
 })
 ```
 
-### Run a Single Thread
+### Run a Thread
 
 ```ts
 const thread = await codex.threads.create()
@@ -132,8 +190,6 @@ console.log(result.text)
 ```
 
 ### Use a Session
-
-Sessions let you keep working within the same conversation without manually storing the thread id.
 
 ```ts
 const session = codex.session('repo-review')
@@ -157,15 +213,11 @@ for await (const event of stream) {
 
 ### Raw Access
 
-When the SDK does not yet expose a convenience wrapper, you can still use the underlying app-server methods directly.
-
 ```ts
 const models = await codex.raw.request('model/list', {})
 ```
 
 ## Auth
-
-Codexkit follows the auth surface exposed by `codex app-server`.
 
 ### Browser Login
 
@@ -173,25 +225,44 @@ Codexkit follows the auth surface exposed by `codex app-server`.
 await codex.auth.loginWithChatGPT()
 ```
 
-This uses app-server's ChatGPT login flow and is the primary intended path for this project.
-
 ### Device Auth
 
 ```ts
 await codex.auth.loginWithDeviceCode()
 ```
 
-This launches the native CLI device auth flow with inherited stdio.
-
-The example in this repo also supports choosing device auth via environment variable:
+The example in this repo supports device auth selection with:
 
 ```bash
 CODEXKIT_LOGIN=device-code node --experimental-strip-types examples/basic.ts
 ```
 
+## Planned Claude Direction
+
+Claude support should follow the same high-level philosophy:
+
+- use what the user already has installed
+- assume the user is already authenticated
+- let host apps control sessions, prompts, approvals, interrupts, and resumes
+
+But it should not pretend Claude works exactly like Codex.
+
+Claude integration will need to account for:
+
+- long-lived session runtimes
+- prompt queues
+- streamed SDK message handling
+- tool approval through callback hooks
+- opaque resume/session fields
+- provider-specific model and permission semantics
+
+See:
+
+- [docs\claude-agent-sdk-typescript-distilled.md](/G:/PI/codex-sdk-node/docs/claude-agent-sdk-typescript-distilled.md)
+
 ## Examples
 
-The current main smoke example is:
+Current main smoke example:
 
 - [examples/basic.ts](/G:/PI/codex-sdk-node/examples/basic.ts)
 
@@ -204,38 +275,40 @@ It shows:
 
 ## Who This Is For
 
-Codexkit is a good fit if you are:
+Codexkit is for developers who want to build on top of installed coding agents.
 
-- building a Node service that needs to call Codex
-- creating a bot or workflow runner
-- experimenting with agentic coding UX on top of Codex
-- embedding Codex inside a larger product
-- tired of hand-rolling app-server transport and event handling
+Good fits:
 
-It is probably not the right fit if you only want:
+- local apps and desktop tools
+- VS Code or editor-adjacent integrations
+- CLI wrappers
+- orchestration layers
+- bots and automations
+- internal tools that should reuse the user's existing agent install and login
 
-- a human-facing CLI replacement
-- a complete hosted orchestration platform
-- a runtime-agnostic abstraction over every coding agent from day one
+Not the main goal:
+
+- replacing the provider's human-facing CLI
+- pretending every coding agent has the same runtime model
+- shipping a giant hosted platform inside this repo
 
 ## Design Principles
 
-- App-server first: wrap the real runtime surface, not a reduced imitation
-- ChatGPT-first auth: match the intended Codex user experience
-- Escape hatches matter: raw JSON-RPC remains available
-- High-level where helpful: sessions, threads, and event typing should feel easy
-- Honest scope: Codex support should be strong before the package grows broader ambitions
+- local-agent first
+- provider adapters over fake uniformity
+- high-level where helpful
+- escape hatches where necessary
+- honest scope
+- strong TypeScript ergonomics
 
 ## Near-Term Direction
 
-The strongest path for this package is:
+1. make the Codex integration genuinely strong
+2. design a real provider abstraction
+3. add Claude support deliberately
+4. ship examples that prove the SDK is useful for real apps
 
-1. become a genuinely good Node SDK for `codex app-server`
-2. ship better examples for real integrations
-3. support downstream tools that want to build bots, services, and workflow runners
-4. only expand into broader multi-runtime ideas when the Codex SDK itself is solid
-
-That means the priority is not to turn this repo into a huge product too early. The priority is to make it the SDK people actually want to build on.
+That means the priority is to become a good host-side SDK, not to become a giant product too early.
 
 ## Development
 
@@ -255,4 +328,4 @@ npm run example
 
 This project is early.
 
-The current shape is already useful for experimentation and internal tools, but the API, packaging, and docs are still being refined.
+The current implementation is Codex-focused, while the intended product identity is broader: a TypeScript SDK for building on top of local coding agents already present on the user's machine.
