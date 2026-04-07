@@ -60,6 +60,7 @@ export class ClaudeSession implements AgentSession {
 
   private sessionId: string | null = null
   private resumeState: ClaudeResumeState | null = null
+  private readonly sessionCwd: string
   private currentModel: string | undefined
   private currentPermissionMode: string | undefined
 
@@ -83,9 +84,12 @@ export class ClaudeSession implements AgentSession {
           }
         : null
 
+    const runtimeOptions = this.buildRuntimeOptions()
+    this.sessionCwd = runtimeOptions.cwd ?? process.cwd()
+
     this.runtime = query({
       prompt: this.promptQueue,
-      options: this.buildRuntimeOptions(),
+      options: runtimeOptions,
     })
 
     this.runtimeConsumer = this.consumeRuntime()
@@ -215,8 +219,10 @@ export class ClaudeSession implements AgentSession {
 
   private async applyMutableRuntimeOptions(options?: AgentRunOptions): Promise<void> {
     if (!options) return
-    if (options.cwd && this.baseOptions?.cwd && options.cwd !== this.baseOptions.cwd) {
-      throw new Error('Claude session runtime is long-lived; changing cwd per-turn is not supported')
+    if (options.cwd && options.cwd !== this.sessionCwd) {
+      throw new Error(
+        `Claude sessions in Codexkit are long-lived and keep a fixed cwd for their lifetime. Session cwd is "${this.sessionCwd}", but turn requested "${options.cwd}".`,
+      )
     }
     if (options.additionalDirectories && this.baseOptions?.additionalDirectories) {
       const current = this.baseOptions.additionalDirectories.join('|')

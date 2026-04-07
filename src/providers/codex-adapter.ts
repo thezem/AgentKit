@@ -19,7 +19,6 @@ import type {
   CommandApprovalRequest,
   CreateCodexOptions,
   DynamicToolRequest,
-  DynamicToolResponse,
   FileApprovalDecision,
   FileApprovalRequest,
   PermissionApprovalDecision,
@@ -292,9 +291,7 @@ function toCodexRequestHandlers(handlers: NonNullable<AgentRunOptions['handlers'
       ? async (request) =>
           mapPermissionApprovalDecision(await onToolApproval(toAgentApprovalRequest('approval.permissions', request)))
       : undefined,
-    onDynamicToolCall: onToolApproval
-      ? async (request) => mapDynamicToolDecision(await onToolApproval(toAgentApprovalRequest('tool.call', request)))
-      : undefined,
+    onDynamicToolCall: async (request) => unsupportedDynamicToolResponse(request),
     onToolInput: onUserInput
       ? async (request) => mapToolInputAnswers(await onUserInput(toolInputRequestToAgent(request)), request)
       : undefined,
@@ -345,16 +342,15 @@ function mapPermissionApprovalDecision(decision: 'allow' | 'deny'): PermissionAp
   return decision === 'allow' ? 'accept' : 'decline'
 }
 
-function mapDynamicToolDecision(decision: 'allow' | 'deny'): DynamicToolResponse {
-  if (decision === 'allow') {
-    return {
-      success: true,
-      contentItems: [{ type: 'inputText', text: 'Approved by generic onToolApproval handler.' }],
-    }
-  }
+function unsupportedDynamicToolResponse(_request: DynamicToolRequest) {
   return {
     success: false,
-    contentItems: [{ type: 'inputText', text: 'Denied by generic onToolApproval handler.' }],
+    contentItems: [
+      {
+        type: 'inputText' as const,
+        text: 'Generic Codexkit AgentClient does not support executing Codex dynamic tool calls yet. Use the Codex-specific API instead.',
+      },
+    ],
   }
 }
 
