@@ -14,20 +14,7 @@ import {
 } from '../src/type-guards.ts'
 import { CodexThread } from '../src/thread.ts'
 import { validateUserInput } from '../src/utils.ts'
-
-class FakeTransport {
-  requestCalls = 0
-  onNotification(_cb: (payload: unknown) => void): void {}
-  onServerRequest(_cb: (payload: unknown) => void): void {}
-  onClosed(_cb: (error: unknown) => void): void {}
-  async request<T = unknown>(_method: string, _params?: unknown): Promise<T> {
-    this.requestCalls += 1
-    throw new Error('request invoked')
-  }
-  respond(_id: number, _result: unknown): void {}
-  respondError(_id: number, _message: string): void {}
-  close(): void {}
-}
+import { FakeTransport } from './helpers/fake-transport.ts'
 
 function createThreadData(id: string) {
   return {
@@ -105,7 +92,7 @@ test('invalid turn input fails before transport request', async () => {
     },
   )
 
-  assert.equal(transport.requestCalls, 0)
+  assert.equal(transport.requestLog.length, 0)
   assert.equal(client.getThreadTurnState(thread.id), 'idle')
 })
 
