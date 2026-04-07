@@ -2,8 +2,8 @@ import type { AgentModelInfo } from '../agent-types.ts'
 
 const CLAUDE_CURATED_MODELS: Array<Omit<AgentModelInfo, 'provider' | 'discovery' | 'available'>> = [
   {
-    id: 'claude-sonnet-4-5',
-    label: 'Claude Sonnet 4.5',
+    id: 'claude-sonnet-4-6',
+    label: 'Claude Sonnet 4.6',
     family: 'sonnet',
     description: 'Balanced model for most coding and agent workflows.',
     recommended: true,
@@ -14,8 +14,8 @@ const CLAUDE_CURATED_MODELS: Array<Omit<AgentModelInfo, 'provider' | 'discovery'
     supportsPersonality: true,
   },
   {
-    id: 'claude-opus-4-1',
-    label: 'Claude Opus 4.1',
+    id: 'claude-opus-4-6',
+    label: 'Claude Opus 4.6',
     family: 'opus',
     description: 'Higher-capability model for complex tasks.',
     reasoningEfforts: ['low', 'medium', 'high'],
