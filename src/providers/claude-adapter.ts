@@ -1,6 +1,8 @@
 import type {
   AgentCapabilities,
   AgentClient,
+  AgentModelInfo,
+  AgentModelListOptions,
   AgentOpenSessionOptions,
   AgentProviderInventory,
   AgentResumeSessionOptions,
@@ -13,6 +15,7 @@ import type {
 } from '../agent-types.ts'
 import { mergeAgentSessionOptions } from '../agent-session.ts'
 import { claudeCapabilities, getClaudeAvailability, getClaudeInventory, isClaudeAvailable } from './claude-detection.ts'
+import { listClaudeModels } from './claude-models.ts'
 import { ClaudeSession } from './claude-session.ts'
 import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provider-types.ts'
 
@@ -177,6 +180,13 @@ export const claudeProvider: InternalAgentProvider = {
   },
   async getAvailability(options?: ProviderAvailabilityOptions) {
     return getClaudeAvailability(options)
+  },
+  async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+    const models = listClaudeModels().filter((model) => options?.includeHidden === true || model.hidden !== true)
+    if (typeof options?.limit === 'number' && options.limit >= 0) {
+      return models.slice(0, options.limit)
+    }
+    return models
   },
   async createClient(options: CreateAgentOptions): Promise<AgentClient> {
     if (options.provider !== 'claude') {

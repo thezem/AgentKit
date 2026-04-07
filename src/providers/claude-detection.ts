@@ -20,6 +20,7 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'sdk-import',
         failureReason: 'Claude SDK package is not importable',
       },
       raw: {
@@ -43,10 +44,11 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
         executablePath: options.pathToClaudeCodeExecutable,
         executableSource: 'configured',
         account: null,
-        diagnostics: {
-          probeMode,
-          failureReason: 'Configured Claude executable path does not exist',
-        },
+      diagnostics: {
+        probeMode,
+        probeStrategy: 'path-check',
+        failureReason: 'Configured Claude executable path does not exist',
+      },
         raw: {
           error: errorToString(error),
         },
@@ -54,6 +56,8 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       }
     }
   }
+
+  const sdkVersion = readClaudeSdkVersion(sdk)
 
   if (probeMode === 'cheap') {
     return {
@@ -65,9 +69,12 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       status: 'runnable',
       ...(options?.pathToClaudeCodeExecutable ? { executablePath: options.pathToClaudeCodeExecutable } : {}),
       ...(options?.pathToClaudeCodeExecutable ? { executableSource: 'configured' as const } : { executableSource: 'sdk' as const }),
+      ...(sdkVersion ? { version: sdkVersion } : {}),
+      ...(sdkVersion ? { versionDetails: { source: 'sdk' as const, raw: sdkVersion } } : {}),
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'sdk-import',
         notes: ['Claude SDK is importable; runtime auth not checked in cheap mode.'],
       },
       raw: {
@@ -112,9 +119,12 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       }),
       ...(options?.pathToClaudeCodeExecutable ? { executablePath: options.pathToClaudeCodeExecutable } : {}),
       ...(options?.pathToClaudeCodeExecutable ? { executableSource: 'configured' as const } : { executableSource: 'sdk' as const }),
+      ...(sdkVersion ? { version: sdkVersion } : {}),
+      ...(sdkVersion ? { versionDetails: { source: 'sdk' as const, raw: sdkVersion } } : {}),
       account: init.account ?? null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'runtime-init',
       },
       raw: init,
       capabilitySupport: claudeCapabilities(),
@@ -129,10 +139,13 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       status: 'degraded',
       ...(options?.pathToClaudeCodeExecutable ? { executablePath: options.pathToClaudeCodeExecutable } : {}),
       ...(options?.pathToClaudeCodeExecutable ? { executableSource: 'configured' as const } : { executableSource: 'runtime-probe' as const }),
+      ...(sdkVersion ? { version: sdkVersion } : {}),
+      ...(sdkVersion ? { versionDetails: { source: 'sdk' as const, raw: sdkVersion } } : {}),
       account: null,
       diagnostics: {
         probeMode,
-        failureReason: 'Claude runtime failed to initialize',
+        probeStrategy: 'runtime-init',
+        failureReason: `Claude runtime failed to initialize: ${errorToString(error)}`,
       },
       raw: {
         error: errorToString(error),
@@ -187,8 +200,9 @@ export function claudeCapabilities(): AgentCapabilities {
     },
     discovery: {
       inventory: true,
-      modelListing: false,
+      modelListing: true,
       skillsListing: false,
+      skillConfiguration: false,
     },
     semantics: {
       sessionIdentity: 'runtime-session',
@@ -206,6 +220,18 @@ export function claudeCapabilities(): AgentCapabilities {
       eventModel: 'claude-agent-sdk',
     },
   }
+}
+
+function readClaudeSdkVersion(sdk: unknown): string | undefined {
+  if (!sdk || typeof sdk !== 'object') return undefined
+  const candidate = sdk as Record<string, unknown>
+  if (typeof candidate.version === 'string' && candidate.version.trim().length > 0) {
+    return candidate.version.trim()
+  }
+  if (typeof candidate.VERSION === 'string' && candidate.VERSION.trim().length > 0) {
+    return candidate.VERSION.trim()
+  }
+  return undefined
 }
 
 function deriveInventoryStatus(flags: {

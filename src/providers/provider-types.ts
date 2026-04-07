@@ -1,9 +1,13 @@
 import type {
   AgentAccountState,
   AgentClient,
+  AgentModelInfo,
+  AgentModelListOptions,
   AgentProviderInventory,
   AgentProviderId,
   AgentProviderAvailability,
+  AgentSkillInfo,
+  AgentSkillListOptions,
   CreateAgentOptions,
   ProviderInventoryOptions,
 } from '../agent-types.ts'
@@ -21,6 +25,8 @@ export interface InternalAgentProvider {
   getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory>
   isAvailable(options?: ProviderInventoryOptions): Promise<boolean>
   getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState>
+  listModels?(options?: AgentModelListOptions): Promise<AgentModelInfo[]>
+  listSkills?(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]>
   createClient(options: CreateAgentOptions): Promise<AgentClient>
 }
 
@@ -29,4 +35,6 @@ export type ProviderRegistry = {
   getAll(): InternalAgentProvider[]
   getProviderInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory[]>
   getAvailableProviders(options?: ProviderAvailabilityOptions): Promise<AgentProviderAvailability[]>
+  listModels(provider?: AgentProviderId, options?: AgentModelListOptions): Promise<AgentModelInfo[]>
+  listSkills(provider: AgentProviderId, options?: AgentSkillListOptions): Promise<AgentSkillInfo[]>
 }
