@@ -16,7 +16,8 @@
     "example:models": "node --experimental-strip-types examples/models.ts",
     "example:skills": "node --experimental-strip-types examples/skills.ts",
     "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --test test/**/*.test.ts"
   },
   "engines": {
     "node": ">=22.6"
