@@ -162,31 +162,31 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 > Goal: make the public API pleasant to consume from TypeScript without guesswork.
 
-- [ ] **4.1 — Narrow Codex `TurnItem`**
-  - [ ] Replace loose `TurnItem` with a discriminated union
-  - [ ] Add type guards for common item kinds
-  - [ ] Update `RunResult.items` and related event payloads
+- [x] **4.1 — Narrow Codex `TurnItem`**
+  - [x] Replace loose `TurnItem` with a discriminated union
+  - [x] Add type guards for common item kinds
+  - [x] Update `RunResult.items` and related event payloads
 
-- [ ] **4.2 — Tighten runtime validation for user input**
-  - [ ] Validate `UserInput` shape before sending JSON-RPC payloads
-  - [ ] Throw typed input validation errors
-  - [ ] Validate URLs/paths for non-text input elements
-  - [ ] Keep Codex skill and mention input validation consistent with documented protocol shape
+- [x] **4.2 — Tighten runtime validation for user input**
+  - [x] Validate `UserInput` shape before sending JSON-RPC payloads
+  - [x] Throw typed input validation errors
+  - [x] Validate URLs/paths for non-text input elements
+  - [x] Keep Codex skill and mention input validation consistent with documented protocol shape
 
 - [ ] **4.3 — Introduce typed exported errors**
   - [ ] Create shared error classes for timeout, input validation, provider detection, and unsupported capability
-  - [ ] Re-export them from `index.ts`
+  - [x] Re-export them from `index.ts`
   - [ ] Document which methods throw which errors
 
-- [ ] **4.4 — Stream event helpers**
-  - [ ] Add event type guards for normalized `AgentEvent`
-  - [ ] Add event type guards for Codex-specific `CodexStreamEvent`
-  - [ ] Export helpers from `index.ts`
+- [x] **4.4 — Stream event helpers**
+  - [x] Add event type guards for normalized `AgentEvent`
+  - [x] Add event type guards for Codex-specific `CodexStreamEvent`
+  - [x] Export helpers from `index.ts`
 
 - [ ] **4.5 — Verify odd protocol naming and compatibility**
   > The Codex approval decision shape includes protocol-looking names that should be verified before the API hardens further.
   - [ ] Re-check `CommandApprovalDecision` naming against current app-server behavior
-  - [ ] Add comments or migration notes if the names are intentionally awkward
+  - [x] Add comments or migration notes if the names are intentionally awkward
 
 ---
 

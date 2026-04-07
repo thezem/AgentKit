@@ -17,11 +17,44 @@ export { CodexClient } from './codex-client.ts'
 export { CodexSession } from './session.ts'
 export { CodexThread } from './thread.ts'
 export {
+  AgentError,
   ConcurrentTurnError,
+  InputValidationError,
   ProviderProbeTimeoutError,
   QueueOverflowError,
   TransportRequestTimeoutError,
 } from './errors.ts'
+export {
+  isAgentErrorEvent,
+  isAgentMessageCompletedEvent,
+  isAgentMessageDeltaEvent,
+  isAgentProviderNotificationEvent,
+  isAgentReasoningDeltaEvent,
+  isAgentStatusEvent,
+  isAgentToolApprovalEvent,
+  isAgentTurnCompletedEvent,
+  isAgentUserInputEvent,
+  isCodexApprovalCommandEvent,
+  isCodexApprovalFileEvent,
+  isCodexApprovalPermissionsEvent,
+  isCodexItemCompletedEvent,
+  isCodexItemStartedEvent,
+  isCodexMcpProgressEvent,
+  isCodexMessageDeltaEvent,
+  isCodexNotificationEvent,
+  isCodexPlanDeltaEvent,
+  isCodexReasoningDeltaEvent,
+  isCodexToolCallEvent,
+  isCodexToolInputEvent,
+  isCodexTurnCompletedEvent,
+  isCodexTurnStartedEvent,
+  isTurnItemFileChange,
+  isTurnItemFunctionCall,
+  isTurnItemFunctionCallOutput,
+  isTurnItemMessage,
+  isTurnItemPlan,
+  isTurnItemReasoning,
+} from './type-guards.ts'
 export {
   createAgent,
   getAvailableProviders,
@@ -62,6 +95,13 @@ export type {
   ToolInputAnswerMap,
   ToolInputRequest,
   TurnItem,
+  TurnItemFileChange,
+  TurnItemFunctionCall,
+  TurnItemFunctionCallOutput,
+  TurnItemMessage,
+  TurnItemPlan,
+  TurnItemReasoning,
+  TurnItemUnknown,
   UserInput,
 } from './types.ts'
 export type {

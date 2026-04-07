@@ -146,11 +146,47 @@ export type CodexSkillConfigWriteResponse = {
   [key: string]: unknown
 }
 
-export type TurnItem = {
-  type: string
+export type TurnItemMessage = { type: 'agentMessage'; id: string; text: string; [key: string]: unknown }
+export type TurnItemReasoning = {
+  type: 'reasoning'
   id: string
+  text?: string
+  contentIndex?: number
   [key: string]: unknown
 }
+export type TurnItemFunctionCall = {
+  type: 'functionCall'
+  id: string
+  name: string
+  arguments: string
+  callId?: string
+  [key: string]: unknown
+}
+export type TurnItemFunctionCallOutput = {
+  type: 'functionCallOutput'
+  id: string
+  callId: string
+  output: string
+  [key: string]: unknown
+}
+export type TurnItemFileChange = {
+  type: 'fileChange'
+  id: string
+  path: string
+  change: unknown
+  [key: string]: unknown
+}
+export type TurnItemPlan = { type: 'plan'; id: string; text: string; [key: string]: unknown }
+export type TurnItemUnknown = { type: string; id: string; [key: string]: unknown }
+
+export type TurnItem =
+  | TurnItemMessage
+  | TurnItemReasoning
+  | TurnItemFunctionCall
+  | TurnItemFunctionCallOutput
+  | TurnItemFileChange
+  | TurnItemPlan
+  | TurnItemUnknown
 
 export type CodexTurn = {
   id: string
@@ -192,6 +228,11 @@ export type StreamEventBase = {
   turnId?: string
 }
 
+/**
+ * The two object variants use the exact field names from the Codex app-server
+ * JSON-RPC protocol (`execpolicy_amendment`, `network_policy_amendment`).
+ * The underscore-cased names are intentional — do not rename them.
+ */
 export type CommandApprovalDecision =
   | 'accept'
   | 'acceptForSession'
@@ -286,7 +327,8 @@ export type CodexStreamEvent =
   | (StreamEventBase & { type: 'reasoning.delta'; itemId: string; text: string; contentIndex?: number })
   | (StreamEventBase & { type: 'plan.delta'; itemId: string; text: string })
   | (StreamEventBase & { type: 'mcp.progress'; itemId: string; message: string })
-  | (StreamEventBase & { type: 'item.started' | 'item.completed'; item: TurnItem })
+  | (StreamEventBase & { type: 'item.started'; item: TurnItem })
+  | (StreamEventBase & { type: 'item.completed'; item: TurnItem })
   | (StreamEventBase & { type: 'turn.started'; turn: CodexTurn })
   | (StreamEventBase & { type: 'turn.completed'; turn: CodexTurn })
   | RequestEvent

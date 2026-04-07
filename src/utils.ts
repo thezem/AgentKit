@@ -1,3 +1,6 @@
+import { InputValidationError } from './errors.ts'
+import type { UserInput } from './types.ts'
+
 export class Deferred<T> {
   promise: Promise<T>
   resolve!: (value: T | PromiseLike<T>) => void
@@ -88,4 +91,71 @@ export function assertObject(value: unknown, context: string): Record<string, un
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export function validateUserInput(input: UserInput): void {
+  if (typeof input === 'string') {
+    if (input.trim().length === 0) {
+      throw new InputValidationError('Text input requires a non-empty text value', 'input')
+    }
+    return
+  }
+
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new InputValidationError('User input array must be non-empty', 'items[0]')
+  }
+
+  for (let index = 0; index < input.length; index += 1) {
+    const field = `items[${index}]`
+    const item = input[index]
+    const unknownItem = item as { type?: unknown }
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new InputValidationError('User input item must be an object', field)
+    }
+
+    switch (item.type) {
+      case 'text':
+        if (typeof item.text !== 'string' || item.text.trim().length === 0) {
+          throw new InputValidationError('Text input requires a non-empty text value', field)
+        }
+        break
+      case 'image':
+        validateUrl(item.url, `${field}.url`)
+        break
+      case 'localImage':
+        validateLocalPath(item.path, `${field}.path`)
+        break
+      case 'skill':
+      case 'mention':
+        if (typeof item.name !== 'string' || item.name.trim().length === 0) {
+          throw new InputValidationError(`${item.type} input requires a non-empty name`, `${field}.name`)
+        }
+        if (typeof item.path !== 'string' || item.path.trim().length === 0) {
+          throw new InputValidationError(`${item.type} input requires a non-empty path`, `${field}.path`)
+        }
+        break
+      default:
+        throw new InputValidationError(`Unsupported user input item type: ${String(unknownItem.type)}`, field)
+    }
+  }
+}
+
+function validateUrl(value: unknown, field: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new InputValidationError('Image input requires a non-empty url', field)
+  }
+  try {
+    new URL(value)
+  } catch {
+    throw new InputValidationError(`Image url is invalid: ${value}`, field)
+  }
+}
+
+function validateLocalPath(value: unknown, field: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new InputValidationError('Local image input requires a non-empty path', field)
+  }
+  if (value.includes('\u0000')) {
+    throw new InputValidationError('Local image path must not contain null bytes', field)
+  }
 }

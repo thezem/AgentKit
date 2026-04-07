@@ -1,4 +1,20 @@
-export class TransportRequestTimeoutError extends Error {
+export abstract class AgentError extends Error {
+  abstract readonly code: string
+}
+
+export class InputValidationError extends AgentError {
+  readonly code = 'INPUT_VALIDATION_ERROR'
+  readonly field?: string
+
+  constructor(message: string, field?: string) {
+    super(message)
+    this.name = 'InputValidationError'
+    if (field !== undefined) this.field = field
+  }
+}
+
+export class TransportRequestTimeoutError extends AgentError {
+  readonly code = 'TRANSPORT_REQUEST_TIMEOUT'
   readonly method: string
   readonly requestId: number
   readonly timeoutMs: number
@@ -12,7 +28,8 @@ export class TransportRequestTimeoutError extends Error {
   }
 }
 
-export class ConcurrentTurnError extends Error {
+export class ConcurrentTurnError extends AgentError {
+  readonly code = 'CONCURRENT_TURN'
   readonly threadId: string
 
   constructor(threadId: string) {
@@ -22,7 +39,8 @@ export class ConcurrentTurnError extends Error {
   }
 }
 
-export class QueueOverflowError extends Error {
+export class QueueOverflowError extends AgentError {
+  readonly code = 'QUEUE_OVERFLOW'
   readonly threadId: string
   readonly turnId: string
   readonly maxQueueSize: number
@@ -36,7 +54,8 @@ export class QueueOverflowError extends Error {
   }
 }
 
-export class ProviderProbeTimeoutError extends Error {
+export class ProviderProbeTimeoutError extends AgentError {
+  readonly code = 'PROVIDER_PROBE_TIMEOUT'
   readonly provider: 'codex' | 'claude'
   readonly timeoutMs: number
 
