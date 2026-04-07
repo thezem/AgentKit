@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '../agent-types.ts'
+import type { AgentProviderId, ProviderInventoryOptions } from '../agent-types.ts'
 import { claudeProvider } from './claude-adapter.ts'
 import { codexProvider } from './codex-adapter.ts'
 import type { InternalAgentProvider, ProviderAvailabilityOptions, ProviderRegistry } from './provider-types.ts'
@@ -16,6 +16,10 @@ export const providerRegistry: ProviderRegistry = {
 
   getAll(): InternalAgentProvider[] {
     return [...providers]
+  },
+
+  async getProviderInventory(options?: ProviderInventoryOptions) {
+    return Promise.all(providers.map((provider) => provider.getInventory(options)))
   },
 
   async getAvailableProviders(options?: ProviderAvailabilityOptions) {

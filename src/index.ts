@@ -1,12 +1,18 @@
 import { CodexClient } from './codex-client.ts'
-import { createAgent, getAvailableProviders, getProviderAvailability } from './agent-client.ts'
+import {
+  createAgent,
+  getAvailableProviders,
+  getProviderAvailability,
+  getProviderInventory,
+  getProviderInventoryEntry,
+} from './agent-client.ts'
 import type { CreateCodexOptions } from './types.ts'
 
 export { CodexAuth } from './auth.ts'
 export { CodexClient } from './codex-client.ts'
 export { CodexSession } from './session.ts'
 export { CodexThread } from './thread.ts'
-export { createAgent, getAvailableProviders, getProviderAvailability }
+export { createAgent, getAvailableProviders, getProviderAvailability, getProviderInventory, getProviderInventoryEntry }
 export type {
   AccountState,
   ApprovalPolicy,
@@ -45,17 +51,23 @@ export type {
   AgentClient,
   AgentEvent,
   AgentHandlers,
+  AgentOpenSessionOptions,
+  AgentProviderInventory,
   AgentProviderAvailability,
   AgentProviderId,
+  AgentResumeSessionOptions,
   AgentRunOptions,
   AgentRunResult,
   AgentSession,
+  AgentSessionHandle,
   AgentSessionOptions,
+  AgentSessionSummary,
   AgentToolApprovalRequest,
   AgentUserInputRequest,
   ClaudeProviderHandle,
   CreateAgentOptions,
   CreateClaudeOptions,
+  ProviderInventoryOptions,
 } from './agent-types.ts'
 
 export async function createCodex(options: CreateCodexOptions = {}): Promise<CodexClient> {

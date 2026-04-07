@@ -1,14 +1,19 @@
 import type {
   AgentCapabilities,
   AgentClient,
+  AgentOpenSessionOptions,
+  AgentProviderInventory,
+  AgentResumeSessionOptions,
   AgentSession,
+  AgentSessionHandle,
   AgentSessionOptions,
   ClaudeProviderHandle,
   CreateAgentOptions,
+  ProviderInventoryOptions,
 } from '../agent-types.ts'
 import { mergeAgentSessionOptions } from '../agent-session.ts'
+import { claudeCapabilities, getClaudeAvailability, getClaudeInventory, isClaudeAvailable } from './claude-detection.ts'
 import { ClaudeSession } from './claude-session.ts'
-import { getClaudeAvailability, isClaudeAvailable } from './claude-detection.ts'
 import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provider-types.ts'
 
 type ClaudeAgentClientOptions = Extract<CreateAgentOptions, { provider: 'claude' }>
@@ -32,7 +37,12 @@ class ClaudeClientHandle implements ClaudeProviderHandle {
 
   getSessionInfo(): { sessionId: string | null; name: string } | null {
     const latest = this.client.getLastSession()
-    return latest ? latest.getSessionInfo() : null
+    if (!latest) return null
+    const info = latest.getSessionInfo()
+    return {
+      sessionId: info.sessionId,
+      name: info.name ?? latest.name,
+    }
   }
 }
 
@@ -43,6 +53,7 @@ class ClaudeAgentClient implements AgentClient {
   private readonly sessions = new Map<string, ClaudeSession>()
   private readonly handle = new ClaudeClientHandle(this)
   private lastSession: ClaudeSession | null = null
+  private unnamedCounter = 0
 
   constructor(createOptions?: ClaudeAgentClientOptions['claude'], defaults?: AgentSessionOptions) {
     this.createOptions = createOptions
@@ -60,6 +71,40 @@ class ClaudeAgentClient implements AgentClient {
       }
     })
     this.sessions.set(name, session)
+    this.lastSession = session
+    return session
+  }
+
+  async openSession(options?: AgentOpenSessionOptions): Promise<AgentSession> {
+    const name = options?.name ?? this.newSessionName('claude-open')
+    const merged = mergeAgentSessionOptions(this.defaults, options)
+    const session = new ClaudeSession(name, this.createOptions, merged)
+    this.lastSession = session
+    return session
+  }
+
+  async resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession> {
+    if (handle.provider !== 'claude') {
+      throw new Error(`Cannot resume provider=${handle.provider} with claude client`)
+    }
+
+    const resume = handle.resumeKey ?? handle.sessionId ?? undefined
+    if (!resume) {
+      throw new Error('Claude resume handle requires resumeKey or sessionId')
+    }
+
+    const name = options?.name ?? handle.name ?? this.newSessionName('claude-resume')
+    const merged = mergeAgentSessionOptions(this.defaults, options)
+    const session = new ClaudeSession(
+      name,
+      {
+        ...(this.createOptions ?? {}),
+        resume,
+        ...(handle.resumeAt ? { resumeSessionAt: handle.resumeAt } : {}),
+      },
+      merged,
+    )
+
     this.lastSession = session
     return session
   }
@@ -85,19 +130,7 @@ class ClaudeAgentClient implements AgentClient {
   }
 
   async getCapabilities(): Promise<AgentCapabilities> {
-    return {
-      provider: 'claude',
-      supportsResume: true,
-      supportsInterrupt: true,
-      supportsModelSwitch: true,
-      supportsPermissionModeSwitch: true,
-      supportsPartialMessages: true,
-      supportsToolApproval: true,
-      supportsUserInputRequests: true,
-      raw: {
-        eventModel: 'claude-agent-sdk',
-      },
-    }
+    return claudeCapabilities()
   }
 
   async close(): Promise<void> {
@@ -117,6 +150,11 @@ class ClaudeAgentClient implements AgentClient {
   getLastSession(): ClaudeSession | null {
     return this.lastSession
   }
+
+  private newSessionName(prefix: string): string {
+    this.unnamedCounter += 1
+    return `${prefix}-${this.unnamedCounter}`
+  }
 }
 
 export async function createClaudeAgentClient(options: ClaudeAgentClientOptions): Promise<AgentClient> {
@@ -131,7 +169,10 @@ export async function createClaudeAgentClient(options: ClaudeAgentClientOptions)
 
 export const claudeProvider: InternalAgentProvider = {
   id: 'claude',
-  async isAvailable(options?: ProviderAvailabilityOptions): Promise<boolean> {
+  async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+    return getClaudeInventory(options)
+  },
+  async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
     return isClaudeAvailable(options)
   },
   async getAvailability(options?: ProviderAvailabilityOptions) {

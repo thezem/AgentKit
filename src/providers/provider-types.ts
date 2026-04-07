@@ -1,9 +1,11 @@
 import type {
   AgentAccountState,
   AgentClient,
+  AgentProviderInventory,
   AgentProviderId,
   AgentProviderAvailability,
   CreateAgentOptions,
+  ProviderInventoryOptions,
 } from '../agent-types.ts'
 
 export type ProviderAvailabilityOptions = {
@@ -16,7 +18,8 @@ export type ProviderAvailabilityOptions = {
 
 export interface InternalAgentProvider {
   id: AgentProviderId
-  isAvailable(options?: ProviderAvailabilityOptions): Promise<boolean>
+  getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory>
+  isAvailable(options?: ProviderInventoryOptions): Promise<boolean>
   getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState>
   createClient(options: CreateAgentOptions): Promise<AgentClient>
 }
@@ -24,5 +27,6 @@ export interface InternalAgentProvider {
 export type ProviderRegistry = {
   get(provider: AgentProviderId): InternalAgentProvider
   getAll(): InternalAgentProvider[]
+  getProviderInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory[]>
   getAvailableProviders(options?: ProviderAvailabilityOptions): Promise<AgentProviderAvailability[]>
 }

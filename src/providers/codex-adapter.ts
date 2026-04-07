@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { CodexClient } from '../codex-client.ts'
+import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
 import type {
   AgentAccountState,
@@ -7,11 +9,17 @@ import type {
   AgentClient,
   AgentEvent,
   AgentInput,
+  AgentOpenSessionOptions,
+  AgentProviderInventory,
+  AgentResumeSessionOptions,
   AgentRunOptions,
   AgentRunResult,
   AgentSession,
+  AgentSessionHandle,
   AgentSessionOptions,
+  AgentSessionSummary,
   CreateAgentOptions,
+  ProviderInventoryOptions,
 } from '../agent-types.ts'
 import type {
   CodexStreamEvent,
@@ -35,14 +43,23 @@ import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provi
 
 type CodexAgentClientOptions = Extract<CreateAgentOptions, { provider: 'codex' }>
 
+type CodexSessionInit = {
+  codexSessionName?: string
+  thread?: CodexThread
+  threadId?: string
+}
+
 class CodexAgentSession implements AgentSession {
   readonly provider = 'codex' as const
   readonly name: string
 
   private readonly options?: AgentSessionOptions
   private readonly codexClient: CodexClient
-  private readonly codexSession
   private readonly onClosed: (name: string, session: CodexAgentSession) => void
+  private readonly codexSessionName?: string
+
+  private threadId: string | null = null
+  private threadRef: CodexThread | null = null
   private closed = false
 
   constructor(
@@ -50,34 +67,81 @@ class CodexAgentSession implements AgentSession {
     name: string,
     options: AgentSessionOptions | undefined,
     onClosed: (name: string, session: CodexAgentSession) => void,
+    init?: CodexSessionInit,
   ) {
     this.codexClient = codexClient
     this.name = name
     this.options = options
     this.onClosed = onClosed
-    this.codexSession = this.codexClient.session(this.name)
+    this.codexSessionName = init?.codexSessionName
+    this.threadRef = init?.thread ?? null
+    this.threadId = init?.thread?.id ?? init?.threadId ?? null
   }
 
   get id(): string | null {
-    return this.codexSession.id
+    return this.threadId
+  }
+
+  getHandle(): AgentSessionHandle | null {
+    if (!this.threadId) return null
+    return codexHandle(this.threadId, this.name)
+  }
+
+  getSessionInfo(): AgentSessionSummary {
+    return {
+      provider: 'codex',
+      name: this.name,
+      sessionId: this.threadId,
+      handle: codexHandle(this.threadId, this.name),
+      status: this.closed ? 'closed' : 'idle',
+      ...(this.options?.model ? { model: this.options.model } : {}),
+      ...(this.options?.cwd ? { cwd: this.options.cwd } : {}),
+      raw: {
+        codexSessionName: this.codexSessionName,
+      },
+    }
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
     this.assertOpen()
     const merged = mergeAgentRunOptions(this.options, options)
-    const result = await this.codexSession.run(asCodexInput(input), toCodexRunOptions(merged))
-    return codexRunResultToAgent(result)
+
+    if (this.codexSessionName) {
+      const session = this.codexClient.session(this.codexSessionName)
+      const result = await session.run(asCodexInput(input), toCodexRunOptions(merged))
+      this.threadId = session.id
+      return codexRunResultToAgent(result, this.name)
+    }
+
+    const thread = await this.ensureThread()
+    const result = await thread.run(asCodexInput(input), toCodexRunOptions(merged))
+    this.threadId = thread.id
+    return codexRunResultToAgent(result, this.name)
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
     this.assertOpen()
     const merged = mergeAgentRunOptions(this.options, options)
-    const stream = await this.codexSession.stream(asCodexInput(input), toCodexRunOptions(merged))
 
+    if (this.codexSessionName) {
+      const session = this.codexClient.session(this.codexSessionName)
+      const stream = await session.stream(asCodexInput(input), toCodexRunOptions(merged))
+      this.threadId = session.id
+      return {
+        [Symbol.asyncIterator]: async function* () {
+          for await (const event of stream) {
+            yield codexStreamEventToAgent(event, session.id)
+          }
+        },
+      }
+    }
+
+    const thread = await this.ensureThread()
+    const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
     return {
       [Symbol.asyncIterator]: async function* () {
         for await (const event of stream) {
-          yield codexStreamEventToAgent(event)
+          yield codexStreamEventToAgent(event, thread.id)
         }
       },
     }
@@ -85,18 +149,41 @@ class CodexAgentSession implements AgentSession {
 
   async interrupt(): Promise<void> {
     this.assertOpen()
-    await this.codexSession.interrupt()
+    if (this.codexSessionName) {
+      await this.codexClient.session(this.codexSessionName).interrupt()
+      return
+    }
+
+    const thread = this.threadRef
+    if (!thread) {
+      throw new Error(`Session "${this.name}" has no active Codex turn to interrupt`)
+    }
+    await thread.interrupt()
   }
 
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    this.codexClient.clearSession(this.name)
+    if (this.codexSessionName) {
+      this.codexClient.clearSession(this.codexSessionName)
+    }
     this.onClosed(this.name, this)
   }
 
   isClosed(): boolean {
     return this.closed
+  }
+
+  private async ensureThread(): Promise<CodexThread> {
+    if (this.threadRef) return this.threadRef
+
+    const thread = this.threadId
+      ? await this.codexClient.threads.resume(this.threadId, toCodexThreadOptions(this.options))
+      : await this.codexClient.threads.create(toCodexThreadOptions(this.options))
+
+    this.threadRef = thread
+    this.threadId = thread.id
+    return thread
   }
 
   private assertOpen(): void {
@@ -111,6 +198,7 @@ class CodexAgentClient implements AgentClient {
   private readonly codexClient: CodexClient
   private readonly defaults?: AgentSessionOptions
   private readonly sessions = new Map<string, CodexAgentSession>()
+  private unnamedCounter = 0
 
   constructor(codexClient: CodexClient, defaults?: AgentSessionOptions) {
     this.codexClient = codexClient
@@ -120,14 +208,51 @@ class CodexAgentClient implements AgentClient {
   session(name: string, options?: AgentSessionOptions): AgentSession {
     const existing = this.sessions.get(name)
     if (existing && !existing.isClosed()) return existing
+
     const merged = mergeAgentSessionOptions(this.defaults, options)
-    const session = new CodexAgentSession(this.codexClient, name, merged, (sessionName, current) => {
-      if (this.sessions.get(sessionName) === current) {
-        this.sessions.delete(sessionName)
-      }
-    })
+    const session = new CodexAgentSession(
+      this.codexClient,
+      name,
+      merged,
+      (sessionName, current) => {
+        if (this.sessions.get(sessionName) === current) {
+          this.sessions.delete(sessionName)
+        }
+      },
+      { codexSessionName: name },
+    )
+
     this.sessions.set(name, session)
     return session
+  }
+
+  async openSession(options?: AgentOpenSessionOptions): Promise<AgentSession> {
+    const name = options?.name ?? this.newSessionName('codex-open')
+    const merged = mergeAgentSessionOptions(this.defaults, options)
+    const thread = await this.codexClient.threads.create(toCodexThreadOptions(merged))
+
+    const session = new CodexAgentSession(this.codexClient, name, merged, () => {}, { thread })
+    return session
+  }
+
+  async resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession> {
+    if (handle.provider !== 'codex') {
+      throw new Error(`Cannot resume provider=${handle.provider} with codex client`)
+    }
+
+    const resumeKey = handle.resumeKey ?? handle.sessionId
+    if (!resumeKey) {
+      throw new Error('Codex resume handle requires resumeKey or sessionId')
+    }
+
+    const name = options?.name ?? handle.name ?? this.newSessionName('codex-resume')
+    const merged = mergeAgentSessionOptions(this.defaults, options)
+    const thread = await this.codexClient.threads.resume(resumeKey, toCodexThreadOptions(merged))
+
+    return new CodexAgentSession(this.codexClient, name, merged, () => {}, {
+      thread,
+      threadId: resumeKey,
+    })
   }
 
   clearSession(name: string): void {
@@ -141,23 +266,12 @@ class CodexAgentClient implements AgentClient {
   }
 
   async getAccountState(): Promise<AgentAccountState> {
-    return getCodexAvailability({ codexPath: this.codexClient.options.codexPath })
+    const inventory = await getCodexInventory({ codexPath: this.codexClient.options.codexPath, probeMode: 'deep' })
+    return inventoryToAvailability(inventory)
   }
 
   async getCapabilities(): Promise<AgentCapabilities> {
-    return {
-      provider: 'codex',
-      supportsResume: true,
-      supportsInterrupt: true,
-      supportsModelSwitch: true,
-      supportsPermissionModeSwitch: false,
-      supportsPartialMessages: true,
-      supportsToolApproval: true,
-      supportsUserInputRequests: true,
-      raw: {
-        eventModel: 'codex-app-server',
-      },
-    }
+    return codexCapabilities()
   }
 
   async close(): Promise<void> {
@@ -171,6 +285,11 @@ class CodexAgentClient implements AgentClient {
   asClaude() {
     return null
   }
+
+  private newSessionName(prefix: string): string {
+    this.unnamedCounter += 1
+    return `${prefix}-${this.unnamedCounter}`
+  }
 }
 
 export async function createCodexAgentClient(options: CodexAgentClientOptions): Promise<AgentClient> {
@@ -179,33 +298,90 @@ export async function createCodexAgentClient(options: CodexAgentClientOptions): 
   return new CodexAgentClient(client, options.defaults)
 }
 
-export async function getCodexAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
-  const codexPath = options?.codexPath
-  const binaryAvailable = isCodexBinaryAvailable(codexPath)
-  if (!binaryAvailable) {
+export async function getCodexInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+  const probeMode = options?.probeMode ?? 'deep'
+  const detection = detectCodexBinary(options?.codexPath)
+
+  if (!detection.installed) {
     return {
       provider: 'codex',
-      available: false,
+      installed: false,
+      runnable: false,
       authenticated: false,
+      degraded: false,
+      status: 'missing',
+      ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
+      ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
       account: null,
-      raw: { reason: `Codex binary not found: ${codexPath ?? defaultCodexCommand()}` },
+      diagnostics: {
+        probeMode,
+        ...(detection.failureReason ? { failureReason: detection.failureReason } : {}),
+      },
+      raw: detection.raw,
+      capabilitySupport: codexCapabilities(),
+    }
+  }
+
+  if (probeMode === 'cheap') {
+    return {
+      provider: 'codex',
+      installed: true,
+      runnable: detection.runnable,
+      authenticated: false,
+      degraded: !detection.runnable,
+      status: deriveInventoryStatus({
+        installed: true,
+        runnable: detection.runnable,
+        authenticated: false,
+        degraded: !detection.runnable,
+      }),
+      ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
+      ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
+      ...(detection.version ? { version: detection.version } : {}),
+      account: null,
+      diagnostics: {
+        probeMode,
+        ...(detection.failureReason ? { failureReason: detection.failureReason } : {}),
+      },
+      raw: detection.raw,
+      capabilitySupport: codexCapabilities(),
     }
   }
 
   try {
     const client = await CodexClient.create({
-      codexPath,
+      codexPath: options?.codexPath,
       auth: { autoLogin: false },
       env: options?.env,
     })
+
     try {
       const state = await client.auth.getAccount(false)
+      const authenticated = state.account !== null
       return {
         provider: 'codex',
-        available: true,
-        authenticated: state.account !== null,
+        installed: true,
+        runnable: true,
+        authenticated,
+        degraded: false,
+        status: deriveInventoryStatus({
+          installed: true,
+          runnable: true,
+          authenticated,
+          degraded: false,
+        }),
+        ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
+        ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
+        ...(detection.version ? { version: detection.version } : {}),
         account: state.account,
-        raw: state,
+        diagnostics: {
+          probeMode,
+        },
+        raw: {
+          detection: detection.raw,
+          accountState: state,
+        },
+        capabilitySupport: codexCapabilities(),
       }
     } finally {
       await client.close()
@@ -213,20 +389,46 @@ export async function getCodexAvailability(options?: ProviderAvailabilityOptions
   } catch (error) {
     return {
       provider: 'codex',
-      available: true,
+      installed: true,
+      runnable: false,
       authenticated: false,
+      degraded: true,
+      status: 'degraded',
+      ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
+      ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
+      ...(detection.version ? { version: detection.version } : {}),
       account: null,
+      diagnostics: {
+        probeMode,
+        failureReason: errorToString(error),
+      },
       raw: {
+        detection: detection.raw,
         error: errorToString(error),
       },
+      capabilitySupport: codexCapabilities(),
     }
   }
 }
 
+export async function getCodexAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
+  const inventory = await getCodexInventory({
+    codexPath: options?.codexPath,
+    cwd: options?.cwd,
+    env: options?.env,
+    probeMode: options?.probeRuntime === false ? 'cheap' : 'deep',
+  })
+  return inventoryToAvailability(inventory)
+}
+
 export const codexProvider: InternalAgentProvider = {
   id: 'codex',
-  async isAvailable(options?: ProviderAvailabilityOptions): Promise<boolean> {
-    return isCodexBinaryAvailable(options?.codexPath)
+  async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+    return getCodexInventory(options)
+  },
+  async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
+    const inventory = await getCodexInventory({ ...options, probeMode: 'cheap' })
+    return inventory.runnable
   },
   async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
     return getCodexAvailability(options)
@@ -369,7 +571,7 @@ function asCodexInput(input: AgentInput): UserInput {
   return input
 }
 
-function codexRunResultToAgent(result: RunResult): AgentRunResult {
+function codexRunResultToAgent(result: RunResult, name?: string): AgentRunResult {
   return {
     provider: 'codex',
     sessionId: result.threadId,
@@ -378,10 +580,11 @@ function codexRunResultToAgent(result: RunResult): AgentRunResult {
     text: result.text,
     items: result.items,
     raw: result,
+    handle: codexHandle(result.threadId, name),
   }
 }
 
-function codexStreamEventToAgent(event: CodexStreamEvent): AgentEvent {
+function codexStreamEventToAgent(event: CodexStreamEvent, sessionIdHint?: string | null): AgentEvent {
   switch (event.type) {
     case 'message.delta':
       return { provider: 'codex', type: 'message.delta', text: event.text, raw: event }
@@ -399,6 +602,7 @@ function codexStreamEventToAgent(event: CodexStreamEvent): AgentEvent {
           text: codexTurnText(event.turn.items),
           items: event.turn.items,
           raw: event.turn,
+          handle: codexHandle(event.threadId),
         },
         raw: event,
       }
@@ -489,13 +693,145 @@ function defaultCodexCommand(): string {
   return process.platform === 'win32' ? 'codex.cmd' : 'codex'
 }
 
-function isCodexBinaryAvailable(codexPath?: string): boolean {
+function detectCodexBinary(codexPath?: string): {
+  installed: boolean
+  runnable: boolean
+  executablePath?: string
+  executableSource?: 'path' | 'configured'
+  version?: string
+  failureReason?: string
+  raw: unknown
+} {
   const command = codexPath ?? defaultCodexCommand()
+  const executableSource = codexPath ? 'configured' : 'path'
+
+  const resolvedPath = resolveCommandPath(command)
+  const versionResult = spawnSync(command, ['--version'], {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  })
+
+  const runnable = versionResult.status === 0
+  const installed = codexPath ? existsSync(codexPath) || runnable : resolvedPath !== null || runnable
+
+  const versionText = (versionResult.stdout ?? '').trim()
+  const version = versionText.length > 0 ? versionText.split(/\r?\n/)[0] : undefined
+
+  return {
+    installed,
+    runnable,
+    ...(resolvedPath ? { executablePath: resolvedPath } : codexPath ? { executablePath: codexPath } : {}),
+    executableSource,
+    ...(version ? { version } : {}),
+    ...(runnable
+      ? {}
+      : {
+          failureReason:
+            (versionResult.stderr ?? '').trim() ||
+            `Unable to execute ${command} --version (exit=${String(versionResult.status ?? 'unknown')})`,
+        }),
+    raw: {
+      command,
+      resolvedPath,
+      versionStatus: versionResult.status,
+      stdout: versionResult.stdout,
+      stderr: versionResult.stderr,
+    },
+  }
+}
+
+function resolveCommandPath(command: string): string | null {
   const result =
     process.platform === 'win32'
-      ? spawnSync(command, ['--version'], { stdio: 'ignore', shell: true })
-      : spawnSync('which', [command], { stdio: 'ignore' })
-  return result.status === 0
+      ? spawnSync('where', [command], { encoding: 'utf8', shell: true })
+      : spawnSync('which', [command], { encoding: 'utf8' })
+
+  if (result.status !== 0) {
+    return null
+  }
+
+  const line = (result.stdout ?? '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.length > 0)
+
+  return line ?? null
+}
+
+function codexHandle(sessionId: string | null, name?: string): AgentSessionHandle {
+  return {
+    provider: 'codex',
+    sessionId,
+    ...(name ? { name } : {}),
+    ...(sessionId ? { resumeKey: sessionId } : {}),
+  }
+}
+
+function codexCapabilities(): AgentCapabilities {
+  return {
+    provider: 'codex',
+    sessionLifecycle: {
+      open: true,
+      resume: true,
+      list: false,
+      clearLocalCache: true,
+      deleteRemote: false,
+    },
+    controls: {
+      interrupt: true,
+      modelSwitch: 'turn',
+      permissionModeSwitch: 'none',
+    },
+    interactions: {
+      partialMessages: true,
+      toolApproval: true,
+      userInputRequests: true,
+      dynamicToolCalls: true,
+    },
+    discovery: {
+      inventory: true,
+      modelListing: false,
+      skillsListing: false,
+    },
+    semantics: {
+      sessionIdentity: 'thread-id',
+      resumeHandle: 'structured',
+      longLivedRuntime: false,
+    },
+    supportsResume: true,
+    supportsInterrupt: true,
+    supportsModelSwitch: true,
+    supportsPermissionModeSwitch: false,
+    supportsPartialMessages: true,
+    supportsToolApproval: true,
+    supportsUserInputRequests: true,
+    raw: {
+      eventModel: 'codex-app-server',
+    },
+  }
+}
+
+function deriveInventoryStatus(flags: {
+  installed: boolean
+  runnable: boolean
+  authenticated: boolean
+  degraded: boolean
+}): AgentProviderInventory['status'] {
+  if (!flags.installed) return 'missing'
+  if (flags.degraded) return 'degraded'
+  if (flags.authenticated) return 'authenticated'
+  if (flags.runnable) return 'runnable'
+  return 'installed'
+}
+
+function inventoryToAvailability(inventory: AgentProviderInventory): AgentAccountState {
+  return {
+    provider: inventory.provider,
+    available: inventory.runnable,
+    authenticated: inventory.authenticated,
+    account: inventory.account,
+    raw: inventory.raw,
+  }
 }
 
 function errorToString(error: unknown): string {
