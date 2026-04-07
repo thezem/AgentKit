@@ -1,3 +1,4 @@
+// Codex-specific public types are intentionally kept in this file for compatibility.
 export type AuthMode = 'chatgpt' | 'apiKey' | 'chatgptAuthTokens'
 
 export type LoginStrategy = 'browser' | 'device-code'

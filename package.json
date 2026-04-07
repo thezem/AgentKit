@@ -2,7 +2,7 @@
   "name": "@ouim/codexkit",
   "version": "0.1.0",
   "type": "module",
-  "description": "High-level Node SDK for building on top of codex app-server.",
+  "description": "High-level Node SDK for building on top of local coding agents (Codex and Claude).",
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
@@ -10,13 +10,22 @@
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "example": "node --experimental-strip-types examples/basic.ts",
-    "smoke": "node --experimental-strip-types examples/basic.ts"
+    "smoke": "node --experimental-strip-types examples/basic.ts",
+    "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
+    "example:agent:claude": "node --experimental-strip-types examples/agent-claude.ts",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=22.6"
   },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.92"
+  },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.92"
   }
 }
