@@ -72,7 +72,18 @@ test('validateUserInput rejects invalid URL with field info', () => {
     () => validateUserInput([{ type: 'image', url: 'not-a-url' }]),
     (error) => {
       assert.ok(error instanceof InputValidationError)
-      assert.equal(error.field, 'items[0]')
+      assert.equal(error.field, 'items[0].url')
+      return true
+    },
+  )
+})
+
+test('validateUserInput rejects empty plain string input', () => {
+  assert.throws(
+    () => validateUserInput('   '),
+    (error) => {
+      assert.ok(error instanceof InputValidationError)
+      assert.equal(error.field, 'input')
       return true
     },
   )

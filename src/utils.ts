@@ -94,7 +94,12 @@ export function sleep(ms: number): Promise<void> {
 }
 
 export function validateUserInput(input: UserInput): void {
-  if (typeof input === 'string') return
+  if (typeof input === 'string') {
+    if (input.trim().length === 0) {
+      throw new InputValidationError('Text input requires a non-empty text value', 'input')
+    }
+    return
+  }
 
   if (!Array.isArray(input) || input.length === 0) {
     throw new InputValidationError('User input array must be non-empty', 'items[0]')
@@ -115,18 +120,18 @@ export function validateUserInput(input: UserInput): void {
         }
         break
       case 'image':
-        validateUrl(item.url, field)
+        validateUrl(item.url, `${field}.url`)
         break
       case 'localImage':
-        validateLocalPath(item.path, field)
+        validateLocalPath(item.path, `${field}.path`)
         break
       case 'skill':
       case 'mention':
         if (typeof item.name !== 'string' || item.name.trim().length === 0) {
-          throw new InputValidationError(`${item.type} input requires a non-empty name`, field)
+          throw new InputValidationError(`${item.type} input requires a non-empty name`, `${field}.name`)
         }
         if (typeof item.path !== 'string' || item.path.trim().length === 0) {
-          throw new InputValidationError(`${item.type} input requires a non-empty path`, field)
+          throw new InputValidationError(`${item.type} input requires a non-empty path`, `${field}.path`)
         }
         break
       default:
