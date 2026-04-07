@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { CodexAuth } from './auth.ts'
 import { CodexSession, CodexThread } from './thread.ts'
+import { ConcurrentTurnError, QueueOverflowError } from './errors.ts'
 import { AppServerTransport } from './transport.ts'
 import type {
   CodexAccount,
@@ -30,6 +31,7 @@ import type {
 import { AsyncQueue, Deferred, assertObject, asArray } from './utils.ts'
 
 type TurnController = {
+  thread: CodexThread
   threadId: string
   turnId: string | null
   handlers: RequestHandlers
@@ -39,6 +41,10 @@ type TurnController = {
   messageBuffer: Map<string, string>
   completed: boolean
 }
+
+type ClientLogger = NonNullable<NonNullable<CreateCodexOptions['diagnostics']>['logger']>
+
+type TurnState = 'starting' | 'active'
 
 class CodexThreadsApi {
   private readonly client: CodexClient
@@ -87,8 +93,13 @@ export class CodexClient {
   private readonly events = new EventEmitter()
   private readonly sessions = new Map<string, CodexSession>()
   private readonly pendingLogins = new Map<string, Deferred<CodexAccount>>()
-  private readonly pendingTurnStarts = new Map<string, TurnController[]>()
+  private readonly startingTurns = new Map<string, TurnController>()
   private readonly activeTurns = new Map<string, TurnController>()
+  private readonly threadTurnState = new Map<string, TurnState>()
+  private droppedNotificationCount = 0
+  private orphanCompletionCount = 0
+  private unmatchedNotificationCount = 0
+  private unmatchedServerRequestCount = 0
 
   private constructor(transport: AppServerTransport, options: CreateCodexOptions) {
     this.transport = transport
@@ -103,21 +114,43 @@ export class CodexClient {
 
   private attachTransportListeners(): void {
     this.transport.onNotification((message) => {
-      void this.handleNotification(message)
+      void this.handleNotification(message).catch((error) => {
+        this.droppedNotificationCount += 1
+        this.log('error', 'codex.notification.malformed', 'Failed to process notification payload', {
+          method: message.method,
+          droppedNotificationCount: this.droppedNotificationCount,
+          error: errorToString(error),
+        })
+      })
     })
 
     this.transport.onServerRequest((message) => {
-      void this.handleServerRequest(message)
+      void this.handleServerRequest(message).catch((error) => {
+        this.log('error', 'codex.server_request.handler_failed', 'Failed handling server request', {
+          method: message.method,
+          requestId: message.id,
+          error: errorToString(error),
+        })
+        this.transport.respondError(message.id, errorToString(error))
+      })
     })
 
     this.transport.onClosed((error) => {
       for (const login of this.pendingLogins.values()) {
         login.reject(error)
       }
-      for (const turn of this.activeTurns.values()) {
-        turn.done.reject(error)
-        turn.events.end()
+      this.pendingLogins.clear()
+
+      for (const controller of this.startingTurns.values()) {
+        this.failTurn(controller, error, 'codex.turn.transport_closed')
       }
+      this.startingTurns.clear()
+
+      for (const controller of this.activeTurns.values()) {
+        this.failTurn(controller, error, 'codex.turn.transport_closed')
+      }
+      this.activeTurns.clear()
+      this.threadTurnState.clear()
     })
   }
 
@@ -126,6 +159,8 @@ export class CodexClient {
       codexPath: options.codexPath,
       clientInfo: options.clientInfo,
       env: options.env,
+      requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
+      logger: options.diagnostics?.logger,
     })
     const client = new CodexClient(transport, options)
     if (options.auth?.autoLogin) {
@@ -150,6 +185,10 @@ export class CodexClient {
     this.sessions.clear()
   }
 
+  getThreadTurnState(threadId: string): 'idle' | TurnState {
+    return this.threadTurnState.get(threadId) ?? 'idle'
+  }
+
   async close(): Promise<void> {
     this.transport.close()
   }
@@ -160,6 +199,8 @@ export class CodexClient {
       codexPath: this.options.codexPath,
       clientInfo: this.options.clientInfo,
       env: this.options.env,
+      requestTimeoutMs: this.options.requestTimeoutMs ?? 30_000,
+      logger: this.options.diagnostics?.logger,
     })
     this.attachTransportListeners()
   }
@@ -240,47 +281,64 @@ export class CodexClient {
   }
 
   private async startTurn(thread: CodexThread, input: UserInput, options?: RunOptions): Promise<TurnController> {
+    const existingState = this.threadTurnState.get(thread.id)
+    if (existingState) {
+      throw new ConcurrentTurnError(thread.id)
+    }
+
     const controller: TurnController = {
+      thread,
       threadId: thread.id,
       turnId: null,
       handlers: {
         ...(this.options.handlers ?? {}),
         ...(options?.handlers ?? {}),
       },
-      events: new AsyncQueue<CodexStreamEvent>(),
+      events: new AsyncQueue<CodexStreamEvent>({ maxSize: this.options.maxQueueSize }),
       done: new Deferred<RunResult>(),
       items: [],
       messageBuffer: new Map<string, string>(),
       completed: false,
     }
 
-    const pending = this.pendingTurnStarts.get(thread.id) ?? []
-    pending.push(controller)
-    this.pendingTurnStarts.set(thread.id, pending)
+    this.startingTurns.set(thread.id, controller)
+    this.threadTurnState.set(thread.id, 'starting')
 
     const merged = this.mergeOptions(options)
-    const response = await this.raw.request<{ turn: { id: string } }>('turn/start', {
-      threadId: thread.id,
-      input: this.toUserInput(input),
-      ...(merged.cwd ? { cwd: merged.cwd } : {}),
-      ...(merged.approvalPolicy ? { approvalPolicy: merged.approvalPolicy } : {}),
-      ...(merged.model ? { model: merged.model } : {}),
-      ...(merged.reasoningEffort ? { effort: merged.reasoningEffort } : {}),
-      ...(merged.reasoningSummary ? { summary: merged.reasoningSummary } : {}),
-      ...(merged.personality ? { personality: merged.personality } : {}),
-      ...(merged.outputSchema ? { outputSchema: merged.outputSchema } : {}),
-      ...(merged.sandboxMode ? { sandboxPolicy: toSandboxPolicy(merged.sandboxMode, merged.cwd ?? thread.data.cwd) } : {}),
-    })
 
-    this.bindTurnController(thread, controller, response.turn.id)
-    return controller
+    try {
+      const response = await this.raw.request<{ turn: { id: string } }>('turn/start', {
+        threadId: thread.id,
+        input: this.toUserInput(input),
+        ...(merged.cwd ? { cwd: merged.cwd } : {}),
+        ...(merged.approvalPolicy ? { approvalPolicy: merged.approvalPolicy } : {}),
+        ...(merged.model ? { model: merged.model } : {}),
+        ...(merged.reasoningEffort ? { effort: merged.reasoningEffort } : {}),
+        ...(merged.reasoningSummary ? { summary: merged.reasoningSummary } : {}),
+        ...(merged.personality ? { personality: merged.personality } : {}),
+        ...(merged.outputSchema ? { outputSchema: merged.outputSchema } : {}),
+        ...(merged.sandboxMode ? { sandboxPolicy: toSandboxPolicy(merged.sandboxMode, merged.cwd ?? thread.data.cwd) } : {}),
+      })
+
+      this.bindTurnController(controller, response.turn.id)
+      return controller
+    } catch (error) {
+      this.startingTurns.delete(thread.id)
+      this.threadTurnState.delete(thread.id)
+      thread.setActiveTurnId(null)
+      controller.events.fail(error)
+      controller.done.reject(error)
+      throw error
+    }
   }
 
-  private bindTurnController(thread: CodexThread, controller: TurnController, turnId: string): void {
+  private bindTurnController(controller: TurnController, turnId: string): void {
     if (controller.turnId) return
     controller.turnId = turnId
-    this.activeTurns.set(`${thread.id}:${turnId}`, controller)
-    thread.setActiveTurnId(turnId)
+    this.startingTurns.delete(controller.threadId)
+    this.activeTurns.set(`${controller.threadId}:${turnId}`, controller)
+    this.threadTurnState.set(controller.threadId, 'active')
+    controller.thread.setActiveTurnId(turnId)
   }
 
   private async handleNotification(message: JsonRpcNotification): Promise<void> {
@@ -313,22 +371,36 @@ export class CodexClient {
       const data = assertObject(message.params ?? {}, 'turn/started')
       const threadId = String(data.threadId)
       const turn = assertObject(data.turn, 'turn/started.turn')
-      const queue = this.pendingTurnStarts.get(threadId) ?? []
-      const controller = queue.shift()
-      if (queue.length === 0) {
-        this.pendingTurnStarts.delete(threadId)
-      } else {
-        this.pendingTurnStarts.set(threadId, queue)
+      const turnId = String(turn.id)
+
+      const active = this.activeTurns.get(`${threadId}:${turnId}`)
+      if (active) {
+        this.pushTurnEvent(active, {
+          type: 'turn.started',
+          threadId,
+          turnId,
+          turn: turn as unknown as RunResult['turn'],
+        })
+        return
       }
 
-      if (!controller) return
+      const starting = this.startingTurns.get(threadId)
+      if (!starting) {
+        this.unmatchedNotificationCount += 1
+        this.log('warn', 'codex.notification.unmatched', 'Received unmatched turn/started notification', {
+          method: message.method,
+          threadId,
+          turnId,
+          unmatchedNotificationCount: this.unmatchedNotificationCount,
+        })
+        return
+      }
 
-      controller.turnId = String(turn.id)
-      this.activeTurns.set(`${threadId}:${turn.id}`, controller)
-      controller.events.push({
+      this.bindTurnController(starting, turnId)
+      this.pushTurnEvent(starting, {
         type: 'turn.started',
         threadId,
-        turnId: String(turn.id),
+        turnId,
         turn: turn as unknown as RunResult['turn'],
       })
       return
@@ -340,7 +412,15 @@ export class CodexClient {
       const turn = assertObject(data.turn, 'turn/completed.turn') as unknown as RunResult['turn']
       const turnId = String(turn.id)
       const controller = this.activeTurns.get(`${threadId}:${turnId}`)
-      if (!controller) return
+      if (!controller) {
+        this.orphanCompletionCount += 1
+        this.log('warn', 'codex.notification.orphan_completion', 'Received turn/completed without active controller', {
+          threadId,
+          turnId,
+          orphanCompletionCount: this.orphanCompletionCount,
+        })
+        return
+      }
 
       const result: RunResult = {
         threadId,
@@ -351,7 +431,7 @@ export class CodexClient {
         turn,
       }
 
-      controller.events.push({
+      this.pushTurnEvent(controller, {
         type: 'turn.completed',
         threadId,
         turnId,
@@ -360,16 +440,34 @@ export class CodexClient {
       controller.completed = true
       controller.done.resolve(result)
       controller.events.end()
-      this.activeTurns.delete(`${threadId}:${turnId}`)
+      this.clearTurn(controller)
       return
     }
 
     const threadId = getString(message.params, 'threadId')
     const turnId = getString(message.params, 'turnId')
-    if (!threadId || !turnId) return
+    if (!threadId || !turnId) {
+      if (isTurnScopedNotification(message.method)) {
+        this.unmatchedNotificationCount += 1
+        this.log('warn', 'codex.notification.unmatched', 'Dropping unmatched turn-scoped notification', {
+          method: message.method,
+          unmatchedNotificationCount: this.unmatchedNotificationCount,
+        })
+      }
+      return
+    }
 
     const controller = this.activeTurns.get(`${threadId}:${turnId}`)
-    if (!controller) return
+    if (!controller) {
+      this.unmatchedNotificationCount += 1
+      this.log('warn', 'codex.notification.unmatched', 'Dropping notification for non-active turn', {
+        method: message.method,
+        threadId,
+        turnId,
+        unmatchedNotificationCount: this.unmatchedNotificationCount,
+      })
+      return
+    }
 
     switch (message.method) {
       case 'item/agentMessage/delta': {
@@ -377,7 +475,7 @@ export class CodexClient {
         const itemId = String(data.itemId)
         const delta = String(data.delta ?? '')
         controller.messageBuffer.set(itemId, (controller.messageBuffer.get(itemId) ?? '') + delta)
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: 'message.delta',
           threadId,
           turnId,
@@ -390,7 +488,7 @@ export class CodexClient {
       case 'item/reasoning/textDelta':
       case 'item/reasoning/summaryTextDelta': {
         const data = assertObject(message.params ?? {}, message.method)
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: 'reasoning.delta',
           threadId,
           turnId,
@@ -403,7 +501,7 @@ export class CodexClient {
 
       case 'item/plan/delta': {
         const data = assertObject(message.params ?? {}, 'item/plan/delta')
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: 'plan.delta',
           threadId,
           turnId,
@@ -415,7 +513,7 @@ export class CodexClient {
 
       case 'item/mcpToolCall/progress': {
         const data = assertObject(message.params ?? {}, 'item/mcpToolCall/progress')
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: 'mcp.progress',
           threadId,
           turnId,
@@ -435,7 +533,7 @@ export class CodexClient {
             controller.messageBuffer.set(item.id, item.text)
           }
         }
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: message.method === 'item/started' ? 'item.started' : 'item.completed',
           threadId,
           turnId,
@@ -445,7 +543,7 @@ export class CodexClient {
       }
 
       default:
-        controller.events.push({
+        this.pushTurnEvent(controller, {
           type: 'notification',
           method: message.method,
           params: message.params,
@@ -458,6 +556,15 @@ export class CodexClient {
     const threadId = getString(params, 'threadId') ?? ''
     const turnId = getString(params, 'turnId') ?? ''
     const controller = turnId ? this.activeTurns.get(`${threadId}:${turnId}`) : undefined
+    if (!controller) {
+      this.unmatchedServerRequestCount += 1
+      this.log('warn', 'codex.server_request.unmatched', 'Received server request without active turn match', {
+        method: message.method,
+        threadId,
+        turnId,
+        unmatchedServerRequestCount: this.unmatchedServerRequestCount,
+      })
+    }
 
     switch (message.method) {
       case 'item/commandExecution/requestApproval': {
@@ -471,7 +578,7 @@ export class CodexClient {
             this.transport.respond(message.id, { decision })
           },
         }
-        controller?.events.push({ type: 'approval.command', ...request })
+        this.pushOptionalTurnEvent(controller, { type: 'approval.command', ...request })
         const handler = controller?.handlers.onCommandApproval ?? this.options.handlers?.onCommandApproval
         await request.respond(handler ? await handler(request) : 'decline')
         return
@@ -488,7 +595,7 @@ export class CodexClient {
             this.transport.respond(message.id, { decision })
           },
         }
-        controller?.events.push({ type: 'approval.file', ...request })
+        this.pushOptionalTurnEvent(controller, { type: 'approval.file', ...request })
         const handler = controller?.handlers.onFileApproval ?? this.options.handlers?.onFileApproval
         await request.respond(handler ? await handler(request) : 'decline')
         return
@@ -507,7 +614,7 @@ export class CodexClient {
             this.transport.respond(message.id, { decision })
           },
         }
-        controller?.events.push({ type: 'approval.permissions', ...request })
+        this.pushOptionalTurnEvent(controller, { type: 'approval.permissions', ...request })
         const handler = controller?.handlers.onPermissionApproval ?? this.options.handlers?.onPermissionApproval
         await request.respond(handler ? await handler(request) : 'decline')
         return
@@ -543,7 +650,7 @@ export class CodexClient {
             this.transport.respond(message.id, { answers })
           },
         }
-        controller?.events.push({ type: 'tool.input', ...request })
+        this.pushOptionalTurnEvent(controller, { type: 'tool.input', ...request })
         const handler = controller?.handlers.onToolInput ?? this.options.handlers?.onToolInput
         if (!handler) {
           this.transport.respondError(message.id, 'No tool input handler configured')
@@ -565,7 +672,7 @@ export class CodexClient {
             this.transport.respond(message.id, result)
           },
         }
-        controller?.events.push({ type: 'tool.call', ...request })
+        this.pushOptionalTurnEvent(controller, { type: 'tool.call', ...request })
         const handler = controller?.handlers.onDynamicToolCall ?? this.options.handlers?.onDynamicToolCall
         if (!handler) {
           this.transport.respondError(message.id, 'No dynamic tool handler configured')
@@ -576,8 +683,51 @@ export class CodexClient {
       }
 
       default:
+        this.log('warn', 'codex.server_request.unmatched_method', 'Unsupported server request method', {
+          method: message.method,
+          requestId: message.id,
+        })
         this.transport.respondError(message.id, `Unsupported server request: ${message.method}`)
     }
+  }
+
+  private pushOptionalTurnEvent(controller: TurnController | undefined, event: CodexStreamEvent): void {
+    if (!controller) return
+    this.pushTurnEvent(controller, event)
+  }
+
+  private pushTurnEvent(controller: TurnController, event: CodexStreamEvent): void {
+    if (controller.completed) return
+    const accepted = controller.events.push(event)
+    if (accepted) return
+
+    const maxQueueSize = this.options.maxQueueSize ?? 0
+    const overflowError = new QueueOverflowError(controller.threadId, controller.turnId ?? 'starting', maxQueueSize)
+    this.failTurn(controller, overflowError, 'codex.turn.queue_overflow')
+  }
+
+  private failTurn(controller: TurnController, error: unknown, code: string): void {
+    if (!controller.completed) {
+      controller.completed = true
+      controller.done.reject(error)
+      controller.events.fail(error)
+    }
+
+    this.log('error', code, 'Turn failed', {
+      threadId: controller.threadId,
+      turnId: controller.turnId ?? 'starting',
+      error: errorToString(error),
+    })
+    this.clearTurn(controller)
+  }
+
+  private clearTurn(controller: TurnController): void {
+    this.startingTurns.delete(controller.threadId)
+    if (controller.turnId) {
+      this.activeTurns.delete(`${controller.threadId}:${controller.turnId}`)
+    }
+    this.threadTurnState.delete(controller.threadId)
+    controller.thread.setActiveTurnId(null)
   }
 
   private mergeOptions(options?: ThreadOptions): ThreadOptions {
@@ -585,6 +735,16 @@ export class CodexClient {
       ...(this.options.defaults ?? {}),
       ...(options ?? {}),
     }
+  }
+
+  private log(
+    level: 'debug' | 'info' | 'warn' | 'error',
+    code: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
+    const logger: ClientLogger | undefined = this.options.diagnostics?.logger
+    logger?.({ level, code, message, ...(data ? { data } : {}) })
   }
 }
 
@@ -608,6 +768,10 @@ function finalText(controller: TurnController): string {
   return text
 }
 
+function isTurnScopedNotification(method: string): boolean {
+  return method.startsWith('item/') || method.startsWith('turn/')
+}
+
 function toSandboxPolicy(mode: SandboxMode, cwd: string): Record<string, unknown> {
   if (mode === 'danger-full-access') {
     return { type: 'dangerFullAccess' }
@@ -629,4 +793,9 @@ function toSandboxPolicy(mode: SandboxMode, cwd: string): Record<string, unknown
     excludeTmpdirEnvVar: false,
     excludeSlashTmp: false,
   }
+}
+
+function errorToString(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
