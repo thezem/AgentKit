@@ -9,6 +9,23 @@
   - app-server ChatGPT browser login
   - CLI device auth via `codex login --device-auth`
 
+## Product Vision
+
+- This package is a host-side SDK for local AI agent CLIs installed on user machines.
+- Codex is the first provider, but the SDK is intended to support multiple providers and CLIs over time.
+- The goal is one stable API for builders to manage agents without dealing with provider-specific CLI quirks.
+- The core public surface should support:
+  - creating/opening sessions
+  - resuming sessions
+  - closing sessions
+  - streaming agent activity and turn events
+  - handling tool requests, approvals, and user input prompts
+  - switching models and passing provider-specific configuration
+- Keep `getAvailableProviders()` as the discovery API name.
+- Discovery should focus on globally installed provider binaries/runtime availability, not full system scanning.
+- For each available provider, prefer returning enough metadata to identify the executable/runtime location when possible, especially for CLI-based providers like Claude.
+- The SDK should expose provider-neutral primitives first, while still allowing provider-specific escape hatches where needed.
+
 ## Important Implementation Notes
 
 - This package was intentionally rebuilt on top of `codex app-server`, not `@openai/codex-sdk`.
