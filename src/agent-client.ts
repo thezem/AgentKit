@@ -10,11 +10,20 @@ import type {
   CreateAgentOptions,
   ProviderInventoryOptions,
 } from './agent-types.ts'
+import { InputValidationError } from './errors.ts'
 import { providerRegistry } from './providers/provider-registry.ts'
 import type { ProviderAvailabilityOptions } from './providers/provider-types.ts'
 
+/**
+ * Create a provider-backed shared Agent client.
+ * @throws {import('./errors.ts').InputValidationError} If `options.provider` is unknown.
+ */
 export async function createAgent(options: CreateAgentOptions): Promise<AgentClient> {
-  const provider = providerRegistry.get(options.provider)
+  const providerId = (options as { provider?: unknown }).provider
+  if (typeof providerId !== 'string' || providerId.trim().length === 0) {
+    throw new InputValidationError('Provider id must be a non-empty string', 'provider')
+  }
+  const provider = providerRegistry.get(providerId as AgentProviderId)
   return provider.createClient(options)
 }
 
@@ -25,6 +34,11 @@ export async function getAvailableProviders(
   return inventory.map(inventoryToAvailability)
 }
 
+/**
+ * Read availability for one provider.
+ * @throws {import('./errors.ts').InputValidationError} If `provider` is unknown.
+ * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
+ */
 export async function getProviderAvailability(
   provider: AgentProviderId,
   options?: ProviderAvailabilityOptions,
@@ -33,10 +47,19 @@ export async function getProviderAvailability(
   return inventoryToAvailability(inventory)
 }
 
+/**
+ * Read detailed inventory for all providers.
+ * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
+ */
 export async function getProviderInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory[]> {
   return providerRegistry.getProviderInventory(options)
 }
 
+/**
+ * Read detailed inventory for one provider.
+ * @throws {import('./errors.ts').InputValidationError} If `provider` is unknown.
+ * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
+ */
 export async function getProviderInventoryEntry(
   provider: AgentProviderId,
   options?: ProviderInventoryOptions,

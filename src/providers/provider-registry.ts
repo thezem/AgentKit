@@ -1,4 +1,5 @@
 import type { AgentModelListOptions, AgentProviderId, AgentSkillListOptions, ProviderInventoryOptions } from '../agent-types.ts'
+import { InputValidationError } from '../errors.ts'
 import { claudeProvider } from './claude-adapter.ts'
 import { codexProvider } from './codex-adapter.ts'
 import type { InternalAgentProvider, ProviderAvailabilityOptions, ProviderRegistry } from './provider-types.ts'
@@ -9,7 +10,7 @@ export const providerRegistry: ProviderRegistry = {
   get(provider: AgentProviderId): InternalAgentProvider {
     const match = providers.find((item) => item.id === provider)
     if (!match) {
-      throw new Error(`Unknown provider: ${provider}`)
+      throw new InputValidationError(`Unknown provider: ${provider}`, 'provider')
     }
     return match
   },

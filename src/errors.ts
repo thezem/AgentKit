@@ -1,7 +1,9 @@
+/** Base class for all public SDK errors. */
 export abstract class AgentError extends Error {
   abstract readonly code: string
 }
 
+/** Thrown when caller input fails runtime validation checks. */
 export class InputValidationError extends AgentError {
   readonly code = 'INPUT_VALIDATION_ERROR'
   readonly field?: string
@@ -13,6 +15,7 @@ export class InputValidationError extends AgentError {
   }
 }
 
+/** Thrown when a JSON-RPC request does not receive a response before timeout. */
 export class TransportRequestTimeoutError extends AgentError {
   readonly code = 'TRANSPORT_REQUEST_TIMEOUT'
   readonly method: string
@@ -28,6 +31,7 @@ export class TransportRequestTimeoutError extends AgentError {
   }
 }
 
+/** Thrown when a second turn is started on a thread with an active/starting turn. */
 export class ConcurrentTurnError extends AgentError {
   readonly code = 'CONCURRENT_TURN'
   readonly threadId: string
@@ -39,6 +43,7 @@ export class ConcurrentTurnError extends AgentError {
   }
 }
 
+/** Thrown when a turn event queue exceeds the configured max size. */
 export class QueueOverflowError extends AgentError {
   readonly code = 'QUEUE_OVERFLOW'
   readonly threadId: string
@@ -54,6 +59,7 @@ export class QueueOverflowError extends AgentError {
   }
 }
 
+/** Thrown when a provider runtime probe exceeds the configured timeout. */
 export class ProviderProbeTimeoutError extends AgentError {
   readonly code = 'PROVIDER_PROBE_TIMEOUT'
   readonly provider: 'codex' | 'claude'

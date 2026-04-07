@@ -134,7 +134,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Add optional `maxQueueSize` guard
   - [x] Fail overflowed queues with `QueueOverflowError`
   - [x] Fail pending/active turns and clear thread state on transport death
-  - [ ] Add explicit tests for mid-turn crash behavior
+  - [x] Add explicit tests for mid-turn crash behavior
 
 - [x] **3.3 — Observability for dropped or unmatched notifications**
   > Notification routing still silently returns in some unmatched cases.
@@ -173,19 +173,19 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Validate URLs/paths for non-text input elements
   - [x] Keep Codex skill and mention input validation consistent with documented protocol shape
 
-- [ ] **4.3 — Introduce typed exported errors**
-  - [ ] Create shared error classes for timeout, input validation, provider detection, and unsupported capability
+- [x] **4.3 — Introduce typed exported errors**
+  - [x] Create shared error classes for timeout, input validation, provider detection, and unsupported capability
   - [x] Re-export them from `index.ts`
-  - [ ] Document which methods throw which errors
+  - [x] Document which methods throw which errors
 
 - [x] **4.4 — Stream event helpers**
   - [x] Add event type guards for normalized `AgentEvent`
   - [x] Add event type guards for Codex-specific `CodexStreamEvent`
   - [x] Export helpers from `index.ts`
 
-- [ ] **4.5 — Verify odd protocol naming and compatibility**
+- [x] **4.5 — Verify odd protocol naming and compatibility**
   > The Codex approval decision shape includes protocol-looking names that should be verified before the API hardens further.
-  - [ ] Re-check `CommandApprovalDecision` naming against current app-server behavior
+  - [x] Re-check `CommandApprovalDecision` naming against current app-server behavior
   - [x] Add comments or migration notes if the names are intentionally awkward
 
 ---
@@ -194,28 +194,28 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 > Goal: add confidence. The codebase still has no test harness.
 
-- [ ] **5.1 — Test infrastructure**
-  - [ ] Add `vitest` or `node:test`
-  - [ ] Add `test` script to `package.json`
-  - [ ] Create unit/integration test directories
-  - [ ] Add transport and provider mocks/stubs
+- [x] **5.1 — Test infrastructure**
+  - [x] Add `vitest` or `node:test`
+  - [x] Add `test` script to `package.json`
+  - [x] Create unit/integration test directories
+  - [x] Add transport and provider mocks/stubs
 
-- [ ] **5.2 — Transport/runtime tests**
-  - [ ] Request/response matching
-  - [ ] Transport close rejects inflight requests
-  - [ ] Request timeout rejects and ignores late responses
-  - [ ] Queue overflow and transport-death stream failure behavior
+- [x] **5.2 — Transport/runtime tests**
+  - [x] Request/response matching
+  - [x] Transport close rejects inflight requests
+  - [x] Request timeout rejects and ignores late responses
+  - [x] Queue overflow and transport-death stream failure behavior
   - [ ] Windows cleanup path coverage
 
-- [ ] **5.3 — Codex lifecycle tests**
-  - [ ] Thread start/resume/fork behavior
-  - [ ] Turn start, delta streaming, completion routing
-  - [ ] Concurrent turn behavior
-  - [ ] Approval and tool-input handling
+- [x] **5.3 — Codex lifecycle tests**
+  - [x] Thread start/resume/fork behavior
+  - [x] Turn start, delta streaming, completion routing
+  - [x] Concurrent turn behavior
+  - [x] Approval and tool-input handling
 
-- [ ] **5.4 — Shared provider API tests**
-  - [ ] `createAgent()` creates the right adapter
-  - [ ] Session caching/clearing behavior
+- [x] **5.4 — Shared provider API tests**
+  - [x] `createAgent()` creates the right adapter
+  - [x] Session caching/clearing behavior
   - [ ] Normalized event mapping for Codex
   - [ ] Normalized event mapping for Claude
   - [ ] Capability and availability reporting

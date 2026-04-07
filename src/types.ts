@@ -230,8 +230,11 @@ export type StreamEventBase = {
 
 /**
  * The two object variants use the exact field names from the Codex app-server
- * JSON-RPC protocol (`execpolicy_amendment`, `network_policy_amendment`).
- * The underscore-cased names are intentional — do not rename them.
+ * JSON-RPC wire shape (`execpolicy_amendment`, `network_policy_amendment`).
+ * Verified on April 7, 2026 against the official App Server docs for
+ * `acceptWithExecpolicyAmendment.execpolicy_amendment`. The network-amendment
+ * variant is preserved for wire compatibility even though docs are less explicit.
+ * The underscore-cased names are intentional; do not rename them.
  */
 export type CommandApprovalDecision =
   | 'accept'
