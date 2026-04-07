@@ -206,16 +206,36 @@ export class CodexClient {
     this.attachTransportListeners()
   }
 
+  /**
+   * Run one turn to completion and return the final turn result.
+   * @throws {import('./errors.ts').InputValidationError} If input is malformed.
+   * @throws {import('./errors.ts').ConcurrentTurnError} If another turn is already starting or active for the thread.
+   * @throws {import('./errors.ts').QueueOverflowError} If the per-turn event queue exceeds `maxQueueSize`.
+   * @throws {import('./errors.ts').TransportRequestTimeoutError} If `turn/start` times out.
+   */
   async runThread(thread: CodexThread, input: UserInput, options?: RunOptions): Promise<RunResult> {
     const controller = await this.startTurn(thread, input, options)
+    void controller.done.promise.catch(() => {
+      // Avoid unhandled rejection if event stream fails before result await path.
+    })
     for await (const _event of controller.events) {
       // drain
     }
     return controller.done.promise
   }
 
+  /**
+   * Start one turn and stream events until completion/failure.
+   * @throws {import('./errors.ts').InputValidationError} If input is malformed.
+   * @throws {import('./errors.ts').ConcurrentTurnError} If another turn is already starting or active for the thread.
+   * @throws {import('./errors.ts').QueueOverflowError} If the per-turn event queue exceeds `maxQueueSize`.
+   * @throws {import('./errors.ts').TransportRequestTimeoutError} If `turn/start` times out.
+   */
   async streamThread(thread: CodexThread, input: UserInput, options?: RunOptions): Promise<AsyncIterable<CodexStreamEvent>> {
     const controller = await this.startTurn(thread, input, options)
+    void controller.done.promise.catch(() => {
+      // Avoid unhandled rejection when callers only consume the stream path.
+    })
     return controller.events
   }
 
