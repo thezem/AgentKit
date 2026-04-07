@@ -26,11 +26,14 @@ const agent = await createAgent({
 })
 
 console.log('Provider account state:', await agent.getAccountState())
-const session = agent.session('agent-codex-demo')
+const session = await agent.openSession({ name: 'agent-codex-demo' })
 const stream = await session.stream('Summarize this repository in 4 bullets')
 for await (const event of stream) {
   if (event.type === 'message.delta') process.stdout.write(event.text)
-  if (event.type === 'turn.completed') console.log(`\n\nStatus: ${event.result.status}`)
+  if (event.type === 'turn.completed') {
+    console.log(`\n\nStatus: ${event.result.status}`)
+    console.log('Handle:', event.result.handle)
+  }
 }
 
 await session.close()

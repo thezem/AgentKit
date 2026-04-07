@@ -1,274 +1,311 @@
 # @ouim/codexkit — Development Roadmap
 
-> Last updated: 2026-04-05
-> Version: 0.1.0 (early-stage)
+> Last updated: 2026-04-07
+> Version: 0.1.0
 
-This file tracks all known gaps, bugs, improvements, and feature work — broken into prioritized phases. Each phase targets a specific reliability/maturity threshold. Complete phases in order; later phases build on earlier foundations.
+This roadmap has been realigned to the current product shape.
+
+`@ouim/codexkit` is no longer just a thin Codex transport wrapper. It already has:
+
+- a stable Codex compatibility layer
+- a shared multi-provider API
+- provider adapters for Codex and Claude
+- normalized lifecycle and event primitives
+- provider availability checks
+
+The roadmap below marks what is already complete and focuses the remaining work on the missing pieces: richer discovery, explicit cross-provider resume/inventory APIs, better reliability, tests, and package readiness.
 
 ---
 
 ## Priority Legend
-- 🔴 **P0 — Critical** (breaks correctness / production safety)
-- 🟠 **P1 — High** (reliability and robustness issues)
-- 🟡 **P2 — Medium** (completeness and DX issues)
-- 🟢 **P3 — Low** (polish and future scaling)
+
+- 🔴 **P0 — Critical**: correctness, hangs, production safety
+- 🟠 **P1 — High**: core product completeness and reliability
+- 🟡 **P2 — Medium**: DX, docs, packaging, maintainability
+- 🟢 **P3 — Low**: optimization and broader future expansion
 
 ---
 
-## Phase 1 — Foundation Hardening 🔴 P0
-> **Goal:** Make the core JSON-RPC transport and turn lifecycle correct and safe under real-world conditions. Nothing else matters until these are solid — these are the bugs that cause silent data loss, infinite hangs, and race conditions.
+## Current Snapshot
 
-- [ ] **1.1 — Request timeouts on JSON-RPC transport**
-  > `transport.request()` currently returns a Promise that can hang forever if the app-server stalls or crashes mid-request. Every call in the codebase is vulnerable to silent deadlock.
-  - [ ] Add configurable `requestTimeoutMs` option (default: 30 000 ms)
-  - [ ] On timeout, reject the pending promise with a typed `TimeoutError`
-  - [ ] Reject all inflight pending requests when transport closes
-  - [ ] Expose `requestTimeoutMs` in `CreateCodexOptions`
+### Already shipped
 
-- [ ] **1.2 — AsyncQueue unbounded growth & orphan streams**
-  > If the app-server crashes mid-turn, `controller.events` (AsyncQueue) never ends. The async `for await` loop in `runThread()` / `streamThread()` hangs forever.
-  - [ ] Call `controller.events.end()` in all turn-error paths
-  - [ ] Call `controller.events.end()` when transport closes while a turn is active
-  - [ ] Add optional `maxQueueSize` guard; throw if exceeded
-  - [ ] Test: simulate mid-turn process death and assert iterator terminates
+- [x] Codex runtime/client layer on top of `codex app-server`
+- [x] Generic `createAgent()` API
+- [x] Shared `AgentClient` / `AgentSession` abstraction
+- [x] Provider registry with first-class `codex` and `claude`
+- [x] Normalized cross-provider event stream
+- [x] Cross-provider `run()`, `stream()`, `interrupt()`, `close()`
+- [x] Provider availability helpers: `getAvailableProviders()` and `getProviderAvailability()`
+- [x] Provider-specific escape hatches: `asCodex()` and `asClaude()`
+- [x] Claude long-lived session runtime with interrupt support
+- [x] Claude resume state surfaced as opaque `resumeState`
+- [x] Device auth via native `codex login --device-auth`
+- [x] Windows-specific Codex command handling and best-effort process cleanup
+- [x] Main examples for Codex compatibility, generic Codex, and generic Claude
 
-- [ ] **1.3 — Silent event drops in notification routing**
-  > `handleNotification()` silently returns when it can't find a `TurnController` for `${threadId}:${turnId}`. Events are lost with no trace.
-  - [ ] Log a warning with full context when a notification is dropped
-  - [ ] Emit a generic `'notification'` event so callers can observe unknowns
-  - [ ] Add a `droppedNotifications` counter on the client for observability
+### Not shipped yet
 
-- [ ] **1.4 — Race condition in concurrent turn starts on same thread**
-  > `pendingTurnStarts` is a queue but there is no serialization guard. If two `thread.run()` calls race before either `turn/started` notification arrives, `turnId` matching could go wrong.
-  - [ ] Enforce single-turn-at-a-time per thread via a mutex or sequential queue
-  - [ ] If a second `run()` is called while a turn is active, either queue it or throw a clear error
-  - [ ] Add a `thread.isRunning` boolean for caller introspection
-
-- [ ] **1.5 — Validate `codex` binary exists before starting**
-  > The client silently fails with a cryptic spawn error if `codex` is not on `PATH`. There is zero validation or user-friendly error message.
-  - [ ] At `createCodex()` time, check `which codex` / `where codex` (cross-platform)
-  - [ ] Throw a `CodexNotFoundError` with installation instructions if missing
-  - [ ] Expose detected codex path in a `client.diagnostics` object
+- [x] Explicit provider-agnostic session resume/open API
+- [x] Rich machine inventory API for installed providers and resolved executable paths
+- [ ] Unified model listing across providers
+- [ ] Unified skills listing/configuration across providers
+- [ ] Test suite
+- [ ] Standard build output for npm consumption without `--experimental-strip-types`
 
 ---
 
-## Phase 2 — Error Recovery & Resilience 🟠 P1
-> **Goal:** Handle the cases where things go wrong at runtime — crashes, auth failures, network blips. The client should never leave the caller stuck with an unresolvable promise.
+## Phase 1 — Product Surface Alignment 🔴 P0
 
-- [ ] **2.1 — Reconnection logic after app-server crash**
-  > If the app-server process dies unexpectedly, there is no automatic recovery. All in-flight turns fail with an opaque error and the client becomes permanently broken.
-  - [ ] Detect unexpected transport closure (process exit code != 0)
-  - [ ] Emit a `'disconnect'` event on the client
-  - [ ] Implement auto-reconnect with exponential backoff (max 3 retries by default)
-  - [ ] Expose `autoReconnect` boolean in `CreateCodexOptions`
-  - [ ] After reconnect, re-register event listeners; in-flight turns are abandoned with `status: 'error'`
+> Goal: finish the transition from "Codex wrapper plus adapter experiments" to a clear local agent control-plane SDK.
 
-- [ ] **2.2 — Device auth polling is fragile (fixed 15 × 1s)**
-  > Polling after device-code login is hardcoded to 15 attempts at 1-second intervals. Slow systems or network latency will fail authentication silently, returning `null`.
-  - [ ] Make polling configurable: `deviceAuthPollIntervalMs` and `deviceAuthPollMaxAttempts`
-  - [ ] Provide sensible defaults: 20 attempts × 2 s = 40 s total
-  - [ ] Emit progress events during polling (attempt N / max)
-  - [ ] Return a typed `AuthError` (not `null`) when polling exhausts retries
+- [x] **1.1 — Make session lifecycle fully explicit in the shared API**
+  > The shared API has `run()`, `stream()`, `interrupt()`, and `close()`, but generic explicit resume/open semantics are still provider-specific or implicit.
+  - [x] Add a provider-agnostic session resume/open API
+  - [x] Decide whether session identity is `sessionId`, provider-native resume token, or a structured resume handle
+  - [x] Preserve provider-specific resume escape hatches where the generic model is not expressive enough
+  - [x] Document lifecycle semantics clearly: create, resume, interrupt, close, clear
 
-- [ ] **2.3 — Browser auth login timeout**
-  > `waitForLogin()` in `auth.ts` polls `account/read` but has no overall deadline. If the user never completes the browser flow, the client waits indefinitely.
-  - [ ] Add `loginTimeoutMs` option (default: 5 min)
-  - [ ] Reject `ensureLoggedIn()` with `LoginTimeoutError` when deadline passes
-  - [ ] Cancel the pending login deferred on timeout
+- [x] **1.2 — Add richer provider inventory/discovery**
+  > Current discovery answers "can I use this provider right now?" It does not answer "what runtimes are installed, where are they, and how were they detected?"
+  - [x] Introduce a top-level provider inventory type
+  - [x] Surface normalized executable/runtime metadata as first-class fields, not only under `raw`
+  - [x] Report detection source: PATH lookup, configured override, SDK importability, runtime probe
+  - [x] Include resolved executable path when known
+  - [x] Distinguish installed, runnable, authenticated, and degraded states
 
-- [ ] **2.4 — Transport restart drops pending requests**
-  > `restartTransport()` (called after device-code auth) closes the old transport, which rejects all pending requests. No queuing or replay mechanism exists.
-  - [ ] Before closing old transport, snapshot and log any pending request IDs
-  - [ ] After restart, re-initialize event routing
-  - [ ] Document that `restartTransport()` is only safe when no turns are active
+- [x] **1.3 — Add provider capability reporting that is useful to callers**
+  > `getCapabilities()` exists, but it is still coarse and mostly hardcoded.
+  - [x] Define a normalized capability schema for session resume, approvals, model switching, tools, skills, partials, and inventory support
+  - [x] Split static adapter claims from runtime-probed capabilities where relevant
+  - [x] Expose this through discovery so apps can decide what UI/flows to enable before creating a session
 
-- [ ] **2.5 — Approval handler default behavior clarification**
-  > Command/file approval defaults to silent `'decline'` — this can cause Codex to make no progress at all with no user feedback. Tool input handler returns an error (inconsistent).
-  - [ ] Make default approval behavior configurable: `'decline' | 'prompt' | 'auto-approve'`
-  - [ ] For `item/tool/requestUserInput`, add a sensible no-handler default (e.g., empty string + warning)
-  - [ ] Emit a `'approval.defaulted'` event when falling back to default
-  - [ ] Document the security implications of `'auto-approve'` clearly
+- [x] **1.4 — Publish a crisp public product statement**
+  > README and docs should consistently describe the package as a host-side SDK for local agent runtimes, with Codex compatibility preserved but no longer the whole story.
+  - [x] Update README positioning language
+  - [x] Align examples and docs terminology around provider, session, availability, and resume
+  - [x] Add an explicit "Codex compatibility layer vs shared provider API" section
 
 ---
 
-## Phase 3 — Type Safety & API Correctness 🟡 P2
-> **Goal:** Harden the TypeScript API surface so callers get real type-checking, IDE autocomplete, and compile-time safety across all event types, item variants, and approval decisions.
+## Phase 2 — Discovery, Models, and Skills 🟠 P1
 
-- [ ] **3.1 — Narrow `TurnItem` type**
-  > `TurnItem` is essentially `{ type: string; id: string; [key: string]: unknown }` — effectively `any` after the ID. No type narrowing possible.
-  - [ ] Define discriminated union: `AgentMessageItem | CommandExecutionItem | FileChangeItem | McpToolCallItem | ReasoningItem | ...`
-  - [ ] Replace `TurnItem` with the union
-  - [ ] Add type guards: `isAgentMessageItem(item)`, `isCommandItem(item)`, etc.
-  - [ ] Update `RunResult.items` to use the narrowed type
+> Goal: expose the pieces an app needs to build a real provider picker and runtime management UI.
 
-- [ ] **3.2 — Fix suspected typo in `CommandApprovalDecision`**
-  > `acceptWithExecpolicyAmendment` uses lowercase `p` — may be a typo vs. the actual server protocol field name. Should be verified and either documented or corrected.
-  - [ ] Cross-check against live app-server JSON-RPC schema
-  - [ ] If wrong: fix and add a migration note
-  - [ ] If intentional: add a comment explaining the naming
+- [ ] **2.1 — Unified model discovery**
+  > Codex protocol docs include model listing, but the SDK does not expose a shared model/catalog API.
+  - [ ] Add provider-specific model discovery for Codex
+  - [ ] Decide Claude model discovery posture: supported, partial, or unavailable
+  - [ ] Define a normalized `AgentModelInfo` shape
+  - [ ] Expose `listModels(provider?)`
+  - [ ] Include default/recommended model metadata where available
 
-- [ ] **3.3 — Typed stream event narrowing**
-  > `CodexStreamEvent` is a union but discriminating on `.type` doesn't give full property access without manual casting in practice.
-  - [ ] Verify all union members have unique, literal `type` discriminants
-  - [ ] Add comprehensive type guard helpers: `isMessageDeltaEvent(e)`, `isApprovalEvent(e)`, etc.
-  - [ ] Export type guards from `index.ts`
+- [ ] **2.2 — Unified skills discovery/configuration**
+  > Codex supports skills at the protocol/input level, but the SDK does not expose a first-class management surface.
+  - [ ] Add Codex-backed `listSkills()` support
+  - [ ] Add Codex-backed skill configuration read/write support if the protocol remains stable enough
+  - [ ] Decide whether the shared API exposes only "supported/not supported" for non-Codex providers or a generic extension point
+  - [ ] Document which skill operations are cross-provider and which are provider-specific
 
-- [ ] **3.4 — Validate `UserInput` shape at runtime**
-  > `UserInput` accepts `string | UserInputElement[]`. The `assertObject` helper exists but isn't used at user-facing boundaries. Malformed input reaches JSON-RPC with cryptic errors.
-  - [ ] Add runtime validation in `toUserInput()`: check element types, required fields
-  - [ ] Throw `InputValidationError` with a descriptive message on bad shape
-  - [ ] Add `image_url` element support validation (non-empty URL check)
-
-- [ ] **3.5 — Export all error types**
-  > `CodexNotFoundError`, `TimeoutError`, `AuthError`, `LoginTimeoutError`, `InputValidationError` (from P1/P2 work above) must be exported from `index.ts` so callers can `instanceof` check them.
-  - [ ] Create `src/errors.ts` with all typed error classes
-  - [ ] Re-export from `index.ts`
-  - [ ] Document error hierarchy in README
+- [ ] **2.3 — Better provider availability results**
+  > Current availability returns provider/auth/account state, but not enough metadata for diagnostics or UX.
+  - [ ] Include version metadata when cheaply available
+  - [ ] Include executable path metadata when available
+  - [ ] Include last probe strategy and failure reason in a normalized field
+  - [ ] Preserve raw provider-native payloads for debugging
 
 ---
 
-## Phase 4 — Testing 🟡 P2
-> **Goal:** Add a test suite. Right now there are zero tests — no unit, no integration, no smoke. This is the biggest maturity gap for any library claiming production readiness.
+## Phase 3 — Reliability Hardening 🟠 P1
 
-- [ ] **4.1 — Set up testing infrastructure**
-  > No test runner, no test files, no mocking strategy exists.
-  - [ ] Add `vitest` (or `node:test` for zero-dep) as a dev dependency
-  - [ ] Configure test script in `package.json`
-  - [ ] Create `tests/` directory structure: `unit/`, `integration/`
-  - [ ] Add a mock `AppServerTransport` that simulates JSON-RPC responses
+> Goal: remove the remaining hang and recovery risks in the transport/session layers.
 
-- [ ] **4.2 — Unit tests: transport layer**
-  > Core JSON-RPC transport has no tests. Line parsing, request/response matching, and event routing are untested.
-  - [ ] Test: request/response ID matching
-  - [ ] Test: notification routing via EventEmitter
-  - [ ] Test: server request routing and respond/respondError
-  - [ ] Test: timeout behavior (fake timers)
-  - [ ] Test: process crash → pending request rejection
-  - [ ] Test: Windows vs. Unix process cleanup paths
+- [ ] **3.1 — Request timeouts on JSON-RPC transport**
+  > `transport.request()` can still wait forever if the app-server stalls without exiting.
+  - [ ] Add configurable `requestTimeoutMs`
+  - [ ] Reject timed-out requests with a typed error
+  - [x] Reject inflight pending requests when transport exits/closes
+  - [ ] Export the timeout option through `CreateCodexOptions`
 
-- [ ] **4.3 — Unit tests: auth module**
-  > Auth flows are complex and untested.
-  - [ ] Test: `loginWithChatGPT()` happy path with mocked transport
-  - [ ] Test: `loginWithChatGPT()` timeout (mock timer expiry)
-  - [ ] Test: `loginWithDeviceCode()` success path
-  - [ ] Test: `loginWithDeviceCode()` poll exhaustion returns typed error
-  - [ ] Test: `ensureLoggedIn()` when already logged in (no re-login)
+- [ ] **3.2 — Async queue backpressure / orphan stream protection**
+  > Active turn streams are ended on transport close, but there is still no queue size guard or explicit memory protection.
+  - [x] End active turn streams when transport closes
+  - [ ] Add optional `maxQueueSize` guard
+  - [ ] Add explicit tests for mid-turn crash behavior
 
-- [ ] **4.4 — Unit tests: turn lifecycle**
-  > The turn start → event routing → completion lifecycle is the most complex logic in the codebase.
-  - [ ] Test: single turn happy path (mock server sends turn/started, deltas, turn/completed)
-  - [ ] Test: `runThread()` returns correct `RunResult.text`
-  - [ ] Test: `streamThread()` yields events in order
-  - [ ] Test: concurrent turns on same thread (queuing/mutex behavior)
-  - [ ] Test: turn/completed when messageBuffer has content → text in RunResult
-  - [ ] Test: approval request emits event and calls handler
+- [ ] **3.3 — Observability for dropped or unmatched notifications**
+  > Notification routing still silently returns in some unmatched cases.
+  - [ ] Log or emit diagnostics for dropped notifications
+  - [ ] Count dropped notifications for debugging
+  - [ ] Decide whether to expose a client-level event emitter or logger hook
 
-- [ ] **4.5 — Unit tests: session and thread wrappers**
-  - [ ] Test: `session.run()` reuses same `threadId` across calls
-  - [ ] Test: `session.run()` with fork creates new thread
-  - [ ] Test: `thread.interrupt()` sends correct JSON-RPC notification
+- [ ] **3.4 — Concurrency control for turns on the same thread/session**
+  > The current turn-start queueing logic is still fragile under concurrent calls on the same thread.
+  - [ ] Enforce one active turn per thread/session or queue explicitly
+  - [ ] Add a clear error or serialization strategy
+  - [ ] Expose running-state introspection where useful
+  - [ ] Mirror the policy consistently in the shared provider API
 
-- [ ] **4.6 — Integration smoke tests**
-  > End-to-end tests against a real or stub `codex app-server`.
-  - [ ] Create a minimal stub `codex` binary for CI (Node script, responds to known protocol)
-  - [ ] Smoke test: full login → create thread → run → get text result
-  - [ ] Smoke test: streaming turn → collect all delta events
-  - [ ] Add to CI via GitHub Actions
+- [ ] **3.5 — Auth robustness**
+  > Browser timeout exists, but device auth polling remains fixed and transport restart behavior is still lightly documented.
+  - [x] Browser login timeout support exists via `auth.timeoutMs`
+  - [x] Device auth restarts the app-server transport after CLI login
+  - [ ] Make device-auth polling interval and attempts configurable
+  - [ ] Emit device-auth polling progress or diagnostics
+  - [ ] Document safe/unsafe timing for `restartTransport()` during active work
+
+- [ ] **3.6 — Provider availability probing safety**
+  > Availability probing should be cheap and predictable; runtime checks should not surprise callers or hang.
+  - [ ] Define cheap probe vs deep probe modes consistently across providers
+  - [ ] Add timeouts around provider runtime probing where appropriate
+  - [ ] Document probe cost and side effects
 
 ---
 
-## Phase 5 — Documentation & Examples 🟡 P2
-> **Goal:** Make the SDK usable without reading source code. Right now, no JSDoc exists and the only example has a commented-out section.
+## Phase 4 — Type Safety and API Correctness 🟡 P2
 
-- [ ] **5.1 — JSDoc on all public APIs**
-  > Zero JSDoc comments in the entire codebase. IDE hover gives no context.
-  - [ ] Document `CodexClient`: all public methods with params, return types, throws
-  - [ ] Document `CodexThread` and `CodexSession`: lifecycle semantics
-  - [ ] Document all `CodexStreamEvent` union members
-  - [ ] Document all `RunOptions`: what each field does, valid values, defaults
-  - [ ] Document `UserInput` element types with examples
+> Goal: make the public API pleasant to consume from TypeScript without guesswork.
 
-- [ ] **5.2 — Fix and complete examples**
-  > `examples/basic.ts` has the `session.run()` call commented out. `examples/ci.ts` is functional but minimal.
-  - [ ] Uncomment and fix `session.run()` in `basic.ts`
-  - [ ] Add an approval-handling example
-  - [ ] Add a tool-input-handler example
-  - [ ] Add a fork/branch-thread example
-  - [ ] Add a dynamic tool call example
-  - [ ] Verify all examples run end-to-end
+- [ ] **4.1 — Narrow Codex `TurnItem`**
+  - [ ] Replace loose `TurnItem` with a discriminated union
+  - [ ] Add type guards for common item kinds
+  - [ ] Update `RunResult.items` and related event payloads
 
-- [ ] **5.3 — Expand README**
-  > README documents basic usage but omits most of the API surface.
-  - [ ] Document all stream event types with code examples
-  - [ ] Document approval flows and decision types
-  - [ ] Document tool input request pattern
-  - [ ] Document error handling with typed errors (from Phase 3)
-  - [ ] Add troubleshooting section (codex not on PATH, auth failures, timeouts)
-  - [ ] Add badge: Node version requirement
+- [ ] **4.2 — Tighten runtime validation for user input**
+  - [ ] Validate `UserInput` shape before sending JSON-RPC payloads
+  - [ ] Throw typed input validation errors
+  - [ ] Validate URLs/paths for non-text input elements
+  - [ ] Keep Codex skill and mention input validation consistent with documented protocol shape
 
-- [ ] **5.4 — CHANGELOG**
-  > No changelog exists. For a library, this is required for downstream consumers.
-  - [ ] Create `CHANGELOG.md` with 0.1.0 entry listing initial capabilities
-  - [ ] Document known limitations at 0.1.0
+- [ ] **4.3 — Introduce typed exported errors**
+  - [ ] Create shared error classes for timeout, input validation, provider detection, auth, and unsupported capability
+  - [ ] Re-export them from `index.ts`
+  - [ ] Document which methods throw which errors
+
+- [ ] **4.4 — Stream event helpers**
+  - [ ] Add event type guards for normalized `AgentEvent`
+  - [ ] Add event type guards for Codex-specific `CodexStreamEvent`
+  - [ ] Export helpers from `index.ts`
+
+- [ ] **4.5 — Verify odd protocol naming and compatibility**
+  > The Codex approval decision shape includes protocol-looking names that should be verified before the API hardens further.
+  - [ ] Re-check `CommandApprovalDecision` naming against current app-server behavior
+  - [ ] Add comments or migration notes if the names are intentionally awkward
 
 ---
 
-## Phase 6 — Build, Package & Distribution 🟢 P3
-> **Goal:** Make the package publishable to npm and usable without requiring `--experimental-strip-types`.
+## Phase 5 — Tests 🟡 P2
 
-- [ ] **6.1 — Add proper build step**
-  > Currently `"main": "./src/index.ts"` — the package cannot be consumed by standard Node.js without `--experimental-strip-types`. This prevents use in most environments.
-  - [ ] Add `tsc` build script outputting to `dist/`
-  - [ ] Set `"main": "./dist/index.js"` and `"types": "./dist/index.d.ts"`
-  - [ ] Add `"exports"` field in `package.json` for modern ESM/CJS dual output
-  - [ ] Add `dist/` to `.gitignore` and a `prepublishOnly` script
+> Goal: add confidence. The codebase still has no test harness.
 
-- [ ] **6.2 — Add `.npmignore` / `"files"` field**
-  > Without this, `npm publish` would include `src/`, `examples/`, `docs/`, and test files.
-  - [ ] Add `"files": ["dist/", "README.md", "CHANGELOG.md"]` to `package.json`
+- [ ] **5.1 — Test infrastructure**
+  - [ ] Add `vitest` or `node:test`
+  - [ ] Add `test` script to `package.json`
+  - [ ] Create unit/integration test directories
+  - [ ] Add transport and provider mocks/stubs
 
-- [ ] **6.3 — CI/CD pipeline**
-  > No CI configuration exists.
-  - [ ] Add GitHub Actions workflow: lint → typecheck → test → build
-  - [ ] Add matrix: Node 22, Node 23
-  - [ ] Add publish workflow triggered on version tag
+- [ ] **5.2 — Transport/auth tests**
+  - [ ] Request/response matching
+  - [ ] Transport close rejects inflight requests
+  - [ ] Browser login completion and timeout
+  - [ ] Device auth restart and post-login polling behavior
+  - [ ] Windows cleanup path coverage
 
-- [ ] **6.4 — Versioning strategy**
-  > Still at 0.1.0 with no semver policy.
-  - [ ] Document semver policy in CONTRIBUTING or README
-  - [ ] Decide pre-1.0 vs. quick stable release path
+- [ ] **5.3 — Codex lifecycle tests**
+  - [ ] Thread start/resume/fork behavior
+  - [ ] Turn start, delta streaming, completion routing
+  - [ ] Concurrent turn behavior
+  - [ ] Approval and tool-input handling
+
+- [ ] **5.4 — Shared provider API tests**
+  - [ ] `createAgent()` creates the right adapter
+  - [ ] Session caching/clearing behavior
+  - [ ] Normalized event mapping for Codex
+  - [ ] Normalized event mapping for Claude
+  - [ ] Capability and availability reporting
+
+- [ ] **5.5 — Smoke/integration tests**
+  - [ ] Stub or fixture runtime for Codex protocol tests
+  - [ ] Minimal Claude adapter integration strategy
+  - [ ] CI smoke test for README/example flows
 
 ---
 
-## Phase 7 — Advanced Features 🟢 P3
-> **Goal:** Fill capability gaps for advanced use cases and production deployments.
+## Phase 6 — Docs and Examples 🟡 P2
 
-- [ ] **7.1 — Connection pooling / shared app-server**
-  > Each `createCodex()` spawns a new `codex app-server` process. Multiple clients cannot share a server. This is inefficient at scale.
-  - [ ] Design a `CodexServerPool` singleton that manages one server process
-  - [ ] Allow multiple `CodexClient` instances to multiplex over the same transport
-  - [ ] Add reference counting for clean shutdown
+> Goal: make the SDK understandable from the package surface, not only by reading source.
 
-- [ ] **7.2 — Codex CLI version detection**
-  > No validation that the installed `codex` CLI version is compatible with this SDK.
-  - [ ] At startup, run `codex --version` and parse output
-  - [ ] Define minimum supported codex version in `package.json`
-  - [ ] Warn (or error) if CLI version is below minimum
+- [ ] **6.1 — README expansion**
+  - [x] Document the full shared provider API
+  - [x] Document provider availability semantics
+  - [ ] Document normalized events and handlers
+  - [x] Document provider escape hatches and when to use them
+  - [ ] Add troubleshooting for missing binaries, missing auth, and probe failures
 
-- [ ] **7.3 — Structured logging / telemetry**
-  > No internal logging. Debugging requires adding `console.log` manually.
-  - [ ] Adopt a lightweight logger interface (injectable, defaults to no-op)
-  - [ ] Log: transport lifecycle, auth steps, turn start/complete, approval decisions
-  - [ ] Expose `debug: boolean | Logger` in `CreateCodexOptions`
+- [ ] **6.2 — API docs / JSDoc**
+  - [ ] Add JSDoc to public shared API types and methods
+  - [ ] Add JSDoc to Codex compatibility classes
+  - [ ] Clarify lifecycle semantics and caveats on sessions vs threads
 
-- [ ] **7.4 — Conversation history / message coalescing**
-  > Message deltas are buffered but never assembled into a full conversation object.
-  - [ ] Add `thread.getMessages()` returning assembled agent messages from last turn
-  - [ ] Expose `RunResult.conversation: Message[]` with role + content
-  - [ ] Handle multi-item turns correctly (multiple agentMessage items)
+- [ ] **6.3 — Example cleanup**
+  - [x] Add generic agent examples for Codex and Claude
+  - [x] Keep `examples/basic.ts` as the main Codex compatibility smoke example
+  - [ ] Decide whether `examples/basic.ts` should prefer `run()` again instead of stream-only output
+  - [x] Add example for provider discovery / availability
+  - [ ] Add example for approvals and user-input handlers on the shared API
+  - [ ] Verify every example listed in README actually exists and runs
 
-- [ ] **7.5 — Retry on rate-limit**
-  > `getRateLimits()` exists but nothing uses it. If a turn fails due to rate limiting, the error is passed raw to the caller.
-  - [ ] Detect `429` / rate-limit error codes in turn completion
-  - [ ] Implement configurable retry with backoff for rate-limited turns
-  - [ ] Expose `rateLimitRetry` option in `RunOptions`
+- [ ] **6.4 — Changelog**
+  - [ ] Add `CHANGELOG.md`
+  - [ ] Record the transition from Codex-only wrapper to shared provider SDK
+  - [ ] Note current limitations explicitly
+
+---
+
+## Phase 7 — Build, Package, and CI 🟢 P3
+
+> Goal: make the package publishable and consumable in normal Node environments.
+
+- [ ] **7.1 — Build output**
+  > The package still points to source `.ts` entrypoints and currently relies on Node strip-types behavior.
+  - [ ] Add `tsc` build to `dist/`
+  - [ ] Publish JS + declaration files
+  - [ ] Update `main`, `types`, and `exports`
+  - [ ] Add `prepublishOnly`
+
+- [ ] **7.2 — Publish footprint**
+  - [ ] Add `"files"` or `.npmignore`
+  - [ ] Exclude docs/examples/tests from publish output unless intentionally shipped
+
+- [ ] **7.3 — Scripts**
+  - [ ] Add `typecheck`
+  - [ ] Add `build`
+  - [ ] Add `test`
+  - [ ] Keep example scripts aligned with actual files
+
+- [ ] **7.4 — CI**
+  - [ ] Add GitHub Actions for typecheck, test, and build
+  - [ ] Add Node version matrix
+  - [ ] Add publish workflow when packaging is ready
+
+---
+
+## Phase 8 — Future Expansion 🟢 P3
+
+> Goal: leave room for scale without muddying the immediate product.
+
+- [ ] **8.1 — Additional providers beyond Codex and Claude**
+  - [ ] Define adapter checklist for new providers
+  - [ ] Clarify minimum feature bar for first-class support
+
+- [ ] **8.2 — Shared runtime pooling / process reuse**
+  - [ ] Evaluate whether Codex transports should be pooled or shared
+  - [ ] Avoid premature complexity until real usage justifies it
+
+- [ ] **8.3 — Structured logging / telemetry**
+  - [ ] Add injectable logger interface
+  - [ ] Log transport lifecycle, auth, discovery probes, and approvals
+
+- [ ] **8.4 — Conversation/message history helpers**
+  - [ ] Expose higher-level message history APIs where they add value
+  - [ ] Keep low-level turn/item access available

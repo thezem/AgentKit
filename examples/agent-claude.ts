@@ -18,7 +18,7 @@ const agent = await createAgent({
 
 console.log('Provider account state:', await agent.getAccountState())
 
-const session = agent.session('agent-claude-demo')
+const session = await agent.openSession({ name: 'agent-claude-demo' })
 const first = await session.stream('Give me a one-paragraph summary of this repository.')
 
 for await (const event of first) {
@@ -31,6 +31,7 @@ for await (const event of first) {
 const second = await session.run('Now list 3 practical next improvements.')
 console.log('\nSecond turn status:', second.status)
 console.log(second.text)
+console.log('Resume handle:', second.handle)
 
 await session.interrupt().catch(() => {
   // interrupt is meaningful only during an active turn
