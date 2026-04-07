@@ -56,6 +56,7 @@ export type AgentCapabilities = {
     inventory: boolean
     modelListing: boolean
     skillsListing: boolean
+    skillConfiguration: boolean
   }
   semantics: {
     sessionIdentity: 'thread-id' | 'runtime-session' | 'opaque'
@@ -179,6 +180,69 @@ export type CreateAgentOptions =
 
 export type AgentProviderAvailability = AgentAccountState
 
+export type AgentModelInfo = {
+  provider: AgentProviderId
+  id: string
+  label: string
+  family?: string
+  description?: string
+  available: boolean
+  hidden?: boolean
+  recommended?: boolean
+  default?: boolean
+  reasoningEfforts?: string[]
+  defaultReasoningEffort?: string
+  inputModalities?: Array<'text' | 'image' | string>
+  supportsPersonality?: boolean
+  upgradeModelId?: string
+  discovery: {
+    mode: 'runtime' | 'static'
+    source: string
+    stale?: boolean
+  }
+  raw?: unknown
+}
+
+export type AgentSkillInfo = {
+  provider: AgentProviderId
+  name: string
+  path?: string
+  description?: string
+  enabled?: boolean
+  interface?: string
+  dependencies?: string[]
+  configurable: boolean
+  discovery: {
+    mode: 'runtime'
+    source: string
+  }
+  raw?: unknown
+}
+
+export type AgentSkillConfigResult = {
+  provider: AgentProviderId
+  supported: boolean
+  changed: boolean
+  raw?: unknown
+}
+
+export type AgentModelListOptions = {
+  includeHidden?: boolean
+  limit?: number
+  codexPath?: string
+  pathToClaudeCodeExecutable?: string
+  cwd?: string
+  env?: Record<string, string>
+}
+
+export type AgentSkillListOptions = {
+  cwd?: string
+  env?: Record<string, string>
+  forceReload?: boolean
+  extraUserRoots?: string[]
+  codexPath?: string
+}
+
 export type ProviderInventoryOptions = {
   codexPath?: string
   pathToClaudeCodeExecutable?: string
@@ -200,8 +264,13 @@ export type AgentProviderInventory = {
   capabilitySupport?: AgentCapabilities
   diagnostics?: {
     probeMode: 'cheap' | 'deep'
+    probeStrategy?: 'path-check' | 'version-check' | 'sdk-import' | 'runtime-init'
     failureReason?: string
     notes?: string[]
+  }
+  versionDetails?: {
+    raw?: string
+    source: 'cli' | 'sdk' | 'runtime'
   }
   account: unknown | null
   raw?: unknown

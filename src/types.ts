@@ -79,6 +79,73 @@ export type LoginInfo = {
   expiresInMinutes?: number
 }
 
+export type CodexModelListParams = {
+  includeHidden?: boolean
+  limit?: number
+}
+
+export type CodexModelDescriptor = {
+  id: string
+  name?: string
+  label?: string
+  displayName?: string
+  model?: string
+  family?: string
+  description?: string
+  hidden?: boolean
+  isDefault?: boolean
+  supportedReasoningEfforts?: Array<string | { reasoningEffort?: string; description?: string }>
+  defaultReasoningEffort?: string
+  inputModalities?: Array<'text' | 'image' | string>
+  supportsPersonality?: boolean
+  upgrade?: string | { id?: string } | null
+  [key: string]: unknown
+}
+
+export type CodexModelListResponse = {
+  data?: CodexModelDescriptor[]
+  models?: CodexModelDescriptor[]
+  nextCursor?: string | null
+}
+
+export type CodexSkillListParams = {
+  cwds?: string[]
+  cwd?: string
+  extraUserRoots?: string[] | Record<string, string[]>
+  forceReload?: boolean
+}
+
+export type CodexSkillDescriptor = {
+  name: string
+  path?: string
+  description?: string
+  enabled?: boolean
+  interface?: string
+  dependencies?: string[]
+  [key: string]: unknown
+}
+
+export type CodexSkillListResponse = {
+  skills?: CodexSkillDescriptor[]
+  data?: Array<{
+    cwd?: string
+    skills?: CodexSkillDescriptor[]
+    errors?: Array<{ message?: string } | string>
+  }>
+}
+
+export type CodexSkillConfigWriteParams = {
+  cwd: string
+  path: string
+  enabled: boolean
+}
+
+export type CodexSkillConfigWriteResponse = {
+  changed?: boolean
+  effectiveEnabled?: boolean
+  [key: string]: unknown
+}
+
 export type TurnItem = {
   type: string
   id: string

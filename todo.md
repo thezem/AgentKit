@@ -48,8 +48,8 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 - [x] Explicit provider-agnostic session resume/open API
 - [x] Rich machine inventory API for installed providers and resolved executable paths
-- [ ] Unified model listing across providers
-- [ ] Unified skills listing/configuration across providers
+- [x] Unified model listing across providers
+- [x] Unified skills listing/configuration across providers
 - [ ] Test suite
 - [ ] Standard build output for npm consumption without `--experimental-strip-types`
 
@@ -92,27 +92,27 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 > Goal: expose the pieces an app needs to build a real provider picker and runtime management UI.
 
-- [ ] **2.1 — Unified model discovery**
+- [x] **2.1 — Unified model discovery**
   > Codex protocol docs include model listing, but the SDK does not expose a shared model/catalog API.
-  - [ ] Add provider-specific model discovery for Codex
-  - [ ] Decide Claude model discovery posture: supported, partial, or unavailable
-  - [ ] Define a normalized `AgentModelInfo` shape
-  - [ ] Expose `listModels(provider?)`
-  - [ ] Include default/recommended model metadata where available
+  - [x] Add provider-specific model discovery for Codex
+  - [x] Decide Claude model discovery posture: supported, partial, or unavailable
+  - [x] Define a normalized `AgentModelInfo` shape
+  - [x] Expose `listModels(provider?)`
+  - [x] Include default/recommended model metadata where available
 
-- [ ] **2.2 — Unified skills discovery/configuration**
+- [x] **2.2 — Unified skills discovery/configuration**
   > Codex supports skills at the protocol/input level, but the SDK does not expose a first-class management surface.
-  - [ ] Add Codex-backed `listSkills()` support
-  - [ ] Add Codex-backed skill configuration read/write support if the protocol remains stable enough
-  - [ ] Decide whether the shared API exposes only "supported/not supported" for non-Codex providers or a generic extension point
-  - [ ] Document which skill operations are cross-provider and which are provider-specific
+  - [x] Add Codex-backed `listSkills()` support
+  - [x] Add Codex-backed skill configuration read/write support if the protocol remains stable enough
+  - [x] Decide whether the shared API exposes only "supported/not supported" for non-Codex providers or a generic extension point
+  - [x] Document which skill operations are cross-provider and which are provider-specific
 
-- [ ] **2.3 — Better provider availability results**
+- [x] **2.3 — Better provider availability results**
   > Current availability returns provider/auth/account state, but not enough metadata for diagnostics or UX.
-  - [ ] Include version metadata when cheaply available
-  - [ ] Include executable path metadata when available
-  - [ ] Include last probe strategy and failure reason in a normalized field
-  - [ ] Preserve raw provider-native payloads for debugging
+  - [x] Include version metadata when cheaply available
+  - [x] Include executable path metadata when available
+  - [x] Include last probe strategy and failure reason in a normalized field
+  - [x] Preserve raw provider-native payloads for debugging
 
 ---
 

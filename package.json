@@ -13,6 +13,9 @@
     "smoke": "node --experimental-strip-types examples/basic.ts",
     "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
     "example:agent:claude": "node --experimental-strip-types examples/agent-claude.ts",
+    "example:models": "node --experimental-strip-types examples/models.ts",
+    "example:skills": "node --experimental-strip-types examples/skills.ts",
+    "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "engines": {

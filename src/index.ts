@@ -2,17 +2,30 @@ import { CodexClient } from './codex-client.ts'
 import {
   createAgent,
   getAvailableProviders,
+  listModels,
+  listSkills,
   getProviderAvailability,
   getProviderInventory,
   getProviderInventoryEntry,
 } from './agent-client.ts'
 import type { CreateCodexOptions } from './types.ts'
+import { writeCodexSkillConfig } from './providers/codex-adapter.ts'
+export type { WriteCodexSkillConfigOptions } from './providers/codex-adapter.ts'
 
 export { CodexAuth } from './auth.ts'
 export { CodexClient } from './codex-client.ts'
 export { CodexSession } from './session.ts'
 export { CodexThread } from './thread.ts'
-export { createAgent, getAvailableProviders, getProviderAvailability, getProviderInventory, getProviderInventoryEntry }
+export {
+  createAgent,
+  getAvailableProviders,
+  getProviderAvailability,
+  getProviderInventory,
+  getProviderInventoryEntry,
+  listModels,
+  listSkills,
+  writeCodexSkillConfig,
+}
 export type {
   AccountState,
   ApprovalPolicy,
@@ -51,6 +64,8 @@ export type {
   AgentClient,
   AgentEvent,
   AgentHandlers,
+  AgentModelInfo,
+  AgentModelListOptions,
   AgentOpenSessionOptions,
   AgentProviderInventory,
   AgentProviderAvailability,
@@ -58,6 +73,9 @@ export type {
   AgentResumeSessionOptions,
   AgentRunOptions,
   AgentRunResult,
+  AgentSkillConfigResult,
+  AgentSkillInfo,
+  AgentSkillListOptions,
   AgentSession,
   AgentSessionHandle,
   AgentSessionOptions,

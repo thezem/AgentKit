@@ -1,8 +1,12 @@
 import type {
   AgentClient,
+  AgentModelInfo,
+  AgentModelListOptions,
   AgentProviderInventory,
   AgentProviderAvailability,
   AgentProviderId,
+  AgentSkillInfo,
+  AgentSkillListOptions,
   CreateAgentOptions,
   ProviderInventoryOptions,
 } from './agent-types.ts'
@@ -39,6 +43,17 @@ export async function getProviderInventoryEntry(
 ): Promise<AgentProviderInventory> {
   const selected = providerRegistry.get(provider)
   return selected.getInventory(options)
+}
+
+export async function listModels(
+  provider?: AgentProviderId,
+  options?: AgentModelListOptions,
+): Promise<AgentModelInfo[]> {
+  return providerRegistry.listModels(provider, options)
+}
+
+export async function listSkills(provider: AgentProviderId, options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
+  return providerRegistry.listSkills(provider, options)
 }
 
 function inventoryToAvailability(inventory: AgentProviderInventory): AgentProviderAvailability {

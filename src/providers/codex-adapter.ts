@@ -9,11 +9,16 @@ import type {
   AgentClient,
   AgentEvent,
   AgentInput,
+  AgentModelInfo,
+  AgentModelListOptions,
   AgentOpenSessionOptions,
   AgentProviderInventory,
   AgentResumeSessionOptions,
   AgentRunOptions,
   AgentRunResult,
+  AgentSkillConfigResult,
+  AgentSkillInfo,
+  AgentSkillListOptions,
   AgentSession,
   AgentSessionHandle,
   AgentSessionOptions,
@@ -23,6 +28,12 @@ import type {
 } from '../agent-types.ts'
 import type {
   CodexStreamEvent,
+  CodexModelListParams,
+  CodexModelListResponse,
+  CodexSkillConfigWriteParams,
+  CodexSkillConfigWriteResponse,
+  CodexSkillListParams,
+  CodexSkillListResponse,
   CommandApprovalDecision,
   CommandApprovalRequest,
   CreateCodexOptions,
@@ -47,6 +58,14 @@ type CodexSessionInit = {
   codexSessionName?: string
   thread?: CodexThread
   threadId?: string
+}
+
+export type WriteCodexSkillConfigOptions = {
+  path: string
+  enabled: boolean
+  codexPath?: string
+  cwd?: string
+  env?: Record<string, string>
 }
 
 class CodexAgentSession implements AgentSession {
@@ -298,6 +317,139 @@ export async function createCodexAgentClient(options: CodexAgentClientOptions): 
   return new CodexAgentClient(client, options.defaults)
 }
 
+export async function listCodexModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+  if (options?.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 0)) {
+    throw new Error('Invalid model list limit: expected a non-negative integer')
+  }
+
+  const client = await createCodexDiscoveryClient({
+    codexPath: options?.codexPath,
+    env: options?.env,
+  })
+
+  try {
+    const response = await client.raw.request<CodexModelListResponse>(
+      'model/list',
+      {
+        ...(options?.includeHidden !== undefined ? { includeHidden: options.includeHidden } : {}),
+        ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+      } satisfies CodexModelListParams,
+    )
+
+    const normalized = normalizeCodexModelsResponse(response)
+      .filter((model) => options?.includeHidden === true || model.hidden !== true)
+      .map((model) => ({
+        provider: 'codex' as const,
+        id: model.id,
+        label: model.label ?? model.displayName ?? model.name ?? model.model ?? model.id,
+        ...(model.family ? { family: model.family } : {}),
+        ...(model.description ? { description: model.description } : {}),
+        available: true,
+        ...(model.hidden !== undefined ? { hidden: model.hidden } : {}),
+        ...(model.isDefault !== undefined ? { default: model.isDefault } : {}),
+        ...(model.isDefault !== undefined ? { recommended: model.isDefault } : {}),
+        ...(model.supportedReasoningEfforts
+          ? {
+              reasoningEfforts: model.supportedReasoningEfforts
+                .map((entry) => (typeof entry === 'string' ? entry : entry.reasoningEffort))
+                .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0),
+            }
+          : {}),
+        ...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
+        ...(model.inputModalities ? { inputModalities: model.inputModalities } : {}),
+        ...(model.supportsPersonality !== undefined ? { supportsPersonality: model.supportsPersonality } : {}),
+        ...(typeof model.upgrade === 'string' ? { upgradeModelId: model.upgrade } : {}),
+        ...(typeof model.upgrade === 'object' && model.upgrade && typeof model.upgrade.id === 'string'
+          ? { upgradeModelId: model.upgrade.id }
+          : {}),
+        discovery: {
+          mode: 'runtime' as const,
+          source: 'codex:model/list',
+        },
+        raw: model,
+      }))
+    if (options?.limit !== undefined) {
+      return normalized.slice(0, options.limit)
+    }
+    return normalized
+  } finally {
+    await client.close()
+  }
+}
+
+export async function listCodexSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
+  const client = await createCodexDiscoveryClient({
+    codexPath: options?.codexPath,
+    env: options?.env,
+  })
+
+  try {
+    const cwd = options?.cwd ?? process.cwd()
+    const response = await client.raw.request<CodexSkillListResponse>('skills/list', {
+      cwd,
+      cwds: [cwd],
+      ...(options?.extraUserRoots ? { extraUserRoots: { [cwd]: options.extraUserRoots } } : {}),
+      ...(options?.forceReload !== undefined ? { forceReload: options.forceReload } : {}),
+    } satisfies CodexSkillListParams)
+
+    const skills = normalizeCodexSkillsResponse(response)
+    return skills.map((skill) => ({
+      provider: 'codex' as const,
+      name: skill.name,
+      ...(skill.path ? { path: skill.path } : {}),
+      ...(skill.description ? { description: skill.description } : {}),
+      ...(skill.enabled !== undefined ? { enabled: skill.enabled } : {}),
+      ...(skill.interface ? { interface: skill.interface } : {}),
+      ...(skill.dependencies ? { dependencies: skill.dependencies } : {}),
+      configurable: true,
+      discovery: {
+        mode: 'runtime' as const,
+        source: 'codex:skills/list',
+      },
+      raw: skill.raw ?? skill,
+    }))
+  } finally {
+    await client.close()
+  }
+}
+
+export async function writeCodexSkillConfig(options: WriteCodexSkillConfigOptions): Promise<AgentSkillConfigResult> {
+  const before = await listCodexSkills({
+    codexPath: options.codexPath,
+    cwd: options.cwd ?? process.cwd(),
+    env: options.env,
+    forceReload: false,
+  })
+  const previous = before.find((skill) => skill.path === options.path)?.enabled
+
+  const client = await createCodexDiscoveryClient({
+    codexPath: options.codexPath,
+    env: options.env,
+  })
+
+  try {
+    const response = await client.raw.request<CodexSkillConfigWriteResponse>('skills/config/write', {
+      cwd: options.cwd ?? process.cwd(),
+      path: options.path,
+      enabled: options.enabled,
+    } satisfies CodexSkillConfigWriteParams)
+
+    return {
+      provider: 'codex',
+      supported: true,
+      changed:
+        typeof response.changed === 'boolean'
+          ? response.changed
+          : typeof previous === 'boolean' && typeof response.effectiveEnabled === 'boolean'
+            ? previous !== response.effectiveEnabled
+            : true,
+      raw: response,
+    }
+  } finally {
+    await client.close()
+  }
+}
+
 export async function getCodexInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
   const probeMode = options?.probeMode ?? 'deep'
   const detection = detectCodexBinary(options?.codexPath, { runVersionCheck: probeMode === 'deep' })
@@ -315,6 +467,7 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'path-check',
         ...(detection.failureReason ? { failureReason: detection.failureReason } : {}),
       },
       raw: detection.raw,
@@ -331,16 +484,18 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       degraded: false,
       status: deriveInventoryStatus({
         installed: true,
-        runnable: true,
+        runnable: detection.runnable,
         authenticated: false,
         degraded: false,
       }),
       ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
       ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
       ...(detection.version ? { version: detection.version } : {}),
+      ...(detection.version ? { versionDetails: { raw: detection.version, source: 'cli' as const } } : {}),
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'path-check',
         notes: ['Cheap probe checks command presence only; runtime execution is not verified.'],
       },
       raw: detection.raw,
@@ -359,9 +514,11 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
       ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
       ...(detection.version ? { version: detection.version } : {}),
+      ...(detection.version ? { versionDetails: { raw: detection.version, source: 'cli' as const } } : {}),
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'version-check',
         ...(detection.failureReason ? { failureReason: detection.failureReason } : {}),
       },
       raw: detection.raw,
@@ -394,9 +551,11 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
         ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
         ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
         ...(detection.version ? { version: detection.version } : {}),
+        ...(detection.version ? { versionDetails: { raw: detection.version, source: 'cli' as const } } : {}),
         account: state.account,
         diagnostics: {
           probeMode,
+          probeStrategy: 'runtime-init',
         },
         raw: {
           detection: detection.raw,
@@ -418,9 +577,11 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
       ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
       ...(detection.version ? { version: detection.version } : {}),
+      ...(detection.version ? { versionDetails: { raw: detection.version, source: 'cli' as const } } : {}),
       account: null,
       diagnostics: {
         probeMode,
+        probeStrategy: 'runtime-init',
         failureReason: errorToString(error),
       },
       raw: {
@@ -454,6 +615,12 @@ export const codexProvider: InternalAgentProvider = {
   async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
     return getCodexAvailability(options)
   },
+  async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+    return listCodexModels(options)
+  },
+  async listSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
+    return listCodexSkills(options)
+  },
   async createClient(options: CreateAgentOptions): Promise<AgentClient> {
     if (options.provider !== 'codex') {
       throw new Error(`codexProvider cannot handle provider=${options.provider}`)
@@ -472,6 +639,17 @@ function mergeCodexOptions(options: CodexAgentClientOptions): CreateCodexOptions
       ...(mergedDefaults ?? {}),
     },
   }
+}
+
+async function createCodexDiscoveryClient(options?: {
+  codexPath?: string
+  env?: Record<string, string>
+}): Promise<CodexClient> {
+  return CodexClient.create({
+    codexPath: options?.codexPath,
+    auth: { autoLogin: false },
+    env: options?.env,
+  })
 }
 
 function toCodexThreadOptions(options?: AgentSessionOptions): ThreadOptions | undefined {
@@ -829,8 +1007,9 @@ function codexCapabilities(): AgentCapabilities {
     },
     discovery: {
       inventory: true,
-      modelListing: false,
-      skillsListing: false,
+      modelListing: true,
+      skillsListing: true,
+      skillConfiguration: true,
     },
     semantics: {
       sessionIdentity: 'thread-id',
@@ -871,6 +1050,135 @@ function inventoryToAvailability(inventory: AgentProviderInventory): AgentAccoun
     account: inventory.account,
     raw: inventory.raw,
   }
+}
+
+function normalizeCodexModelsResponse(response: CodexModelListResponse): Array<{
+  id: string
+  name?: string
+  label?: string
+  displayName?: string
+  model?: string
+  family?: string
+  description?: string
+  hidden?: boolean
+  isDefault?: boolean
+  supportedReasoningEfforts?: Array<string | { reasoningEffort?: string; description?: string }>
+  defaultReasoningEffort?: string
+  inputModalities?: Array<'text' | 'image' | string>
+  supportsPersonality?: boolean
+  upgrade?: string | { id?: string } | null
+  raw?: unknown
+}> {
+  const data = (response.data ?? response.models ?? []) as unknown[]
+  if (!Array.isArray(data)) return []
+  return data
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => {
+      const id =
+        (typeof item.id === 'string' && item.id) ||
+        (typeof item.model === 'string' && item.model) ||
+        (typeof item.name === 'string' && item.name) ||
+        ''
+
+      const supportedReasoningEfforts = Array.isArray(item.supportedReasoningEfforts)
+        ? item.supportedReasoningEfforts.filter(
+            (entry): entry is string | { reasoningEffort?: string; description?: string } =>
+              typeof entry === 'string' || (typeof entry === 'object' && entry !== null),
+          )
+        : undefined
+
+      return {
+        id,
+        ...(typeof item.name === 'string' ? { name: item.name } : {}),
+        ...(typeof item.label === 'string' ? { label: item.label } : {}),
+        ...(typeof item.displayName === 'string' ? { displayName: item.displayName } : {}),
+        ...(typeof item.model === 'string' ? { model: item.model } : {}),
+        ...(typeof item.family === 'string' ? { family: item.family } : {}),
+        ...(typeof item.description === 'string' ? { description: item.description } : {}),
+        ...(typeof item.hidden === 'boolean' ? { hidden: item.hidden } : {}),
+        ...(typeof item.isDefault === 'boolean' ? { isDefault: item.isDefault } : {}),
+        ...(supportedReasoningEfforts ? { supportedReasoningEfforts } : {}),
+        ...(typeof item.defaultReasoningEffort === 'string'
+          ? { defaultReasoningEffort: item.defaultReasoningEffort }
+          : {}),
+        ...(Array.isArray(item.inputModalities)
+          ? { inputModalities: item.inputModalities.filter((entry): entry is string => typeof entry === 'string') }
+          : {}),
+        ...(typeof item.supportsPersonality === 'boolean' ? { supportsPersonality: item.supportsPersonality } : {}),
+        ...(typeof item.upgrade === 'string' || (typeof item.upgrade === 'object' && item.upgrade !== null)
+          ? { upgrade: item.upgrade as string | { id?: string } }
+          : {}),
+        raw: item,
+      }
+    })
+    .filter((item) => item.id.length > 0)
+}
+
+function normalizeCodexSkillsResponse(response: CodexSkillListResponse): Array<{
+  name: string
+  path?: string
+  description?: string
+  enabled?: boolean
+  interface?: string
+  dependencies?: string[]
+  raw?: unknown
+}> {
+  const asRecord = response as unknown as Record<string, unknown>
+  const flat = asRecord.skills
+  if (Array.isArray(flat)) {
+    return flat
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+      .map((item) => ({
+        name: String(item.name ?? ''),
+        ...(typeof item.path === 'string' ? { path: item.path } : {}),
+        ...(typeof item.description === 'string' ? { description: item.description } : {}),
+        ...(typeof item.enabled === 'boolean' ? { enabled: item.enabled } : {}),
+        ...(typeof item.interface === 'string' ? { interface: item.interface } : {}),
+        ...(Array.isArray(item.dependencies)
+          ? { dependencies: item.dependencies.filter((value): value is string => typeof value === 'string') }
+          : {}),
+        raw: item,
+      }))
+      .filter((item) => item.name.length > 0)
+  }
+
+  const cwdEntries = asRecord.data
+  if (!Array.isArray(cwdEntries)) {
+    return []
+  }
+
+  const skills: Array<{
+    name: string
+    path?: string
+    description?: string
+    enabled?: boolean
+    interface?: string
+    dependencies?: string[]
+    raw?: unknown
+  }> = []
+  for (const entry of cwdEntries) {
+    if (!entry || typeof entry !== 'object') continue
+    const nested = (entry as Record<string, unknown>).skills
+    if (!Array.isArray(nested)) continue
+    for (const item of nested) {
+      if (!item || typeof item !== 'object') continue
+      const data = item as Record<string, unknown>
+      const name = typeof data.name === 'string' ? data.name : ''
+      if (!name) continue
+      skills.push({
+        name,
+        ...(typeof data.path === 'string' ? { path: data.path } : {}),
+        ...(typeof data.description === 'string' ? { description: data.description } : {}),
+        ...(typeof data.enabled === 'boolean' ? { enabled: data.enabled } : {}),
+        ...(typeof data.interface === 'string' ? { interface: data.interface } : {}),
+        ...(Array.isArray(data.dependencies)
+          ? { dependencies: data.dependencies.filter((value): value is string => typeof value === 'string') }
+          : {}),
+        raw: data,
+      })
+    }
+  }
+  return skills
 }
 
 function errorToString(error: unknown): string {
