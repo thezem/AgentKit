@@ -15,15 +15,25 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
   private readonly waiters: Array<Deferred<IteratorResult<T>>> = []
   private ended = false
+  private failure: unknown | null = null
+  private readonly maxSize?: number
 
-  push(item: T): void {
-    if (this.ended) return
+  constructor(options?: { maxSize?: number }) {
+    this.maxSize = options?.maxSize
+  }
+
+  push(item: T): boolean {
+    if (this.ended) return false
     const waiter = this.waiters.shift()
     if (waiter) {
       waiter.resolve({ value: item, done: false })
-      return
+      return true
+    }
+    if (this.maxSize !== undefined && this.items.length >= this.maxSize) {
+      return false
     }
     this.items.push(item)
+    return true
   }
 
   end(): void {
@@ -34,9 +44,22 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
     }
   }
 
+  fail(error: unknown): void {
+    if (this.ended) return
+    this.ended = true
+    this.failure = error
+    this.items.length = 0
+    while (this.waiters.length > 0) {
+      this.waiters.shift()?.reject(error)
+    }
+  }
+
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: async () => {
+        if (this.failure) {
+          return Promise.reject(this.failure)
+        }
         if (this.items.length > 0) {
           return { value: this.items.shift() as T, done: false }
         }

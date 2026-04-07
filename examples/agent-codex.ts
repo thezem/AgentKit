@@ -7,17 +7,6 @@ const agent = await createAgent({
     model: 'gpt-5.4',
   },
   codex: {
-    auth: {
-      autoLogin: false,
-      strategy: process.env.CODEXKIT_LOGIN === 'device-code' ? 'device-code' : 'browser',
-      onLoginRequired(info) {
-        if (info.url) {
-          console.log('Open this URL to sign in with ChatGPT:')
-          console.log(info.url)
-          console.log('Waiting for login completion...')
-        }
-      },
-    },
     defaults: {
       sandboxMode: 'workspace-write',
       approvalPolicy: 'on-request',
@@ -25,7 +14,7 @@ const agent = await createAgent({
   },
 })
 
-console.log('Provider account state:', await agent.getAccountState())
+console.log('Provider runtime/account state:', await agent.getAccountState())
 const session = await agent.openSession({ name: 'agent-codex-demo' })
 const stream = await session.stream('Summarize this repository in 4 bullets')
 for await (const event of stream) {

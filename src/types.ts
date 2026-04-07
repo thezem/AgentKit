@@ -333,6 +333,16 @@ export type CreateCodexOptions = {
     onLoginRequired?: (info: LoginInfo) => void | Promise<void>
     onLoginComplete?: (account: CodexAccount) => void | Promise<void>
   }
+  requestTimeoutMs?: number
+  maxQueueSize?: number
+  diagnostics?: {
+    logger?: (event: {
+      level: 'debug' | 'info' | 'warn' | 'error'
+      code: string
+      message: string
+      data?: Record<string, unknown>
+    }) => void
+  }
   defaults?: ThreadOptions
   handlers?: RequestHandlers
   env?: Record<string, string>

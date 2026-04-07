@@ -249,6 +249,7 @@ export type ProviderInventoryOptions = {
   cwd?: string
   env?: Record<string, string>
   probeMode?: 'cheap' | 'deep'
+  probeTimeoutMs?: number
 }
 
 export type AgentProviderInventory = {

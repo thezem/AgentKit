@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { CodexClient } from '../codex-client.ts'
+import { ProviderProbeTimeoutError } from '../errors.ts'
 import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
 import type {
@@ -107,12 +108,13 @@ class CodexAgentSession implements AgentSession {
   }
 
   getSessionInfo(): AgentSessionSummary {
+    const runtimeStatus = this.threadId ? this.codexClient.getThreadTurnState(this.threadId) : 'idle'
     return {
       provider: 'codex',
       name: this.name,
       sessionId: this.threadId,
       handle: codexHandle(this.threadId, this.name),
-      status: this.closed ? 'closed' : 'idle',
+      status: this.closed ? 'closed' : runtimeStatus === 'idle' ? 'idle' : 'active',
       ...(this.options?.model ? { model: this.options.model } : {}),
       ...(this.options?.cwd ? { cwd: this.options.cwd } : {}),
       raw: {
@@ -452,6 +454,7 @@ export async function writeCodexSkillConfig(options: WriteCodexSkillConfigOption
 
 export async function getCodexInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
   const probeMode = options?.probeMode ?? 'deep'
+  const probeTimeoutMs = options?.probeTimeoutMs ?? 5000
   const detection = detectCodexBinary(options?.codexPath, { runVersionCheck: probeMode === 'deep' })
 
   if (!detection.installed) {
@@ -527,14 +530,26 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
   }
 
   try {
-    const client = await CodexClient.create({
+    const createClientPromise = CodexClient.create({
       codexPath: options?.codexPath,
       auth: { autoLogin: false },
       env: options?.env,
     })
+    const client = await withTimeout(createClientPromise, probeTimeoutMs, () => {
+      void createClientPromise
+        .then((lateClient) => lateClient.close())
+        .catch(() => {
+          // Ignore cleanup failures for late-resolving probe clients.
+        })
+      return new ProviderProbeTimeoutError('codex', probeTimeoutMs)
+    })
 
     try {
-      const state = await client.auth.getAccount(false)
+      const state = await withTimeout(
+        client.auth.getAccount(false),
+        probeTimeoutMs,
+        () => new ProviderProbeTimeoutError('codex', probeTimeoutMs),
+      )
       const authenticated = state.account !== null
       return {
         provider: 'codex',
@@ -567,10 +582,11 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       await client.close()
     }
   } catch (error) {
+    const timeout = error instanceof ProviderProbeTimeoutError
     return {
       provider: 'codex',
       installed: true,
-      runnable: false,
+      runnable: timeout ? true : false,
       authenticated: false,
       degraded: true,
       status: 'degraded',
@@ -583,6 +599,7 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
         probeMode,
         probeStrategy: 'runtime-init',
         failureReason: errorToString(error),
+        ...(timeout ? { notes: [`Runtime probe exceeded ${probeTimeoutMs}ms and was degraded.`] } : {}),
       },
       raw: {
         detection: detection.raw,
@@ -599,6 +616,7 @@ export async function getCodexAvailability(options?: ProviderAvailabilityOptions
     cwd: options?.cwd,
     env: options?.env,
     probeMode: options?.probeRuntime === true ? 'deep' : 'cheap',
+    probeTimeoutMs: options?.probeTimeoutMs,
   })
   return inventoryToAvailability(inventory)
 }
@@ -1184,4 +1202,19 @@ function normalizeCodexSkillsResponse(response: CodexSkillListResponse): Array<{
 function errorToString(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, createError: () => Error): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(createError()), timeoutMs)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
 }

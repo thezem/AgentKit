@@ -17,6 +17,12 @@ export { CodexClient } from './codex-client.ts'
 export { CodexSession } from './session.ts'
 export { CodexThread } from './thread.ts'
 export {
+  ConcurrentTurnError,
+  ProviderProbeTimeoutError,
+  QueueOverflowError,
+  TransportRequestTimeoutError,
+} from './errors.ts'
+export {
   createAgent,
   getAvailableProviders,
   getProviderAvailability,

@@ -18,7 +18,7 @@ npm install @ouim/agentkit
 Requirements:
 
 - Node.js `>=22.6`
-- local runtime installed and authenticated as needed:
+- local runtime installed and available:
   - Codex: `codex` CLI
   - Claude: `@anthropic-ai/claude-agent-sdk` runtime requirements
 

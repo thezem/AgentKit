@@ -3,7 +3,7 @@ import { getProviderInventory, getProviderInventoryEntry } from '../src/index.ts
 const inventory = await getProviderInventory({ probeMode: 'cheap' })
 console.log('Provider inventory (cheap):')
 for (const provider of inventory) {
-  console.log(`- ${provider.provider}: status=${provider.status} runnable=${provider.runnable} authenticated=${provider.authenticated}`)
+  console.log(`- ${provider.provider}: status=${provider.status} runnable=${provider.runnable} accountState=${provider.authenticated ? 'present' : 'unknown'}`)
   if (provider.executablePath) console.log(`  executable: ${provider.executablePath} (${provider.executableSource ?? 'unknown'})`)
   if (provider.version) console.log(`  version: ${provider.version}`)
   if (provider.diagnostics?.probeStrategy) console.log(`  probeStrategy: ${provider.diagnostics.probeStrategy}`)
