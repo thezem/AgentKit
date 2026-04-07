@@ -2,7 +2,7 @@
 
 ## Why This Exists
 
-`@ouim/codexkit` started as a high-level Node wrapper around `codex app-server`, but the more durable product direction is larger than a wrapper.
+`@ouim/agentkit` started as a high-level Node wrapper around `codex app-server`, but the more durable product direction is larger than a wrapper.
 
 The real goal is a deployable Codex runtime that can live on a VPS, home lab, self-hosted runner, or container host and be called from anywhere through HTTP, webhooks, scheduled jobs, and automation flows.
 
@@ -50,7 +50,7 @@ Conceptually:
 HTTP / Webhooks / Schedules
             |
             v
-      codexkit-server
+      agentkit-server
             |
             v
       codex app-server
@@ -130,7 +130,7 @@ The future product likely has two layers.
 
 ### 1. Library Layer
 
-Keep `@ouim/codexkit` as the Node wrapper around `codex app-server`.
+Keep `@ouim/agentkit` as the Node wrapper around `codex app-server`.
 
 Its job:
 
@@ -147,9 +147,9 @@ Build a companion runtime on top of the library.
 
 Possible identity:
 
-- `codexkit-server`
-- `codexkit-runtime`
-- `codexkitd`
+- `agentkit-server`
+- `agentkit-runtime`
+- `agentkitd`
 
 Its job:
 
@@ -244,10 +244,10 @@ At that point, open source distribution starts making sense.
 The service will likely need explicit directories for:
 
 - `~/.codex` for Codex auth and runtime state
-- `/srv/codexkit/workspaces` for cloned repos or checked-out projects
-- `/srv/codexkit/actions` for prompt files and workflow definitions
-- `/srv/codexkit/data` for service metadata and job state
-- `/srv/codexkit/logs` for operational logs
+- `/srv/agentkit/workspaces` for cloned repos or checked-out projects
+- `/srv/agentkit/actions` for prompt files and workflow definitions
+- `/srv/agentkit/data` for service metadata and job state
+- `/srv/agentkit/logs` for operational logs
 
 The exact paths do not matter yet, but the separation does.
 
@@ -376,7 +376,7 @@ This is the layer where the original vision actually lives.
 
 The eventual setup story should feel this simple:
 
-1. install `codexkit-server`
+1. install `agentkit-server`
 2. install or bundle Codex CLI
 3. run `codex auth` once on the machine
 4. run `gh auth login` once for the bot account

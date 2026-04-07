@@ -292,7 +292,7 @@ So if you document Claude support later, you should be explicit about whether yo
 - current TypeScript SDK
 - or V2 preview
 
-## What Matters For `codexkit`
+## What Matters For `agentkit`
 
 If you ever broaden this project conceptually, the clean takeaway is:
 

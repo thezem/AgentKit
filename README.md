@@ -1,6 +1,6 @@
-# @ouim/codexkit
+# @ouim/agentkit
 
-`@ouim/codexkit` is a host-side TypeScript SDK for local agent runtimes.
+`@ouim/agentkit` is a host-side TypeScript SDK for local agent runtimes.
 
 It provides:
 
@@ -12,7 +12,7 @@ It provides:
 ## Install
 
 ```bash
-npm install @ouim/codexkit
+npm install @ouim/agentkit
 ```
 
 Requirements:
@@ -25,7 +25,7 @@ Requirements:
 ## Shared Provider API
 
 ```ts
-import { createAgent } from '@ouim/codexkit'
+import { createAgent } from '@ouim/agentkit'
 
 const agent = await createAgent({
   provider: 'codex',
@@ -81,7 +81,7 @@ type AgentSessionHandle = {
 Inventory is the canonical discovery surface:
 
 ```ts
-import { getProviderInventory, getProviderInventoryEntry, listModels, listSkills } from '@ouim/codexkit'
+import { getProviderInventory, getProviderInventoryEntry, listModels, listSkills } from '@ouim/agentkit'
 
 const inventory = await getProviderInventory({ probeMode: 'cheap' })
 const codexDeep = await getProviderInventoryEntry('codex', { probeMode: 'deep' })
@@ -150,7 +150,7 @@ Use these for provider-native behavior that is intentionally outside the shared 
 Codex skill config writes are exported as a provider-specific helper:
 
 ```ts
-import { writeCodexSkillConfig } from '@ouim/codexkit'
+import { writeCodexSkillConfig } from '@ouim/agentkit'
 
 await writeCodexSkillConfig({
   path: '/abs/path/to/skill',

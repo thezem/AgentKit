@@ -27,7 +27,7 @@ It should not optimize for:
 
 The MVP should be a single-machine service composed of:
 
-1. the existing `@ouim/codexkit` runtime core
+1. the existing `@ouim/agentkit` runtime core
 2. a new local HTTP server
 3. a local action loader
 4. persistent workspaces
@@ -83,8 +83,8 @@ This keeps momentum high and avoids premature package fragmentation.
 
 Later, if needed:
 
-- publish `@ouim/codexkit` as the library
-- publish `codexkit-server` as the runtime package
+- publish `@ouim/agentkit` as the library
+- publish `agentkit-server` as the runtime package
 
 ## MVP Runtime Responsibilities
 
@@ -254,7 +254,7 @@ Request:
 ```json
 {
   "prompt": "Summarize this repository",
-  "cwd": "/srv/codexkit/workspaces/my-repo"
+  "cwd": "/srv/agentkit/workspaces/my-repo"
 }
 ```
 
@@ -270,7 +270,7 @@ Request:
     "repo": "owner/repo",
     "prNumber": 123
   },
-  "cwd": "/srv/codexkit/workspaces/repo"
+  "cwd": "/srv/agentkit/workspaces/repo"
 }
 ```
 
@@ -530,7 +530,7 @@ The MVP is successful when you can do this:
 
 1. SSH into a VPS once
 2. authenticate Codex once
-3. start `codexkit-server`
+3. start `agentkit-server`
 4. `curl` a prompt or action from anywhere
 5. watch Codex work on a real repository
 6. optionally let a GitHub bot workflow act on the result
