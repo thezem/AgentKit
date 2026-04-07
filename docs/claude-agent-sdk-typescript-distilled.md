@@ -268,15 +268,15 @@ This is especially relevant if you ever compare this to Codex:
 
 This is the most important product-level note from Anthropic's quickstart:
 
-- third-party developers should use API key or supported provider auth
+- third-party developers should use API key or supported provider runtime/account setup
 - unless previously approved, Anthropic does **not** allow developers to offer `claude.ai` login or rate limits inside their products built on the Agent SDK
 
 That matters a lot for your repo direction.
 
 Inference from Anthropic's docs:
 
-- Codex-style ChatGPT-login-first UX is compatible with your Codex wrapper vision
-- Claude-side SDK integrations should be designed around API/provider auth, not consumer-login-style product flows
+- Codex-style consumer login UX should be treated as provider-specific legacy behavior
+- Claude-side SDK integrations should be designed around API/provider runtime setup, not consumer-login-style product flows
 
 ## V2 Preview
 
@@ -300,13 +300,13 @@ If you ever broaden this project conceptually, the clean takeaway is:
 
 - lower-level runtime protocol
 - app-server transport and lifecycle matter
-- auth can be ChatGPT-style
+- runtime/account behavior can be provider-specific and transitional
 
 ### Claude side
 
 - higher-level agent SDK already exists
 - local agent loop is already packaged for developers
-- API/provider auth is the expected model
+- API/provider runtime setup is the expected model
 - rich permissions/sandbox/session APIs are first-class
 
 That suggests a future shared abstraction should likely sit above:

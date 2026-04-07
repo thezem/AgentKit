@@ -1,9 +1,6 @@
 import { createCodex } from '../src/index.ts'
 
 const codex = await createCodex({
-  auth: {
-    autoLogin: false,
-  },
   defaults: {
     cwd: process.env.GITHUB_WORKSPACE ?? process.cwd(),
     sandboxMode: 'workspace-write',

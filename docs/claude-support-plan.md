@@ -19,7 +19,7 @@ The goal is:
 Codexkit should support agents that:
 
 - are already installed on the user's machine
-- are already authenticated in the user's environment
+- have existing runtime/account state in the user's environment
 - can be controlled from a host Node application
 
 Claude fits that model.
@@ -28,7 +28,7 @@ The host-side promise becomes:
 
 - developers build against Codexkit
 - Codexkit talks to Codex or Claude
-- the user keeps using their own local provider install/auth setup
+- the user keeps using their own local provider setup
 
 ## Key Constraint
 
@@ -106,8 +106,7 @@ The host should be able to ask:
 
 - is the provider installed?
 - is it reachable?
-- is it authenticated?
-- what account/runtime info is available?
+- what current runtime/account state is available?
 
 ### 5. Session Controls
 
@@ -127,7 +126,7 @@ These should remain provider-specific or be exposed behind capability checks.
 - raw JSON-RPC methods
 - app-server transport lifecycle
 - thread ids / turn ids as first-class objects
-- exact auth flow helpers
+- legacy runtime/account helpers (transitional compatibility)
 - approval request payload shapes
 
 ### Claude-specific
@@ -163,7 +162,7 @@ AgentCapabilities
 Responsible for:
 
 - installation detection
-- auth/account checks
+- runtime/account-state checks
 - client creation
 - provider metadata
 
@@ -307,7 +306,7 @@ Codexkit should not try to interpret its internal structure.
 Codexkit should detect:
 
 - whether the Claude SDK package is available
-- whether the local Claude environment is authenticated
+- what local Claude runtime/account state is available
 - whether the configured executable path exists when relevant
 
 This should be surfaced as provider health/account info.
@@ -352,6 +351,7 @@ Then provider-specific sub-options:
 ```ts
 type CodexProviderOptions = {
   codexPath?: string
+  // legacy runtime/account options (transitional)
   auth?: ...
 }
 

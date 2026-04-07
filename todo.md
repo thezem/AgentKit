@@ -40,7 +40,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
 - [x] Provider-specific escape hatches: `asCodex()` and `asClaude()`
 - [x] Claude long-lived session runtime with interrupt support
 - [x] Claude resume state surfaced as opaque `resumeState`
-- [x] Device auth via native `codex login --device-auth`
+- [x] Legacy runtime account flows kept for compatibility (transitional)
 - [x] Windows-specific Codex command handling and best-effort process cleanup
 - [x] Main examples for Codex compatibility, generic Codex, and generic Claude
 
@@ -72,7 +72,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Surface normalized executable/runtime metadata as first-class fields, not only under `raw`
   - [x] Report detection source: PATH lookup, configured override, SDK importability, runtime probe
   - [x] Include resolved executable path when known
-  - [x] Distinguish installed, runnable, authenticated, and degraded states
+  - [x] Distinguish installed, runnable, account-state-present, and degraded states
 
 - [x] **1.3 — Add provider capability reporting that is useful to callers**
   > `getCapabilities()` exists, but it is still coarse and mostly hardcoded.
@@ -108,7 +108,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Document which skill operations are cross-provider and which are provider-specific
 
 - [x] **2.3 — Better provider availability results**
-  > Current availability returns provider/auth/account state, but not enough metadata for diagnostics or UX.
+  > Current availability returns provider runtime/account state, but not enough metadata for diagnostics or UX.
   - [x] Include version metadata when cheaply available
   - [x] Include executable path metadata when available
   - [x] Include last probe strategy and failure reason in a normalized field
@@ -120,45 +120,41 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 > Goal: remove the remaining hang and recovery risks in the transport/session layers.
 
-- [ ] **3.1 — Request timeouts on JSON-RPC transport**
+- [x] **3.1 — Request timeouts on JSON-RPC transport**
   > `transport.request()` can still wait forever if the app-server stalls without exiting.
-  - [ ] Add configurable `requestTimeoutMs`
-  - [ ] Reject timed-out requests with a typed error
+  - [x] Add configurable `requestTimeoutMs`
+  - [x] Reject timed-out requests with `TransportRequestTimeoutError`
   - [x] Reject inflight pending requests when transport exits/closes
-  - [ ] Export the timeout option through `CreateCodexOptions`
+  - [x] Export the timeout option through `CreateCodexOptions`
+  - [x] Emit timeout diagnostics through `diagnostics.logger`
 
-- [ ] **3.2 — Async queue backpressure / orphan stream protection**
+- [x] **3.2 — Async queue backpressure / orphan stream protection**
   > Active turn streams are ended on transport close, but there is still no queue size guard or explicit memory protection.
   - [x] End active turn streams when transport closes
-  - [ ] Add optional `maxQueueSize` guard
+  - [x] Add optional `maxQueueSize` guard
+  - [x] Fail overflowed queues with `QueueOverflowError`
+  - [x] Fail pending/active turns and clear thread state on transport death
   - [ ] Add explicit tests for mid-turn crash behavior
 
-- [ ] **3.3 — Observability for dropped or unmatched notifications**
+- [x] **3.3 — Observability for dropped or unmatched notifications**
   > Notification routing still silently returns in some unmatched cases.
-  - [ ] Log or emit diagnostics for dropped notifications
-  - [ ] Count dropped notifications for debugging
-  - [ ] Decide whether to expose a client-level event emitter or logger hook
+  - [x] Log diagnostics for dropped/unmatched cases via logger hook only
+  - [x] Count dropped/unmatched/orphan cases internally for debugging
+  - [x] Keep diagnostics internal (no public emitter)
 
-- [ ] **3.4 — Concurrency control for turns on the same thread/session**
+- [x] **3.4 — Concurrency control for turns on the same thread/session**
   > The current turn-start queueing logic is still fragile under concurrent calls on the same thread.
-  - [ ] Enforce one active turn per thread/session or queue explicitly
-  - [ ] Add a clear error or serialization strategy
-  - [ ] Expose running-state introspection where useful
-  - [ ] Mirror the policy consistently in the shared provider API
+  - [x] Enforce exactly one starting/active turn per thread/session
+  - [x] Reject overlap with `ConcurrentTurnError` (no implicit queueing)
+  - [x] Expose running-state introspection where useful
+  - [x] Mirror the policy in the shared Codex provider session path
 
-- [ ] **3.5 — Auth robustness**
-  > Browser timeout exists, but device auth polling remains fixed and transport restart behavior is still lightly documented.
-  - [x] Browser login timeout support exists via `auth.timeoutMs`
-  - [x] Device auth restarts the app-server transport after CLI login
-  - [ ] Make device-auth polling interval and attempts configurable
-  - [ ] Emit device-auth polling progress or diagnostics
-  - [ ] Document safe/unsafe timing for `restartTransport()` during active work
-
-- [ ] **3.6 — Provider availability probing safety**
+- [x] **3.5 — Provider availability probing safety**
   > Availability probing should be cheap and predictable; runtime checks should not surprise callers or hang.
-  - [ ] Define cheap probe vs deep probe modes consistently across providers
-  - [ ] Add timeouts around provider runtime probing where appropriate
-  - [ ] Document probe cost and side effects
+  - [x] Define cheap probe vs deep probe modes consistently across providers
+  - [x] Add `probeTimeoutMs` and bound deep runtime probes for Codex + Claude
+  - [x] Return degraded inventory on probe timeout with normalized diagnostics
+  - [x] Export `ProviderProbeTimeoutError`
 
 ---
 
@@ -178,7 +174,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [ ] Keep Codex skill and mention input validation consistent with documented protocol shape
 
 - [ ] **4.3 — Introduce typed exported errors**
-  - [ ] Create shared error classes for timeout, input validation, provider detection, auth, and unsupported capability
+  - [ ] Create shared error classes for timeout, input validation, provider detection, and unsupported capability
   - [ ] Re-export them from `index.ts`
   - [ ] Document which methods throw which errors
 
@@ -204,11 +200,11 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [ ] Create unit/integration test directories
   - [ ] Add transport and provider mocks/stubs
 
-- [ ] **5.2 — Transport/auth tests**
+- [ ] **5.2 — Transport/runtime tests**
   - [ ] Request/response matching
   - [ ] Transport close rejects inflight requests
-  - [ ] Browser login completion and timeout
-  - [ ] Device auth restart and post-login polling behavior
+  - [ ] Request timeout rejects and ignores late responses
+  - [ ] Queue overflow and transport-death stream failure behavior
   - [ ] Windows cleanup path coverage
 
 - [ ] **5.3 — Codex lifecycle tests**
@@ -240,7 +236,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Document provider availability semantics
   - [ ] Document normalized events and handlers
   - [x] Document provider escape hatches and when to use them
-  - [ ] Add troubleshooting for missing binaries, missing auth, and probe failures
+  - [ ] Add troubleshooting for missing binaries, runtime/account state, and probe failures
 
 - [ ] **6.2 — API docs / JSDoc**
   - [ ] Add JSDoc to public shared API types and methods
@@ -304,7 +300,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 - [ ] **8.3 — Structured logging / telemetry**
   - [ ] Add injectable logger interface
-  - [ ] Log transport lifecycle, auth, discovery probes, and approvals
+  - [ ] Log transport lifecycle, runtime/account state, discovery probes, and approvals
 
 - [ ] **8.4 — Conversation/message history helpers**
   - [ ] Expose higher-level message history APIs where they add value
