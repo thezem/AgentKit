@@ -52,6 +52,7 @@ export class ClaudeSession implements AgentSession {
   private readonly turns: ClaudeTurnContext[] = []
   private readonly baseOptions?: AgentRunOptions
   private readonly createClaude?: CreateClaudeOptions
+  private readonly onClosed?: (name: string, session: ClaudeSession) => void
 
   private turnSeq = 0
   private closed = false
@@ -62,10 +63,16 @@ export class ClaudeSession implements AgentSession {
   private currentModel: string | undefined
   private currentPermissionMode: string | undefined
 
-  constructor(name: string, createClaude?: CreateClaudeOptions, baseOptions?: AgentRunOptions) {
+  constructor(
+    name: string,
+    createClaude?: CreateClaudeOptions,
+    baseOptions?: AgentRunOptions,
+    onClosed?: (name: string, session: ClaudeSession) => void,
+  ) {
     this.name = name
     this.baseOptions = baseOptions
     this.createClaude = createClaude
+    this.onClosed = onClosed
     this.currentModel = baseOptions?.model ?? createClaude?.model
     this.currentPermissionMode = baseOptions?.permissionMode ?? createClaude?.permissionMode
     this.resumeState =
@@ -117,7 +124,12 @@ export class ClaudeSession implements AgentSession {
     this.promptQueue.close()
     this.runtime.close()
     this.failPendingTurns(this.closeReason)
+    this.onClosed?.(this.name, this)
     await this.runtimeConsumer
+  }
+
+  isClosed(): boolean {
+    return this.closed
   }
 
   getRuntimeMetadata(): { sessionId: string | null; currentModel?: string; currentPermissionMode?: string } {
@@ -484,20 +496,9 @@ function normalizeAgentInput(input: AgentInput): string {
       continue
     }
 
-    if (item.type === 'image') {
-      chunks.push(`[Image URL] ${item.url}`)
-      continue
-    }
-
-    if (item.type === 'localImage') {
-      chunks.push(`[Local Image] ${item.path}`)
-      continue
-    }
-
-    if (item.type === 'skill' || item.type === 'mention') {
-      chunks.push(`[${item.type}] ${item.name} (${item.path})`)
-      continue
-    }
+    throw new Error(
+      `Unsupported Claude input item type "${item.type}". Claude adapter currently supports text-only input in Codexkit.`,
+    )
   }
 
   return chunks.join('\n')

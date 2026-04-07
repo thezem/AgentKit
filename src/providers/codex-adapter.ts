@@ -15,10 +15,20 @@ import type {
 } from '../agent-types.ts'
 import type {
   CodexStreamEvent,
+  CommandApprovalDecision,
+  CommandApprovalRequest,
   CreateCodexOptions,
+  DynamicToolRequest,
+  DynamicToolResponse,
+  FileApprovalDecision,
+  FileApprovalRequest,
+  PermissionApprovalDecision,
+  PermissionApprovalRequest,
+  RequestHandlers,
   RunOptions,
   RunResult,
   ThreadOptions,
+  ToolInputAnswerMap,
   ToolInputRequest,
   UserInput,
 } from '../types.ts'
@@ -33,11 +43,19 @@ class CodexAgentSession implements AgentSession {
   private readonly options?: AgentSessionOptions
   private readonly codexClient: CodexClient
   private readonly codexSession
+  private readonly onClosed: (name: string, session: CodexAgentSession) => void
+  private closed = false
 
-  constructor(codexClient: CodexClient, name: string, options?: AgentSessionOptions) {
+  constructor(
+    codexClient: CodexClient,
+    name: string,
+    options: AgentSessionOptions | undefined,
+    onClosed: (name: string, session: CodexAgentSession) => void,
+  ) {
     this.codexClient = codexClient
     this.name = name
     this.options = options
+    this.onClosed = onClosed
     this.codexSession = this.codexClient.session(this.name)
   }
 
@@ -46,12 +64,14 @@ class CodexAgentSession implements AgentSession {
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
+    this.assertOpen()
     const merged = mergeAgentRunOptions(this.options, options)
     const result = await this.codexSession.run(asCodexInput(input), toCodexRunOptions(merged))
     return codexRunResultToAgent(result)
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
+    this.assertOpen()
     const merged = mergeAgentRunOptions(this.options, options)
     const stream = await this.codexSession.stream(asCodexInput(input), toCodexRunOptions(merged))
 
@@ -65,11 +85,25 @@ class CodexAgentSession implements AgentSession {
   }
 
   async interrupt(): Promise<void> {
+    this.assertOpen()
     await this.codexSession.interrupt()
   }
 
   async close(): Promise<void> {
-    // Codex sessions are managed by the client's thread lifecycle.
+    if (this.closed) return
+    this.closed = true
+    this.codexClient.clearSession(this.name)
+    this.onClosed(this.name, this)
+  }
+
+  isClosed(): boolean {
+    return this.closed
+  }
+
+  private assertOpen(): void {
+    if (this.closed) {
+      throw new Error(`Session "${this.name}" is closed`)
+    }
   }
 }
 
@@ -86,9 +120,13 @@ class CodexAgentClient implements AgentClient {
 
   session(name: string, options?: AgentSessionOptions): AgentSession {
     const existing = this.sessions.get(name)
-    if (existing) return existing
+    if (existing && !existing.isClosed()) return existing
     const merged = mergeAgentSessionOptions(this.defaults, options)
-    const session = new CodexAgentSession(this.codexClient, name, merged)
+    const session = new CodexAgentSession(this.codexClient, name, merged, (sessionName, current) => {
+      if (this.sessions.get(sessionName) === current) {
+        this.sessions.delete(sessionName)
+      }
+    })
     this.sessions.set(name, session)
     return session
   }
@@ -235,7 +273,100 @@ function toCodexRunOptions(options?: AgentRunOptions): RunOptions | undefined {
   return {
     ...(options.cwd ? { cwd: options.cwd } : {}),
     ...(options.model ? { model: options.model } : {}),
+    ...(options.handlers ? { handlers: toCodexRequestHandlers(options.handlers) } : {}),
   }
+}
+
+function toCodexRequestHandlers(handlers: NonNullable<AgentRunOptions['handlers']>): RequestHandlers {
+  const onToolApproval = handlers.onToolApproval
+  const onUserInput = handlers.onUserInput
+
+  return {
+    onCommandApproval: onToolApproval
+      ? async (request) => mapToolApprovalDecision(await onToolApproval(toAgentApprovalRequest('approval.command', request)))
+      : undefined,
+    onFileApproval: onToolApproval
+      ? async (request) => mapFileApprovalDecision(await onToolApproval(toAgentApprovalRequest('approval.file', request)))
+      : undefined,
+    onPermissionApproval: onToolApproval
+      ? async (request) =>
+          mapPermissionApprovalDecision(await onToolApproval(toAgentApprovalRequest('approval.permissions', request)))
+      : undefined,
+    onDynamicToolCall: onToolApproval
+      ? async (request) => mapDynamicToolDecision(await onToolApproval(toAgentApprovalRequest('tool.call', request)))
+      : undefined,
+    onToolInput: onUserInput
+      ? async (request) => mapToolInputAnswers(await onUserInput(toolInputRequestToAgent(request)), request)
+      : undefined,
+  }
+}
+
+function toAgentApprovalRequest(
+  kind: 'approval.command' | 'approval.file' | 'approval.permissions' | 'tool.call',
+  request: CommandApprovalRequest | FileApprovalRequest | PermissionApprovalRequest | DynamicToolRequest,
+) {
+  if (kind === 'tool.call') {
+    const toolRequest = request as DynamicToolRequest
+    return {
+      provider: 'codex' as const,
+      kind,
+      payload: {
+        threadId: toolRequest.threadId,
+        turnId: toolRequest.turnId,
+        callId: toolRequest.callId,
+        tool: toolRequest.tool,
+        arguments: toolRequest.arguments,
+      },
+    }
+  }
+
+  const approvalRequest = request as CommandApprovalRequest | FileApprovalRequest | PermissionApprovalRequest
+  return {
+    provider: 'codex' as const,
+    kind,
+    payload: {
+      threadId: approvalRequest.threadId,
+      turnId: approvalRequest.turnId,
+      itemId: approvalRequest.itemId,
+      params: approvalRequest.params,
+    },
+  }
+}
+
+function mapToolApprovalDecision(decision: 'allow' | 'deny'): CommandApprovalDecision {
+  return decision === 'allow' ? 'accept' : 'decline'
+}
+
+function mapFileApprovalDecision(decision: 'allow' | 'deny'): FileApprovalDecision {
+  return decision === 'allow' ? 'accept' : 'decline'
+}
+
+function mapPermissionApprovalDecision(decision: 'allow' | 'deny'): PermissionApprovalDecision {
+  return decision === 'allow' ? 'accept' : 'decline'
+}
+
+function mapDynamicToolDecision(decision: 'allow' | 'deny'): DynamicToolResponse {
+  if (decision === 'allow') {
+    return {
+      success: true,
+      contentItems: [{ type: 'inputText', text: 'Approved by generic onToolApproval handler.' }],
+    }
+  }
+  return {
+    success: false,
+    contentItems: [{ type: 'inputText', text: 'Denied by generic onToolApproval handler.' }],
+  }
+}
+
+function mapToolInputAnswers(response: string[] | string, request: ToolInputRequest): ToolInputAnswerMap {
+  const values = Array.isArray(response) ? response : [response]
+  const answers: ToolInputAnswerMap = {}
+  request.questions.forEach((question, index) => {
+    const candidate = values[index] ?? values[0] ?? ''
+    const normalized = Array.isArray(candidate) ? candidate : [String(candidate)]
+    answers[question.id] = { answers: normalized }
+  })
+  return answers
 }
 
 function asCodexInput(input: AgentInput): UserInput {
@@ -306,7 +437,7 @@ function codexStreamEventToAgent(event: CodexStreamEvent): AgentEvent {
   }
 }
 
-function toolInputRequestToAgent(event: ToolInputRequest & { type: 'tool.input' }) {
+function toolInputRequestToAgent(event: ToolInputRequest) {
   const first = event.questions[0]
   return {
     provider: 'codex' as const,

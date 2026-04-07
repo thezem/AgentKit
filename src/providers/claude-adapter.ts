@@ -51,10 +51,14 @@ class ClaudeAgentClient implements AgentClient {
 
   session(name: string, options?: AgentSessionOptions): AgentSession {
     const existing = this.sessions.get(name)
-    if (existing) return existing
+    if (existing && !existing.isClosed()) return existing
 
     const merged = mergeAgentSessionOptions(this.defaults, options)
-    const session = new ClaudeSession(name, this.createOptions, merged)
+    const session = new ClaudeSession(name, this.createOptions, merged, (sessionName, current) => {
+      if (this.sessions.get(sessionName) === current) {
+        this.sessions.delete(sessionName)
+      }
+    })
     this.sessions.set(name, session)
     this.lastSession = session
     return session
