@@ -18,6 +18,7 @@ export type ProviderAvailabilityOptions = {
   cwd?: string
   env?: Record<string, string>
   probeRuntime?: boolean
+  probeTimeoutMs?: number
 }
 
 export interface InternalAgentProvider {

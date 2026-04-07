@@ -1,9 +1,11 @@
 import { access } from 'node:fs/promises'
 import type { AgentAccountState, AgentCapabilities, AgentProviderInventory, ProviderInventoryOptions } from '../agent-types.ts'
+import { ProviderProbeTimeoutError } from '../errors.ts'
 import type { ProviderAvailabilityOptions } from './provider-types.ts'
 
 export async function getClaudeInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
   const probeMode = options?.probeMode ?? 'deep'
+  const probeTimeoutMs = options?.probeTimeoutMs ?? 5000
 
   let sdk: (typeof import('@anthropic-ai/claude-agent-sdk')) | null = null
   try {
@@ -100,7 +102,11 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       },
     })
 
-    const init = await runtime.initializationResult()
+    const init = await withTimeout(
+      runtime.initializationResult(),
+      probeTimeoutMs,
+      () => new ProviderProbeTimeoutError('claude', probeTimeoutMs),
+    )
     runtime.close()
 
     const authenticated = init.account !== null && init.account !== undefined
@@ -130,10 +136,11 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       capabilitySupport: claudeCapabilities(),
     }
   } catch (error) {
+    const timeout = error instanceof ProviderProbeTimeoutError
     return {
       provider: 'claude',
       installed: true,
-      runnable: false,
+      runnable: timeout ? true : false,
       authenticated: false,
       degraded: true,
       status: 'degraded',
@@ -146,6 +153,7 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
         probeMode,
         probeStrategy: 'runtime-init',
         failureReason: `Claude runtime failed to initialize: ${errorToString(error)}`,
+        ...(timeout ? { notes: [`Runtime probe exceeded ${probeTimeoutMs}ms and was degraded.`] } : {}),
       },
       raw: {
         error: errorToString(error),
@@ -161,6 +169,7 @@ export async function getClaudeAvailability(options?: ProviderAvailabilityOption
     cwd: options?.cwd,
     env: options?.env,
     probeMode: options?.probeRuntime === true ? 'deep' : 'cheap',
+    probeTimeoutMs: options?.probeTimeoutMs,
   })
 
   return {
@@ -250,4 +259,19 @@ function deriveInventoryStatus(flags: {
 function errorToString(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, createError: () => Error): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(createError()), timeoutMs)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
 }

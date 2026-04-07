@@ -74,5 +74,6 @@ function toInventoryOptions(options?: ProviderAvailabilityOptions): ProviderInve
     cwd: options.cwd,
     env: options.env,
     probeMode: options.probeRuntime === true ? 'deep' : 'cheap',
+    probeTimeoutMs: options.probeTimeoutMs,
   }
 }
