@@ -86,8 +86,9 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
     }
   }
 
+  let runtime: ReturnType<typeof sdk.query> | null = null
   try {
-    const runtime = sdk.query({
+    runtime = sdk.query({
       prompt: '',
       options: {
         cwd: options?.cwd,
@@ -107,8 +108,6 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
       probeTimeoutMs,
       () => new ProviderProbeTimeoutError('claude', probeTimeoutMs),
     )
-    runtime.close()
-
     const authenticated = init.account !== null && init.account !== undefined
 
     return {
@@ -159,6 +158,10 @@ export async function getClaudeInventory(options?: ProviderInventoryOptions): Pr
         error: errorToString(error),
       },
       capabilitySupport: claudeCapabilities(),
+    }
+  } finally {
+    if (runtime) {
+      runtime.close()
     }
   }
 }

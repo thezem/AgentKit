@@ -530,15 +530,19 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
   }
 
   try {
-    const client = await withTimeout(
-      CodexClient.create({
-        codexPath: options?.codexPath,
-        auth: { autoLogin: false },
-        env: options?.env,
-      }),
-      probeTimeoutMs,
-      () => new ProviderProbeTimeoutError('codex', probeTimeoutMs),
-    )
+    const createClientPromise = CodexClient.create({
+      codexPath: options?.codexPath,
+      auth: { autoLogin: false },
+      env: options?.env,
+    })
+    const client = await withTimeout(createClientPromise, probeTimeoutMs, () => {
+      void createClientPromise
+        .then((lateClient) => lateClient.close())
+        .catch(() => {
+          // Ignore cleanup failures for late-resolving probe clients.
+        })
+      return new ProviderProbeTimeoutError('codex', probeTimeoutMs)
+    })
 
     try {
       const state = await withTimeout(

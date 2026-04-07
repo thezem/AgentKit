@@ -40,6 +40,7 @@ type TurnController = {
   items: TurnItem[]
   messageBuffer: Map<string, string>
   completed: boolean
+  queueMaxSize?: number
 }
 
 type ClientLogger = NonNullable<NonNullable<CreateCodexOptions['diagnostics']>['logger']>
@@ -286,6 +287,7 @@ export class CodexClient {
       throw new ConcurrentTurnError(thread.id)
     }
 
+    const queueMaxSize = normalizeMaxQueueSize(this.options.maxQueueSize)
     const controller: TurnController = {
       thread,
       threadId: thread.id,
@@ -294,7 +296,8 @@ export class CodexClient {
         ...(this.options.handlers ?? {}),
         ...(options?.handlers ?? {}),
       },
-      events: new AsyncQueue<CodexStreamEvent>({ maxSize: this.options.maxQueueSize }),
+      queueMaxSize,
+      events: new AsyncQueue<CodexStreamEvent>({ maxSize: queueMaxSize }),
       done: new Deferred<RunResult>(),
       items: [],
       messageBuffer: new Map<string, string>(),
@@ -701,7 +704,7 @@ export class CodexClient {
     const accepted = controller.events.push(event)
     if (accepted) return
 
-    const maxQueueSize = this.options.maxQueueSize ?? 0
+    const maxQueueSize = controller.queueMaxSize ?? 0
     const overflowError = new QueueOverflowError(controller.threadId, controller.turnId ?? 'starting', maxQueueSize)
     this.failTurn(controller, overflowError, 'codex.turn.queue_overflow')
   }
@@ -798,4 +801,11 @@ function toSandboxPolicy(mode: SandboxMode, cwd: string): Record<string, unknown
 function errorToString(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+function normalizeMaxQueueSize(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isFinite(value)) return undefined
+  const normalized = Math.trunc(value)
+  return normalized > 0 ? normalized : undefined
 }

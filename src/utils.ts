@@ -48,6 +48,7 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
     if (this.ended) return
     this.ended = true
     this.failure = error
+    this.items.length = 0
     while (this.waiters.length > 0) {
       this.waiters.shift()?.reject(error)
     }
@@ -56,11 +57,11 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: async () => {
-        if (this.items.length > 0) {
-          return { value: this.items.shift() as T, done: false }
-        }
         if (this.failure) {
           return Promise.reject(this.failure)
+        }
+        if (this.items.length > 0) {
+          return { value: this.items.shift() as T, done: false }
         }
         if (this.ended) {
           return { value: undefined, done: true }
