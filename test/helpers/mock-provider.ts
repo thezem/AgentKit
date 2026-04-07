@@ -41,10 +41,11 @@ class MockSession implements AgentSession {
   }
 
   async stream() {
+    const provider = this.provider
     return {
       [Symbol.asyncIterator]: async function* () {
         yield {
-          provider: 'codex' as const,
+          provider,
           type: 'status' as const,
           status: 'idle',
         }

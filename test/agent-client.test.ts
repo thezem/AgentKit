@@ -90,20 +90,11 @@ test('createAgent("claude") returns claude provider client', async () => {
 })
 
 test('createAgent throws InputValidationError for unknown provider id', async () => {
-  const snapshot = snapshotRegistry()
-  providerRegistry.get = ((provider) => {
-    throw new Error(`Unknown provider: ${provider}`)
-  }) as Registry['get']
-
-  try {
-    await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), (error) => {
-      assert.ok(error instanceof InputValidationError)
-      assert.equal(error.field, 'provider')
-      return true
-    })
-  } finally {
-    restoreRegistry(snapshot)
-  }
+  await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), (error) => {
+    assert.ok(error instanceof InputValidationError)
+    assert.equal(error.field, 'provider')
+    return true
+  })
 })
 
 test('session caching returns same handle and clearSession invalidates it', () => {

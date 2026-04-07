@@ -20,10 +20,10 @@ import type { ProviderAvailabilityOptions } from './providers/provider-types.ts'
  */
 export async function createAgent(options: CreateAgentOptions): Promise<AgentClient> {
   const providerId = (options as { provider?: unknown }).provider
-  if (providerId !== 'codex' && providerId !== 'claude') {
-    throw new InputValidationError(`Unknown provider: ${String(providerId)}`, 'provider')
+  if (typeof providerId !== 'string' || providerId.trim().length === 0) {
+    throw new InputValidationError('Provider id must be a non-empty string', 'provider')
   }
-  const provider = providerRegistry.get(providerId)
+  const provider = providerRegistry.get(providerId as AgentProviderId)
   return provider.createClient(options)
 }
 
