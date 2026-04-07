@@ -81,11 +81,20 @@ type AgentSessionHandle = {
 Inventory is the canonical discovery surface:
 
 ```ts
-import { getProviderInventory, getProviderInventoryEntry } from '@ouim/codexkit'
+import { getProviderInventory, getProviderInventoryEntry, listModels, listSkills } from '@ouim/codexkit'
 
 const inventory = await getProviderInventory({ probeMode: 'cheap' })
 const codexDeep = await getProviderInventoryEntry('codex', { probeMode: 'deep' })
+const models = await listModels()
+const codexSkills = await listSkills('codex', { cwd: process.cwd() })
 ```
+
+Discovery behavior in this phase:
+
+- Codex model listing is runtime-backed (`codex:model/list`).
+- Claude model listing is currently a curated static catalog (`curated-catalog`) and marked stale.
+- Shared skill listing is currently Codex-only; `listSkills('claude')` throws an unsupported error.
+- Skill configuration writes are provider-specific via `writeCodexSkillConfig(...)`.
 
 Backward-compatible availability helpers are still exported:
 
@@ -115,6 +124,8 @@ Compatibility booleans are still present in Phase 1.
 - `getProviderInventoryEntry(provider)`
 - `getAvailableProviders()` (compat)
 - `getProviderAvailability(provider)` (compat)
+- `listModels(provider?, options?)`
+- `listSkills(provider, options?)`
 
 ### Codex Compatibility API (kept stable)
 
@@ -134,6 +145,19 @@ Compatibility booleans are still present in Phase 1.
 
 Use these for provider-native behavior that is intentionally outside the shared API.
 
+## Provider-Specific Skill Configuration
+
+Codex skill config writes are exported as a provider-specific helper:
+
+```ts
+import { writeCodexSkillConfig } from '@ouim/codexkit'
+
+await writeCodexSkillConfig({
+  path: '/abs/path/to/skill',
+  enabled: false,
+})
+```
+
 ## Examples
 
 - Codex compatibility smoke: `examples/basic.ts`
@@ -141,6 +165,8 @@ Use these for provider-native behavior that is intentionally outside the shared 
 - Generic Claude: `examples/agent-claude.ts`
 - Lifecycle + resume handle: `examples/agent-lifecycle.ts`
 - Provider inventory: `examples/provider-inventory.ts`
+- Models discovery: `examples/models.ts`
+- Skills discovery: `examples/skills.ts`
 
 Run:
 

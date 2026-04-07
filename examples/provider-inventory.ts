@@ -2,7 +2,13 @@ import { getProviderInventory, getProviderInventoryEntry } from '../src/index.ts
 
 const inventory = await getProviderInventory({ probeMode: 'cheap' })
 console.log('Provider inventory (cheap):')
-console.dir(inventory, { depth: null })
+for (const provider of inventory) {
+  console.log(`- ${provider.provider}: status=${provider.status} runnable=${provider.runnable} authenticated=${provider.authenticated}`)
+  if (provider.executablePath) console.log(`  executable: ${provider.executablePath} (${provider.executableSource ?? 'unknown'})`)
+  if (provider.version) console.log(`  version: ${provider.version}`)
+  if (provider.diagnostics?.probeStrategy) console.log(`  probeStrategy: ${provider.diagnostics.probeStrategy}`)
+  if (provider.diagnostics?.failureReason) console.log(`  failureReason: ${provider.diagnostics.failureReason}`)
+}
 
 const codex = await getProviderInventoryEntry('codex', { probeMode: 'deep' })
 console.log('\nCodex deep inventory:')
