@@ -156,7 +156,7 @@ class CodexAgentSession implements AgentSession {
 
     const thread = this.threadRef
     if (!thread) {
-      throw new Error(`Session "${this.name}" has no active Codex turn to interrupt`)
+      throw new Error(`Session "${this.name}" has no active Codex thread to interrupt`)
     }
     await thread.interrupt()
   }
@@ -300,7 +300,7 @@ export async function createCodexAgentClient(options: CodexAgentClientOptions): 
 
 export async function getCodexInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
   const probeMode = options?.probeMode ?? 'deep'
-  const detection = detectCodexBinary(options?.codexPath)
+  const detection = detectCodexBinary(options?.codexPath, { runVersionCheck: probeMode === 'deep' })
 
   if (!detection.installed) {
     return {
@@ -328,13 +328,34 @@ export async function getCodexInventory(options?: ProviderInventoryOptions): Pro
       installed: true,
       runnable: detection.runnable,
       authenticated: false,
-      degraded: !detection.runnable,
+      degraded: false,
       status: deriveInventoryStatus({
         installed: true,
-        runnable: detection.runnable,
+        runnable: true,
         authenticated: false,
-        degraded: !detection.runnable,
+        degraded: false,
       }),
+      ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
+      ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
+      ...(detection.version ? { version: detection.version } : {}),
+      account: null,
+      diagnostics: {
+        probeMode,
+        notes: ['Cheap probe checks command presence only; runtime execution is not verified.'],
+      },
+      raw: detection.raw,
+      capabilitySupport: codexCapabilities(),
+    }
+  }
+
+  if (!detection.runnable) {
+    return {
+      provider: 'codex',
+      installed: true,
+      runnable: false,
+      authenticated: false,
+      degraded: true,
+      status: 'degraded',
       ...(detection.executablePath ? { executablePath: detection.executablePath } : {}),
       ...(detection.executableSource ? { executableSource: detection.executableSource } : {}),
       ...(detection.version ? { version: detection.version } : {}),
@@ -416,7 +437,7 @@ export async function getCodexAvailability(options?: ProviderAvailabilityOptions
     codexPath: options?.codexPath,
     cwd: options?.cwd,
     env: options?.env,
-    probeMode: options?.probeRuntime === false ? 'cheap' : 'deep',
+    probeMode: options?.probeRuntime === true ? 'deep' : 'cheap',
   })
   return inventoryToAvailability(inventory)
 }
@@ -693,7 +714,10 @@ function defaultCodexCommand(): string {
   return process.platform === 'win32' ? 'codex.cmd' : 'codex'
 }
 
-function detectCodexBinary(codexPath?: string): {
+function detectCodexBinary(
+  codexPath?: string,
+  options?: { runVersionCheck?: boolean },
+): {
   installed: boolean
   runnable: boolean
   executablePath?: string
@@ -704,18 +728,38 @@ function detectCodexBinary(codexPath?: string): {
 } {
   const command = codexPath ?? defaultCodexCommand()
   const executableSource = codexPath ? 'configured' : 'path'
+  const runVersionCheck = options?.runVersionCheck ?? true
 
   const resolvedPath = resolveCommandPath(command)
-  const versionResult = spawnSync(command, ['--version'], {
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  })
+  const installed = codexPath ? existsSync(codexPath) : resolvedPath !== null
+  let runnable = installed
+  let version: string | undefined
+  let failureReason: string | undefined
+  let versionStatus: number | null | undefined
+  let versionStdout: string | null | undefined
+  let versionStderr: string | null | undefined
 
-  const runnable = versionResult.status === 0
-  const installed = codexPath ? existsSync(codexPath) || runnable : resolvedPath !== null || runnable
+  if (runVersionCheck && installed) {
+    const versionResult = spawnSync(command, ['--version'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+      timeout: 4000,
+    })
+    versionStatus = versionResult.status
+    versionStdout = versionResult.stdout
+    versionStderr = versionResult.stderr
+    runnable = versionResult.status === 0
 
-  const versionText = (versionResult.stdout ?? '').trim()
-  const version = versionText.length > 0 ? versionText.split(/\r?\n/)[0] : undefined
+    const versionText = (versionResult.stdout ?? '').trim()
+    version = versionText.length > 0 ? versionText.split(/\r?\n/)[0] : undefined
+
+    if (!runnable) {
+      failureReason =
+        versionResult.error?.message ||
+        (versionResult.stderr ?? '').trim() ||
+        `Unable to execute ${command} --version (exit=${String(versionResult.status ?? 'unknown')})`
+    }
+  }
 
   return {
     installed,
@@ -723,19 +767,14 @@ function detectCodexBinary(codexPath?: string): {
     ...(resolvedPath ? { executablePath: resolvedPath } : codexPath ? { executablePath: codexPath } : {}),
     executableSource,
     ...(version ? { version } : {}),
-    ...(runnable
-      ? {}
-      : {
-          failureReason:
-            (versionResult.stderr ?? '').trim() ||
-            `Unable to execute ${command} --version (exit=${String(versionResult.status ?? 'unknown')})`,
-        }),
+    ...(failureReason ? { failureReason } : {}),
     raw: {
       command,
       resolvedPath,
-      versionStatus: versionResult.status,
-      stdout: versionResult.stdout,
-      stderr: versionResult.stderr,
+      versionProbe: runVersionCheck,
+      versionStatus,
+      stdout: versionStdout,
+      stderr: versionStderr,
     },
   }
 }
@@ -743,8 +782,8 @@ function detectCodexBinary(codexPath?: string): {
 function resolveCommandPath(command: string): string | null {
   const result =
     process.platform === 'win32'
-      ? spawnSync('where', [command], { encoding: 'utf8', shell: true })
-      : spawnSync('which', [command], { encoding: 'utf8' })
+      ? spawnSync('where', [command], { encoding: 'utf8', shell: true, timeout: 2000 })
+      : spawnSync('which', [command], { encoding: 'utf8', timeout: 2000 })
 
   if (result.status !== 0) {
     return null

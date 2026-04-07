@@ -58,6 +58,6 @@ function toInventoryOptions(options?: ProviderAvailabilityOptions): ProviderInve
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
     cwd: options.cwd,
     env: options.env,
-    probeMode: options.probeRuntime === false ? 'cheap' : 'deep',
+    probeMode: options.probeRuntime === true ? 'deep' : 'cheap',
   }
 }
