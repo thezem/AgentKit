@@ -2,7 +2,7 @@ import { createCodex } from '../src/index.ts'
 
 const loginStrategy = process.env.CODEXKIT_LOGIN === 'device-code' ? 'device-code' : 'browser'
 
-console.log(`Starting codexkit example with ${loginStrategy} auth...`)
+console.log(`Starting agentkit example with ${loginStrategy} auth...`)
 
 const codex = await createCodex({
   auth: {

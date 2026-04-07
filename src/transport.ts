@@ -83,7 +83,7 @@ export class AppServerTransport {
     })
     await transport.request('initialize', {
       clientInfo: {
-        name: options.clientInfo?.name ?? 'codexkit',
+        name: options.clientInfo?.name ?? 'agentkit',
         title: options.clientInfo?.title ?? 'Codex Client',
         version: options.clientInfo?.version ?? '0.2.0',
       },

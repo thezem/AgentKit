@@ -1,11 +1,11 @@
-# @ouim/codexkit — Development Roadmap
+# @ouim/agentkit — Development Roadmap
 
 > Last updated: 2026-04-07
 > Version: 0.1.0
 
 This roadmap has been realigned to the current product shape.
 
-`@ouim/codexkit` is no longer just a thin Codex transport wrapper. It already has:
+`@ouim/agentkit` is no longer just a thin Codex transport wrapper. It already has:
 
 - a stable Codex compatibility layer
 - a shared multi-provider API

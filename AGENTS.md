@@ -2,7 +2,7 @@
 
 ## Project
 
-- Package name: `@ouim/codexkit`
+- Package name: `@ouim/agentkit`
 - Purpose: high-level Node wrapper around `codex app-server`
 - Primary auth preference: ChatGPT login, not API key first
 - Supported auth modes:
@@ -80,5 +80,5 @@
 
 ## Naming
 
-- Chosen package identity: `@ouim/codexkit`
-- This was preferred over `codex-client` because it matches the `ouim/*` naming style better, especially next to `@ouim/logto-authkit`.
+- Chosen package identity: `@ouim/agentkit`
+- This was preferred over `codex-client` because it matches the `ouim/*` naming style better and keeps the umbrella name provider-neutral.
