@@ -1,6 +1,12 @@
 import { listModels } from '../src/index.ts'
 
-const models = await listModels(undefined, { includeHidden: false })
+let models: Awaited<ReturnType<typeof listModels>> = []
+
+try {
+  models = await listModels(undefined, { includeHidden: false })
+} catch (error) {
+  console.error('Failed to list models:', error)
+}
 
 const grouped = new Map<string, typeof models>()
 for (const model of models) {

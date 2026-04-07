@@ -35,12 +35,12 @@ export const providerRegistry: ProviderRegistry = {
       return selected.listModels(options)
     }
 
-    const listed = await Promise.all(
+    const settled = await Promise.allSettled(
       providers
         .filter((candidate) => typeof candidate.listModels === 'function')
         .map((candidate) => candidate.listModels!(options)),
     )
-    return listed.flat()
+    return settled.flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
   },
 
   async listSkills(provider: AgentProviderId, options?: AgentSkillListOptions) {

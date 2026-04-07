@@ -318,6 +318,10 @@ export async function createCodexAgentClient(options: CodexAgentClientOptions): 
 }
 
 export async function listCodexModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+  if (options?.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 0)) {
+    throw new Error('Invalid model list limit: expected a non-negative integer')
+  }
+
   const client = await createCodexDiscoveryClient({
     codexPath: options?.codexPath,
     env: options?.env,
@@ -328,7 +332,7 @@ export async function listCodexModels(options?: AgentModelListOptions): Promise<
       'model/list',
       {
         ...(options?.includeHidden !== undefined ? { includeHidden: options.includeHidden } : {}),
-        ...(typeof options?.limit === 'number' ? { limit: options.limit } : {}),
+        ...(options?.limit !== undefined ? { limit: options.limit } : {}),
       } satisfies CodexModelListParams,
     )
 
@@ -364,7 +368,7 @@ export async function listCodexModels(options?: AgentModelListOptions): Promise<
         },
         raw: model,
       }))
-    if (typeof options?.limit === 'number' && options.limit >= 0) {
+    if (options?.limit !== undefined) {
       return normalized.slice(0, options.limit)
     }
     return normalized
