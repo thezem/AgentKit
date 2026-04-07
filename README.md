@@ -1,11 +1,13 @@
-# codexkit
+# @ouim/codexkit
 
-`@ouim/codexkit` is a host-side TypeScript SDK for local coding agents already installed on a user's machine.
+`@ouim/codexkit` is a host-side TypeScript SDK for local agent runtimes.
 
-It now supports two API layers:
+It provides:
 
-- Compatibility Codex API (unchanged): `createCodex`, `CodexClient`, `CodexSession`, `CodexThread`
-- New provider API: `createAgent` with `provider: 'codex' | 'claude'`
+- a shared provider API for `codex` and `claude`
+- explicit session lifecycle (`open`, `resume`, cached convenience `session(name)`)
+- provider inventory/discovery for runtime selection
+- a preserved Codex compatibility layer for existing integrations
 
 ## Install
 
@@ -16,11 +18,11 @@ npm install @ouim/codexkit
 Requirements:
 
 - Node.js `>=22.6`
-- Local provider runtime installed/authenticated on the same machine as your app:
+- local runtime installed and authenticated as needed:
   - Codex: `codex` CLI
-  - Claude: Claude Agent SDK runtime/auth as required by `@anthropic-ai/claude-agent-sdk`
+  - Claude: `@anthropic-ai/claude-agent-sdk` runtime requirements
 
-## Quick Start (Generic API)
+## Shared Provider API
 
 ```ts
 import { createAgent } from '@ouim/codexkit'
@@ -30,90 +32,115 @@ const agent = await createAgent({
   defaults: { cwd: process.cwd() },
 })
 
-const session = agent.session('demo')
+const session = await agent.openSession({ name: 'demo' })
 const result = await session.run('Summarize this repository in 3 bullets')
 
 console.log(result.status)
-console.log(result.text)
+console.log(result.handle)
 
+await session.close()
 await agent.close()
 ```
 
-## Public APIs
+### Lifecycle Semantics
 
-### Compatibility Codex API (kept stable)
+- `session(name)`:
+  - convenience cached accessor in the local client
+- `openSession(options?)`:
+  - explicit create/open for a session
+- `resumeSession(handle, options?)`:
+  - explicit resume from a structured handle
+- `clearSession(name)` / `clearSessions()`:
+  - local cache eviction only
+- `close()`:
+  - closes local runtime resources
+
+The shared API does not expose normalized remote-history deletion.
+
+### Structured Resume Handle
+
+`AgentRunResult.handle` is the preferred generic resume payload:
+
+```ts
+type AgentSessionHandle = {
+  provider: 'codex' | 'claude'
+  sessionId: string | null
+  name?: string
+  resumeKey?: string
+  resumeAt?: string
+  raw?: unknown
+}
+```
+
+- Codex maps `sessionId/resumeKey` to thread id.
+- Claude maps `resumeKey` and optional `resumeAt` to Claude runtime resume semantics.
+- `resumeState` remains available on run results as a legacy provider-specific field.
+
+## Discovery and Inventory
+
+Inventory is the canonical discovery surface:
+
+```ts
+import { getProviderInventory, getProviderInventoryEntry } from '@ouim/codexkit'
+
+const inventory = await getProviderInventory({ probeMode: 'cheap' })
+const codexDeep = await getProviderInventoryEntry('codex', { probeMode: 'deep' })
+```
+
+Backward-compatible availability helpers are still exported:
+
+- `getAvailableProviders()`
+- `getProviderAvailability(provider)`
+
+They are compatibility projections of inventory.
+
+## Capabilities
+
+`AgentClient.getCapabilities()` returns normalized capability groups:
+
+- `sessionLifecycle`
+- `controls`
+- `interactions`
+- `discovery`
+- `semantics`
+
+Compatibility booleans are still present in Phase 1.
+
+## Shared API vs Codex Compatibility Layer
+
+### Shared API
+
+- `createAgent(options)`
+- `getProviderInventory()`
+- `getProviderInventoryEntry(provider)`
+- `getAvailableProviders()` (compat)
+- `getProviderAvailability(provider)` (compat)
+
+### Codex Compatibility API (kept stable)
 
 - `createCodex(options?)`
 - `CodexClient`
 - `CodexAuth`
 - `CodexSession`
 - `CodexThread`
-- Existing Codex types from `src/types.ts`
-
-### New Shared Multi-Provider API
-
-- `createAgent(options)`
-- `getAvailableProviders()`
-- `getProviderAvailability(provider, options?)`
-
-Shared types are exported from `src/agent-types.ts` through `src/index.ts`, including:
-
-- `AgentClient`, `AgentSession`
-- `AgentEvent`, `AgentRunResult`
-- `AgentAccountState`, `AgentCapabilities`
-- `CreateAgentOptions`, `AgentSessionOptions`, `AgentRunOptions`, `AgentHandlers`
+- existing Codex types from `src/types.ts`
 
 ## Provider Escape Hatches
 
-`AgentClient` provides provider-specific raw access:
+`AgentClient` still exposes:
 
 - `asCodex(): CodexClient | null`
 - `asClaude(): ClaudeProviderHandle | null`
 
-## Discovery
-
-```ts
-import { getAvailableProviders, getProviderAvailability } from '@ouim/codexkit'
-
-const providers = await getAvailableProviders()
-const claude = await getProviderAvailability('claude')
-```
-
-Discovery reports provider availability and authentication state without triggering login flows.
-
-## Event Normalization
-
-Generic sessions stream normalized events, for example:
-
-- `message.delta`
-- `message.completed`
-- `reasoning.delta`
-- `approval.tool`
-- `user.input`
-- `turn.completed`
-- `provider.notification`
-- `error`
-
-Provider-native payloads remain available through each event's `raw` field.
-
-## Claude Support Notes
-
-Claude support is implemented through `@anthropic-ai/claude-agent-sdk` with:
-
-- Long-lived runtime per session
-- FIFO prompt queue
-- Interrupt and close support
-- Tool approval bridging via `onToolApproval`
-- Elicitation/user-input bridging via `onUserInput`
-- Opaque resume state surfaced on `AgentRunResult.resumeState`
-
-The Claude adapter does not try to force raw runtime parity with Codex internals.
+Use these for provider-native behavior that is intentionally outside the shared API.
 
 ## Examples
 
 - Codex compatibility smoke: `examples/basic.ts`
 - Generic Codex: `examples/agent-codex.ts`
 - Generic Claude: `examples/agent-claude.ts`
+- Lifecycle + resume handle: `examples/agent-lifecycle.ts`
+- Provider inventory: `examples/provider-inventory.ts`
 
 Run:
 

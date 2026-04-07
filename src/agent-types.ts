@@ -4,6 +4,26 @@ import type { CreateCodexOptions, UserInput } from './types.ts'
 
 export type AgentProviderId = 'codex' | 'claude'
 
+export type AgentSessionHandle = {
+  provider: AgentProviderId
+  sessionId: string | null
+  name?: string
+  resumeKey?: string
+  resumeAt?: string
+  raw?: unknown
+}
+
+export type AgentSessionSummary = {
+  provider: AgentProviderId
+  name?: string
+  sessionId: string | null
+  handle: AgentSessionHandle
+  status?: 'active' | 'idle' | 'closed' | 'unknown'
+  model?: string
+  cwd?: string
+  raw?: unknown
+}
+
 export type AgentAccountState = {
   provider: AgentProviderId
   available: boolean
@@ -14,6 +34,35 @@ export type AgentAccountState = {
 
 export type AgentCapabilities = {
   provider: AgentProviderId
+  sessionLifecycle: {
+    open: boolean
+    resume: boolean
+    list: boolean
+    clearLocalCache: boolean
+    deleteRemote: false
+  }
+  controls: {
+    interrupt: boolean
+    modelSwitch: 'none' | 'session' | 'turn'
+    permissionModeSwitch: 'none' | 'session' | 'turn'
+  }
+  interactions: {
+    partialMessages: boolean
+    toolApproval: boolean
+    userInputRequests: boolean
+    dynamicToolCalls: boolean
+  }
+  discovery: {
+    inventory: boolean
+    modelListing: boolean
+    skillsListing: boolean
+  }
+  semantics: {
+    sessionIdentity: 'thread-id' | 'runtime-session' | 'opaque'
+    resumeHandle: 'structured'
+    longLivedRuntime: boolean
+  }
+  // Compatibility booleans kept for one phase.
   supportsResume: boolean
   supportsInterrupt: boolean
   supportsModelSwitch: boolean
@@ -61,6 +110,7 @@ export type AgentRunResult = {
   text: string
   items: unknown[]
   raw?: unknown
+  handle?: AgentSessionHandle
   resumeState?: unknown
 }
 
@@ -71,6 +121,14 @@ export type AgentSessionOptions = {
   permissionMode?: string
   additionalDirectories?: string[]
   includePartialMessages?: boolean
+}
+
+export type AgentOpenSessionOptions = AgentSessionOptions & {
+  name?: string
+}
+
+export type AgentResumeSessionOptions = AgentSessionOptions & {
+  name?: string
 }
 
 export type AgentRunOptions = AgentSessionOptions & {
@@ -121,6 +179,34 @@ export type CreateAgentOptions =
 
 export type AgentProviderAvailability = AgentAccountState
 
+export type ProviderInventoryOptions = {
+  codexPath?: string
+  pathToClaudeCodeExecutable?: string
+  cwd?: string
+  env?: Record<string, string>
+  probeMode?: 'cheap' | 'deep'
+}
+
+export type AgentProviderInventory = {
+  provider: AgentProviderId
+  installed: boolean
+  runnable: boolean
+  authenticated: boolean
+  degraded: boolean
+  status: 'missing' | 'installed' | 'runnable' | 'authenticated' | 'degraded'
+  executablePath?: string
+  executableSource?: 'path' | 'configured' | 'sdk' | 'runtime-probe'
+  version?: string
+  capabilitySupport?: AgentCapabilities
+  diagnostics?: {
+    probeMode: 'cheap' | 'deep'
+    failureReason?: string
+    notes?: string[]
+  }
+  account: unknown | null
+  raw?: unknown
+}
+
 export type AgentInput = UserInput
 
 export interface ClaudeProviderHandle {
@@ -137,6 +223,8 @@ export interface AgentSession {
   readonly provider: AgentProviderId
   readonly name: string
   readonly id: string | null
+  getHandle(): AgentSessionHandle | null
+  getSessionInfo(): AgentSessionSummary
   run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult>
   stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>>
   interrupt(): Promise<void>
@@ -146,6 +234,9 @@ export interface AgentSession {
 export interface AgentClient {
   readonly provider: AgentProviderId
   session(name: string, options?: AgentSessionOptions): AgentSession
+  openSession(options?: AgentOpenSessionOptions): Promise<AgentSession>
+  resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession>
+  listSessions?(): Promise<AgentSessionSummary[]>
   clearSession(name: string): void
   clearSessions(): void
   getAccountState(): Promise<AgentAccountState>

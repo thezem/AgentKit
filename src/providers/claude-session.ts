@@ -18,9 +18,11 @@ import type {
   AgentEvent,
   AgentHandlers,
   AgentInput,
+  AgentSessionHandle,
   AgentRunOptions,
   AgentRunResult,
   AgentSession,
+  AgentSessionSummary,
   CreateClaudeOptions,
 } from '../agent-types.ts'
 import { ClaudePromptQueue } from './claude-prompt-queue.ts'
@@ -99,6 +101,36 @@ export class ClaudeSession implements AgentSession {
     return this.sessionId
   }
 
+  getHandle(): AgentSessionHandle | null {
+    const resumeKey = this.resumeState?.resume ?? this.sessionId ?? undefined
+    const sessionId = this.sessionId ?? this.resumeState?.sessionId ?? null
+    if (!resumeKey && !sessionId) return null
+    return {
+      provider: 'claude',
+      sessionId,
+      name: this.name,
+      ...(resumeKey ? { resumeKey } : {}),
+      ...(this.resumeState?.resumeSessionAt ? { resumeAt: this.resumeState.resumeSessionAt } : {}),
+      raw: this.resumeState,
+    }
+  }
+
+  getSessionInfo(): AgentSessionSummary {
+    return {
+      provider: 'claude',
+      name: this.name,
+      sessionId: this.sessionId ?? this.resumeState?.sessionId ?? null,
+      handle: this.getHandle() ?? { provider: 'claude', sessionId: this.sessionId, name: this.name },
+      status: this.closed ? 'closed' : this.turns.length > 0 ? 'active' : 'idle',
+      ...(this.currentModel ? { model: this.currentModel } : {}),
+      ...(this.sessionCwd ? { cwd: this.sessionCwd } : {}),
+      raw: {
+        runtime: this.getRuntimeMetadata(),
+        resumeState: this.resumeState,
+      },
+    }
+  }
+
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
     const context = await this.startTurn(input, options)
     for await (const _event of context.events) {
@@ -146,13 +178,6 @@ export class ClaudeSession implements AgentSession {
 
   getLastResumeState(): ClaudeResumeState | null {
     return this.resumeState
-  }
-
-  getSessionInfo(): { sessionId: string | null; name: string } {
-    return {
-      sessionId: this.sessionId,
-      name: this.name,
-    }
   }
 
   private async startTurn(input: AgentInput, options?: AgentRunOptions): Promise<ClaudeTurnContext> {
@@ -346,6 +371,7 @@ export class ClaudeSession implements AgentSession {
         message,
         current,
         this.sessionId,
+        this.name,
         this.resumeState,
         current.forcedFailureReason,
       )
@@ -528,6 +554,7 @@ function mapClaudeResultToRunResult(
   message: SDKResultMessage,
   context: ClaudeTurnContext,
   sessionId: string | null,
+  sessionName: string,
   resumeState: ClaudeResumeState | null,
   forcedFailureReason: string | null,
 ): AgentRunResult {
@@ -554,6 +581,18 @@ function mapClaudeResultToRunResult(
     text,
     items: context.items,
     raw: message,
+    ...(resumeState || sessionId
+      ? {
+          handle: {
+            provider: 'claude',
+            sessionId: sessionId ?? resumeState?.sessionId ?? null,
+            name: sessionName,
+            ...(resumeState?.resume || sessionId ? { resumeKey: resumeState?.resume ?? sessionId ?? undefined } : {}),
+            ...(resumeState?.resumeSessionAt ? { resumeAt: resumeState.resumeSessionAt } : {}),
+            raw: resumeState,
+          } as AgentSessionHandle,
+        }
+      : {}),
     ...(resumeState ? { resumeState } : {}),
   }
 }
