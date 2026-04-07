@@ -9,10 +9,20 @@ import type {
   JsonRpcRequest,
   JsonRpcSuccess,
 } from './types.ts'
+import { TransportRequestTimeoutError } from './errors.ts'
+
+type TransportLogger = (event: {
+  level: 'debug' | 'info' | 'warn' | 'error'
+  code: string
+  message: string
+  data?: Record<string, unknown>
+}) => void
 
 type PendingRequest = {
+  method: string
   resolve: (value: unknown) => void
   reject: (reason?: unknown) => void
+  timer: NodeJS.Timeout | null
 }
 
 function isRequest(message: JsonRpcMessage): message is JsonRpcRequest {
@@ -38,10 +48,20 @@ export class AppServerTransport {
   private readonly events = new EventEmitter()
   private nextId = 1
   private closed = false
+  private readonly requestTimeoutMs: number
+  private readonly logger?: TransportLogger
 
-  private constructor(process: ChildProcessWithoutNullStreams) {
+  private constructor(
+    process: ChildProcessWithoutNullStreams,
+    options?: {
+      requestTimeoutMs?: number
+      logger?: TransportLogger
+    },
+  ) {
     this.process = process
     this.lines = readline.createInterface({ input: process.stdout })
+    this.requestTimeoutMs = Math.max(1, options?.requestTimeoutMs ?? 30_000)
+    this.logger = options?.logger
 
     this.lines.on('line', (line) => {
       this.handleLine(line)
@@ -49,10 +69,7 @@ export class AppServerTransport {
 
     this.process.on('exit', (code, signal) => {
       const reason = new Error(`codex app-server exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}`)
-      for (const request of this.pending.values()) {
-        request.reject(reason)
-      }
-      this.pending.clear()
+      this.rejectPending(reason)
       this.closed = true
       this.events.emit('closed', reason)
     })
@@ -62,6 +79,8 @@ export class AppServerTransport {
     codexPath?: string
     clientInfo?: { name?: string; title?: string; version?: string }
     env?: Record<string, string>
+    requestTimeoutMs?: number
+    logger?: TransportLogger
   }): Promise<AppServerTransport> {
     const command = resolveCodexCommand(options.codexPath)
     const child = spawn(command, ['app-server'], {
@@ -78,7 +97,12 @@ export class AppServerTransport {
       child.once('error', reject)
       child.once('spawn', () => {
         child.removeListener('error', reject)
-        resolve(new AppServerTransport(child))
+        resolve(
+          new AppServerTransport(child, {
+            requestTimeoutMs: options.requestTimeoutMs,
+            logger: options.logger,
+          }),
+        )
       })
     })
     await transport.request('initialize', {
@@ -111,9 +135,24 @@ export class AppServerTransport {
 
     const id = this.nextId++
     const promise = new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const pending = this.pending.get(id)
+        if (!pending) return
+        this.pending.delete(id)
+        const timeoutError = new TransportRequestTimeoutError(method, id, this.requestTimeoutMs)
+        pending.reject(timeoutError)
+        this.log('warn', 'transport.request.timeout', timeoutError.message, {
+          method,
+          requestId: id,
+          requestTimeoutMs: this.requestTimeoutMs,
+        })
+      }, this.requestTimeoutMs)
+
       this.pending.set(id, {
+        method,
         resolve: resolve as (value: unknown) => void,
         reject,
+        timer,
       })
     })
 
@@ -147,6 +186,7 @@ export class AppServerTransport {
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.rejectPending(new Error('codex app-server transport is closed'))
     this.lines.close()
     if (process.platform === 'win32' && this.process.pid) {
       try {
@@ -165,12 +205,29 @@ export class AppServerTransport {
 
   private handleLine(line: string): void {
     if (!line.trim()) return
-    const message = JSON.parse(line) as JsonRpcMessage
+
+    let message: JsonRpcMessage
+    try {
+      message = JSON.parse(line) as JsonRpcMessage
+    } catch (error) {
+      this.log('error', 'transport.notification.malformed_json', 'Failed to parse JSON-RPC message', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
 
     if (isSuccess(message)) {
       const pending = this.pending.get(message.id)
-      if (!pending) return
+      if (!pending) {
+        this.log('warn', 'transport.response.unmatched', 'Received unmatched JSON-RPC success response', {
+          requestId: message.id,
+        })
+        return
+      }
       this.pending.delete(message.id)
+      if (pending.timer) {
+        clearTimeout(pending.timer)
+      }
       pending.resolve(message.result)
       return
     }
@@ -178,8 +235,17 @@ export class AppServerTransport {
     if (isFailure(message)) {
       if (message.id === null) return
       const pending = this.pending.get(message.id)
-      if (!pending) return
+      if (!pending) {
+        this.log('warn', 'transport.response.unmatched', 'Received unmatched JSON-RPC error response', {
+          requestId: message.id,
+          errorCode: message.error.code,
+        })
+        return
+      }
       this.pending.delete(message.id)
+      if (pending.timer) {
+        clearTimeout(pending.timer)
+      }
       pending.reject(new Error(message.error.message))
       return
     }
@@ -192,6 +258,25 @@ export class AppServerTransport {
     if (isNotification(message)) {
       this.events.emit('notification', message)
     }
+  }
+
+  private rejectPending(reason: Error): void {
+    for (const [id, request] of this.pending.entries()) {
+      if (request.timer) {
+        clearTimeout(request.timer)
+      }
+      request.reject(reason)
+      this.pending.delete(id)
+    }
+  }
+
+  private log(
+    level: 'debug' | 'info' | 'warn' | 'error',
+    code: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
+    this.logger?.({ level, code, message, ...(data ? { data } : {}) })
   }
 }
 
