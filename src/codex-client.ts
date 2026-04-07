@@ -28,7 +28,7 @@ import type {
   TurnItem,
   UserInput,
 } from './types.ts'
-import { AsyncQueue, Deferred, assertObject, asArray } from './utils.ts'
+import { AsyncQueue, Deferred, assertObject, asArray, validateUserInput } from './utils.ts'
 
 type TurnController = {
   thread: CodexThread
@@ -282,6 +282,8 @@ export class CodexClient {
   }
 
   private async startTurn(thread: CodexThread, input: UserInput, options?: RunOptions): Promise<TurnController> {
+    validateUserInput(input)
+
     const existingState = this.threadTurnState.get(thread.id)
     if (existingState) {
       throw new ConcurrentTurnError(thread.id)
