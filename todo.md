@@ -279,10 +279,10 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Add `test`
   - [x] Keep example scripts aligned with actual files
 
-- [ ] **7.4 — CI**
-  - [ ] Add GitHub Actions for typecheck, test, and build
-  - [ ] Add Node version matrix
-  - [ ] Add publish workflow when packaging is ready
+- [x] **7.4 — CI**
+  - [x] Add GitHub Actions for typecheck, test, and build
+  - [x] Add Node version matrix
+  - [x] Add publish workflow when packaging is ready
 
 ---
 
