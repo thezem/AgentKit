@@ -45,6 +45,16 @@ async function waitForThreadState(client: CodexClient, threadId: string, expecte
   assert.fail(`Thread ${threadId} did not reach state ${expected}`)
 }
 
+async function waitForResponseCount(transport: FakeTransport, expectedCount: number): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (transport.responses.length + transport.responseErrors.length >= expectedCount) {
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  assert.fail(`Timed out waiting for ${expectedCount} transport response(s)`)
+}
+
 test('thread/start returns CodexThread with created id', async () => {
   const transport = new FakeTransport()
   transport.respondWith('thread/start', { thread: createThreadData('thread-created') })
@@ -240,7 +250,7 @@ test('approval request uses onCommandApproval handler and responds', async () =>
     method: 'item/commandExecution/requestApproval',
     params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'cmd-1' },
   })
-  await new Promise(resolve => setTimeout(resolve, 0))
+  await waitForResponseCount(transport, 1)
 
   assert.deepEqual(transport.responses[0], { id: 101, result: { decision: 'accept' } })
 })
@@ -267,7 +277,7 @@ test('tool input request uses onToolInput handler and responds', async () => {
       questions: [{ id: 'q1', header: 'Q1', question: 'Pick one' }],
     },
   })
-  await new Promise(resolve => setTimeout(resolve, 0))
+  await waitForResponseCount(transport, 1)
 
   assert.deepEqual(transport.responses[0], {
     id: 202,

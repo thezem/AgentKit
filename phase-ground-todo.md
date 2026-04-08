@@ -1,6 +1,7 @@
 # @ouim/agentkit — Phase Ground Roadmap
 
-> Last updated: 2026-04-08 Focus: orchestration-grade runtime contracts for adapter-layer adoption
+> Last updated: 2026-04-08
+> Focus: orchestration-grade runtime contracts for adapter-layer adoption
 
 This roadmap translates [docs/agentkit-gap-analysis-for-orchestration-apps.md](/G:/PI/codex-sdk-node/docs/agentkit-gap-analysis-for-orchestration-apps.md) into concrete work.
 

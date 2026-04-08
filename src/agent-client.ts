@@ -37,9 +37,8 @@ export async function createAgent(options: CreateAgentOptions): Promise<AgentCli
  * List provider availability in compatibility form.
  *
  * This is a convenience projection over provider inventory. For richer
- * diagnostics (install path, probe strategy, degradation, capability metadata)
- * use
- * {@link getProviderInventory}.
+ * diagnostics (install path, probe strategy, degradation, capability metadata),
+ * use {@link getProviderInventory}.
  */
 export async function getAvailableProviders(options?: ProviderAvailabilityOptions): Promise<AgentProviderAvailability[]> {
   const inventory = await providerRegistry.getProviderInventory(toInventoryOptions(options))

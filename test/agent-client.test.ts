@@ -54,6 +54,16 @@ function createThreadData(id: string) {
   }
 }
 
+async function waitForRequest(fakeTransport: FakeTransport, method: string): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (fakeTransport.requestLog.some(entry => entry.method === method)) {
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  assert.fail(`Timed out waiting for request method ${method}`)
+}
+
 test('createAgent("codex") returns codex provider client', async () => {
   const snapshot = snapshotRegistry()
   providerRegistry.get = (provider => {
@@ -153,7 +163,7 @@ test('persisted handle survives local cache eviction and can resume the same cod
 
     const resultPromise = cached.run('hello')
 
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await waitForRequest(fakeTransport, 'turn/start')
     fakeTransport.simulateNotification({
       jsonrpc: '2.0',
       method: 'item/completed',
