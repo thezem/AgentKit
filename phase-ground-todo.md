@@ -77,11 +77,61 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 2 — Durable Event Envelope 🔴 P0
+## Phase 2 — Pre-release Spec Alignment (3–5 SP Slices) 🔴 P0
+
+> Goal: take high-leverage pieces from `spec.md` now, while pre-release refactoring is still cheap.
+>
+> Rule for every item in this phase: write failing behavior tests first, then implement.
+
+- [ ] **2.1 — Stable error taxonomy with retryability (4 SP)**
+  - [ ] Add `AgentErrorCode` and normalized `retryable` metadata
+  - [ ] Map existing runtime/provider failures to the normalized codes
+  - [ ] Preserve current error classes temporarily as compatibility wrappers
+  - [ ] Add test-first coverage for code mapping, retryability, and provider attribution
+
+- [ ] **2.2 — Versioned JSON-safe session handle contract (5 SP)**
+  - [ ] Move handle shape to versioned contract (`version: 1`) with opaque provider `state`
+  - [ ] Add central handle validator/normalizer for open/resume/run paths
+  - [ ] Guarantee JSON serialize/deserialize round-trip safety in tests
+  - [ ] Add typed invalid/stale-handle failures (`INVALID_HANDLE` / `EXPIRED_HANDLE`)
+
+- [ ] **2.3 — Add `start()` + `AgentRun`; keep `run()`/`stream()` sugar (5 SP)**
+  - [ ] Introduce `AgentRun` (`runId`, `events`, `result`, `interrupt`)
+  - [ ] Make `run()` drain `start().events` and return `start().result`
+  - [ ] Make `stream()` return `start().events`
+  - [ ] Add concurrency and terminal-state tests against the unified run path
+
+- [ ] **2.4 — Enforce one-active-run semantics consistently (3 SP)**
+  - [ ] Normalize concurrent-run rejection to `RUN_IN_PROGRESS`
+  - [ ] Normalize no-active-run interrupt rejection to `NO_ACTIVE_RUN`
+  - [ ] Add identical behavior tests for Codex and Claude providers
+  - [ ] Verify close+interrupt edge cases preserve deterministic failures
+
+- [ ] **2.5 — Provider factory registration (4 SP)**
+  - [ ] Replace static provider list with factory registration (`ProviderAdapterFactory[]`)
+  - [ ] Keep built-in providers registered by default at startup
+  - [ ] Ensure adding a new provider does not require core runtime edits
+  - [ ] Add contract tests using a fake provider factory
+
+- [ ] **2.6 — Normalize run-terminal event/result around `runId` (4 SP)**
+  - [ ] Add canonical `run.started`, `status.updated`, and `run.completed` event flow
+  - [ ] Make `RunResult` accumulation deterministic from normalized events
+  - [ ] Keep temporary compatibility mapping for legacy event names during transition
+  - [ ] Add event-order and result-shape parity tests across both providers
+
+- [ ] **2.7 — Separate provider-neutral root exports from compatibility exports (3 SP)**
+  - [ ] Make root exports provider-neutral first
+  - [ ] Move Codex compatibility exports to explicit compatibility entrypoint
+  - [ ] Update README/examples to prefer the neutral surface
+  - [ ] Add API-surface tests to prevent provider-specific root leakage
+
+---
+
+## Phase 3 — Durable Event Envelope 🔴 P0
 
 > Goal: introduce an orchestration-grade event contract without breaking the current simple stream API.
 
-- [ ] **2.1 — Define an event envelope type**
+- [ ] **3.1 — Define an event envelope type**
 
   > The simple `AgentEvent` projection is useful, but adapter consumers need a stable outer contract.
   - [ ] Add a shared `AgentEventEnvelope<TEvent>` shape
@@ -91,7 +141,7 @@ That means closing the contract gaps around:
   - [ ] Include `correlationId` for request/response and turn-transition linking
   - [ ] Keep `raw` supplemental rather than central
 
-- [ ] **2.2 — Define event identity and ordering guarantees**
+- [ ] **3.2 — Define event identity and ordering guarantees**
 
   > The envelope is only useful if the sequencing rules are explicit.
   - [ ] Guarantee monotonic sequence ordering within a session stream
@@ -99,7 +149,7 @@ That means closing the contract gaps around:
   - [ ] Define event ID stability across reconnect and replay
   - [ ] Define timestamp format and source-of-truth semantics
 
-- [ ] **2.3 — Add an advanced streaming surface**
+- [ ] **3.3 — Add an advanced streaming surface**
 
   > Keep the current event API as the simplified projection; add a stronger adapter-facing stream.
   - [ ] Add an advanced stream API that yields `AgentEventEnvelope`
@@ -107,7 +157,7 @@ That means closing the contract gaps around:
   - [ ] Document how the advanced stream relates to the simplified normalized events
   - [ ] Decide whether the advanced stream lives on `session.streamEvents()` or a similar explicit method
 
-- [ ] **2.4 — Add replay cursor support**
+- [ ] **3.4 — Add replay cursor support**
   > Reconnect-heavy apps need replay-from-last-seen semantics.
   - [ ] Define a cursor model that survives process restart where supported
   - [ ] Add stream attach options for `latest` vs `from cursor`
@@ -116,11 +166,11 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 3 — Session Identity, Attach, and Reconnect 🔴 P0
+## Phase 4 — Session Identity, Attach, and Reconnect 🔴 P0
 
 > Goal: make session ownership and reconnect behavior explicit enough for durable adapter-layer use.
 
-- [ ] **3.1 — Separate open, resume, and attach semantics**
+- [ ] **4.1 — Separate open, resume, and attach semantics**
 
   > `resumeSession()` alone is too overloaded.
   - [ ] Define `openSession()` as new runtime/session creation
@@ -128,7 +178,7 @@ That means closing the contract gaps around:
   - [ ] Add `attachSession()` for reconnecting to an existing underlying session without accidental duplication
   - [ ] Decide whether `detach()` should be explicit in the public API
 
-- [ ] **3.2 — Define stale handle and duplicate attach behavior**
+- [ ] **4.2 — Define stale handle and duplicate attach behavior**
 
   > Products need exact behavior when state drifts.
   - [ ] Add stale-handle detection semantics
@@ -136,7 +186,7 @@ That means closing the contract gaps around:
   - [ ] Define behavior when the remote/provider session has already ended
   - [ ] Define whether multiple local attachments can coexist safely
 
-- [ ] **3.3 — Clarify local-vs-remote lifecycle transitions**
+- [ ] **4.3 — Clarify local-vs-remote lifecycle transitions**
 
   > Correctness depends on precise lifecycle meanings.
   - [ ] Define local close vs remote close vs transport death
@@ -144,7 +194,7 @@ That means closing the contract gaps around:
   - [ ] Add explicit stop/cancel semantics if interruption is not sufficient
   - [ ] Define whether in-flight turns and pending requests survive reconnect
 
-- [ ] **3.4 — Expose reconnect-safe stream attach options**
+- [ ] **4.4 — Expose reconnect-safe stream attach options**
   - [ ] Add attach options for `latest` and `from cursor`
   - [ ] Define replay-after-restart behavior per provider
   - [ ] Define what happens when the requested cursor is expired or unavailable
@@ -152,11 +202,11 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 4 — Durable Pending Requests 🔴 P0
+## Phase 5 — Durable Pending Requests 🔴 P0
 
 > Goal: upgrade approvals and user prompts from callback conveniences into durable runtime interaction records.
 
-- [ ] **4.1 — Introduce typed pending request records**
+- [ ] **5.1 — Introduce typed pending request records**
 
   > Runtime interactions need their own durable identity.
   - [ ] Add a shared `AgentPendingRequest` union for `approval.tool` and `user.input`
@@ -164,7 +214,7 @@ That means closing the contract gaps around:
   - [ ] Replace generic `kind: string` / `payload: Record<string, unknown>` usage in the adapter-facing API
   - [ ] Preserve raw provider payloads as supplemental debug context only
 
-- [ ] **4.2 — Add explicit request response APIs**
+- [ ] **5.2 — Add explicit request response APIs**
 
   > Apps need to target a specific pending request directly.
   - [ ] Add response methods keyed by request ID
@@ -172,7 +222,7 @@ That means closing the contract gaps around:
   - [ ] Define submit/cancel behavior for user-input prompts
   - [ ] Ensure responses correlate to subsequent turn/runtime events
 
-- [ ] **4.3 — Define pending request lifecycle states**
+- [ ] **5.3 — Define pending request lifecycle states**
 
   > Durable UI state depends on lifecycle guarantees.
   - [ ] Define `pending`, `resolved`, `expired`, and `cancelled`
@@ -180,7 +230,7 @@ That means closing the contract gaps around:
   - [ ] Define cancellation behavior
   - [ ] Define whether request resolution is guaranteed to emit a correlated runtime event
 
-- [ ] **4.4 — Add pending request recovery on reconnect**
+- [ ] **5.4 — Add pending request recovery on reconnect**
   > Rehydrating blocked turns is a core orchestration requirement.
   - [ ] Add enumeration or snapshot APIs for outstanding requests
   - [ ] Guarantee pending request IDs remain stable across reconnect
@@ -189,11 +239,11 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 5 — Terminal States and Failure Taxonomy 🟠 P1
+## Phase 6 — Terminal States and Failure Taxonomy 🟠 P1
 
 > Goal: make final outcomes precise enough for product UI, telemetry, and retry logic.
 
-- [ ] **5.1 — Define a structured terminal-state model**
+- [ ] **6.1 — Define a structured terminal-state model**
 
   > `completed` / `interrupted` / `failed` is directionally right but too coarse.
   - [ ] Add a normalized `AgentTerminalState` union
@@ -201,7 +251,7 @@ That means closing the contract gaps around:
   - [ ] Add structured reasons for interruption and cancellation
   - [ ] Add phase-aware timeout categories where meaningful
 
-- [ ] **5.2 — Add a normalized failure taxonomy**
+- [ ] **6.2 — Add a normalized failure taxonomy**
 
   > Adapter logic needs machine-readable failure reasons.
   - [ ] Separate transport failure from model/runtime failure
@@ -209,7 +259,7 @@ That means closing the contract gaps around:
   - [ ] Mark retryable vs non-retryable failures where the provider semantics allow it
   - [ ] Include provider diagnostics without forcing consumers into opaque `raw` parsing
 
-- [ ] **5.3 — Strengthen final-result guarantees**
+- [ ] **6.3 — Strengthen final-result guarantees**
   > Final result objects need a clearer relationship to the event timeline.
   - [ ] Define whether the final result is canonical or best-effort
   - [ ] Define whether `text` is complete, truncated, or provider-dependent
@@ -218,11 +268,11 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 6 — Capability Guarantees 🟠 P1
+## Phase 7 — Capability Guarantees 🟠 P1
 
 > Goal: expose what behaviors can be trusted, not only what methods exist.
 
-- [ ] **6.1 — Extend capability reporting with behavioral guarantees**
+- [ ] **7.1 — Extend capability reporting with behavioral guarantees**
   - [ ] Add `eventOrdering` guarantee metadata
   - [ ] Add `replaySupport`
   - [ ] Add `pendingRequestRecovery`
@@ -230,7 +280,7 @@ That means closing the contract gaps around:
   - [ ] Add `resumeSemantics`
   - [ ] Add freshness/staleness semantics for discovery and inventory
 
-- [ ] **6.2 — Split static support claims from runtime-probed guarantees**
+- [ ] **7.2 — Split static support claims from runtime-probed guarantees**
   > Adapter authors need to know what is always true vs what depends on the current runtime.
   - [ ] Identify which capability fields are static adapter claims
   - [ ] Identify which capability fields require runtime probing
@@ -239,11 +289,11 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 7 — Adapter-Tier API Surface 🟠 P1
+## Phase 8 — Adapter-Tier API Surface 🟠 P1
 
 > Goal: add a lower-level shared API for provider adapters without degrading the simple host-app API.
 
-- [ ] **7.1 — Introduce an explicit adapter-oriented API tier**
+- [ ] **8.1 — Introduce an explicit adapter-oriented API tier**
 
   > Serious apps need more than the current consumer-oriented surface.
   - [ ] Expose event envelopes directly
@@ -252,12 +302,12 @@ That means closing the contract gaps around:
   - [ ] Expose structured transport/runtime state notifications where useful
   - [ ] Keep the simple `run()` / `stream()` API intact
 
-- [ ] **7.2 — Define the boundary between normalized and provider-specific surfaces**
+- [ ] **8.2 — Define the boundary between normalized and provider-specific surfaces**
   - [ ] Identify the minimum shared contract required for adapters
   - [ ] Keep provider escape hatches explicit rather than leaking provider quirks into shared types
   - [ ] Document when adapter authors should drop down to `asCodex()` / `asClaude()`
 
-- [ ] **7.3 — Avoid reintroducing orchestration concerns**
+- [ ] **8.3 — Avoid reintroducing orchestration concerns**
   > The adapter tier should help products own their orchestration logic, not compete with it.
   - [ ] Do not add event-store, checkpoint, websocket, or UI-state abstractions
   - [ ] Keep persistence, projection, and recovery policy product-owned
@@ -265,29 +315,29 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 8 — Tests for Runtime Contracts 🟡 P2
+## Phase 9 — Tests for Runtime Contracts 🟡 P2
 
 > Goal: verify behavior and outcomes, not implementation details, before hardening the new contract.
 
-- [ ] **8.1 — Event envelope contract tests**
+- [ ] **9.1 — Event envelope contract tests**
   - [ ] Verify stable ordering semantics within a session stream
   - [ ] Verify event IDs remain stable across replay where supported
   - [ ] Verify live vs replay source tagging
   - [ ] Verify cursor-based replay resumes from the correct point
 
-- [ ] **8.2 — Attach/resume/reconnect tests**
+- [ ] **9.2 — Attach/resume/reconnect tests**
   - [ ] Verify attach does not create duplicate provider sessions
   - [ ] Verify stale handles fail with typed errors
   - [ ] Verify reconnect after transport restart behaves as documented
   - [ ] Verify local close vs remote close semantics
 
-- [ ] **8.3 — Pending request durability tests**
+- [ ] **9.3 — Pending request durability tests**
   - [ ] Verify pending approvals survive reconnect where supported
   - [ ] Verify user-input prompts retain stable request IDs
   - [ ] Verify resolution/cancellation/timeout transitions
   - [ ] Verify request responses correlate to subsequent runtime events
 
-- [ ] **8.4 — Terminal-state and failure tests**
+- [ ] **9.4 — Terminal-state and failure tests**
   - [ ] Verify transport failure and model failure are distinguishable
   - [ ] Verify interruption and cancellation reasons are preserved
   - [ ] Verify timed-out phases map to the correct terminal categories
@@ -295,43 +345,43 @@ That means closing the contract gaps around:
 
 ---
 
-## Phase 9 — Docs, Positioning, and Adoption Guidance 🟡 P2
+## Phase 10 — Docs, Positioning, and Adoption Guidance 🟡 P2
 
 > Goal: make the package legible to orchestration-heavy adopters without confusing simple host-app users.
 
-- [ ] **9.1 — Reposition the product language**
+- [ ] **10.1 — Reposition the product language**
 
   > The value proposition is reliable runtime substrate, not just cleaner syntax.
   - [ ] Update README language to describe `agentkit` as a provider-runtime substrate for local agent applications
   - [ ] Keep the simple host-app story, but add explicit adapter-layer positioning
   - [ ] Clarify that the orchestration layer remains app-owned
 
-- [ ] **9.2 — Publish adapter embedding guidance**
+- [ ] **10.2 — Publish adapter embedding guidance**
   - [ ] Document how to place `agentkit` behind `apps/server/src/provider/*`-style adapters
   - [ ] Document how to project runtime events into app-owned read models
   - [ ] Document when to rely on normalized contracts vs provider escape hatches
   - [ ] Document reconnect, replay, and pending request handling patterns
 
-- [ ] **9.3 — Publish migration and compatibility notes**
+- [ ] **10.3 — Publish migration and compatibility notes**
   - [ ] Document how existing simple consumers can ignore the adapter-tier APIs
   - [ ] Document how Codex compatibility consumers map to the new runtime contract
   - [ ] Document any provider-specific limitations that remain after the contract hardening work
 
 ---
 
-## Phase 10 — Future Reliability Expansion 🟢 P3
+## Phase 11 — Future Reliability Expansion 🟢 P3
 
 > Goal: leave room for deeper runtime guarantees after the core contract is solid.
 
-- [ ] **10.1 — Provider-specific replay depth and retention policies**
+- [ ] **11.1 — Provider-specific replay depth and retention policies**
   - [ ] Evaluate how long replay cursors remain valid per provider
   - [ ] Expose retention/expiry limits where known
 
-- [ ] **10.2 — Cross-process diagnostics and telemetry**
+- [ ] **11.2 — Cross-process diagnostics and telemetry**
   - [ ] Add structured diagnostics for reconnect, replay gaps, and stale-handle failures
   - [ ] Keep telemetry optional and separate from the shared runtime contract
 
-- [ ] **10.3 — Additional providers**
+- [ ] **11.3 — Additional providers**
   - [ ] Define the contract a new provider must satisfy to claim adapter-tier support
   - [ ] Distinguish first-class adapter-tier support from simple host-app support
 
