@@ -42,6 +42,7 @@ test('build emits publishable runtime and type output under dist', () => {
 
 test('package metadata points consumers at dist output', () => {
   const pkg = readPackageJson()
+  const scripts = pkg.scripts as Record<string, unknown>
 
   assert.equal(pkg.main, './dist/index.js')
   assert.equal(pkg.types, './dist/index.d.ts')
@@ -52,9 +53,17 @@ test('package metadata points consumers at dist output', () => {
     },
   })
   assert.ok(typeof pkg.scripts === 'object' && pkg.scripts !== null)
-  assert.equal((pkg.scripts as Record<string, unknown>).build, 'tsc -p tsconfig.build.json')
+  assert.equal(scripts.build, 'tsc -p tsconfig.build.json')
   assert.equal(
-    (pkg.scripts as Record<string, unknown>).prepublishOnly,
+    scripts['example:agent:t3code'],
+    'node --experimental-strip-types examples/agent-t3code.ts',
+  )
+  assert.equal(
+    scripts['example:agent:t3code:ask'],
+    'node --experimental-strip-types examples/agent-t3code-ask.ts',
+  )
+  assert.equal(
+    scripts.prepublishOnly,
     'npm run build',
   )
 })

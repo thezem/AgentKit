@@ -23,6 +23,8 @@
     "smoke": "node --experimental-strip-types examples/basic.ts",
     "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
     "example:agent:claude": "node --experimental-strip-types examples/agent-claude.ts",
+    "example:agent:t3code": "node --experimental-strip-types examples/agent-t3code.ts",
+    "example:agent:t3code:ask": "node --experimental-strip-types examples/agent-t3code-ask.ts",
     "example:lifecycle": "node --experimental-strip-types examples/agent-lifecycle.ts",
     "example:handlers": "node --experimental-strip-types examples/handlers.ts",
     "example:models": "node --experimental-strip-types examples/models.ts",
@@ -32,6 +34,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test test/**/*.test.ts",
     "prepack": "npm run build",
+    "prepublishOnly": "npm run build",
     "prepare": "npm run build"
   },
   "engines": {
