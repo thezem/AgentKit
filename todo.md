@@ -231,30 +231,30 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 > Goal: make the SDK understandable from the package surface, not only by reading source.
 
-- [ ] **6.1 — README expansion**
+- [x] **6.1 — README expansion**
   - [x] Document the full shared provider API
   - [x] Document provider availability semantics
-  - [ ] Document normalized events and handlers
+  - [x] Document normalized events and handlers
   - [x] Document provider escape hatches and when to use them
-  - [ ] Add troubleshooting for missing binaries, runtime/account state, and probe failures
+  - [x] Add troubleshooting for missing binaries, runtime/account state, and probe failures
 
-- [ ] **6.2 — API docs / JSDoc**
-  - [ ] Add JSDoc to public shared API types and methods
-  - [ ] Add JSDoc to Codex compatibility classes
-  - [ ] Clarify lifecycle semantics and caveats on sessions vs threads
+- [x] **6.2 — API docs / JSDoc**
+  - [x] Add JSDoc to public shared API types and methods
+  - [x] Add JSDoc to Codex compatibility classes
+  - [x] Clarify lifecycle semantics and caveats on sessions vs threads
 
-- [ ] **6.3 — Example cleanup**
+- [x] **6.3 — Example cleanup**
   - [x] Add generic agent examples for Codex and Claude
   - [x] Keep `examples/basic.ts` as the main Codex compatibility smoke example
-  - [ ] Decide whether `examples/basic.ts` should prefer `run()` again instead of stream-only output
+  - [x] Decide whether `examples/basic.ts` should prefer `run()` again instead of stream-only output
   - [x] Add example for provider discovery / availability
-  - [ ] Add example for approvals and user-input handlers on the shared API
-  - [ ] Verify every example listed in README actually exists and runs
+  - [x] Add example for approvals and user-input handlers on the shared API
+  - [x] Verify every example listed in README actually exists and runs
 
-- [ ] **6.4 — Changelog**
-  - [ ] Add `CHANGELOG.md`
-  - [ ] Record the transition from Codex-only wrapper to shared provider SDK
-  - [ ] Note current limitations explicitly
+- [x] **6.4 — Changelog**
+  - [x] Add `CHANGELOG.md`
+  - [x] Record the transition from Codex-only wrapper to shared provider SDK
+  - [x] Note current limitations explicitly
 
 ---
 
