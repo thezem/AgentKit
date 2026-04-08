@@ -3,12 +3,22 @@
   "version": "0.1.0",
   "type": "module",
   "description": "High-level Node SDK for building on top of local agent runtimes.",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
     "example": "node --experimental-strip-types examples/basic.ts",
     "smoke": "node --experimental-strip-types examples/basic.ts",
     "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
@@ -20,7 +30,8 @@
     "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",
     "example:ci": "node --experimental-strip-types examples/ci.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --experimental-strip-types --test test/**/*.test.ts"
+    "test": "node --experimental-strip-types --test test/**/*.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=22.6"

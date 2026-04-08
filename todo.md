@@ -264,20 +264,20 @@ The roadmap below marks what is already complete and focuses the remaining work 
 
 - [ ] **7.1 — Build output**
   > The package still points to source `.ts` entrypoints and currently relies on Node strip-types behavior.
-  - [ ] Add `tsc` build to `dist/`
-  - [ ] Publish JS + declaration files
-  - [ ] Update `main`, `types`, and `exports`
-  - [ ] Add `prepublishOnly`
+  - [x] Add `tsc` build to `dist/`
+  - [x] Publish JS + declaration files
+  - [x] Update `main`, `types`, and `exports`
+  - [x] Add `prepublishOnly`
 
-- [ ] **7.2 — Publish footprint**
-  - [ ] Add `"files"` or `.npmignore`
-  - [ ] Exclude docs/examples/tests from publish output unless intentionally shipped
+- [x] **7.2 — Publish footprint**
+  - [x] Add `"files"` or `.npmignore`
+  - [x] Exclude docs/examples/tests from publish output unless intentionally shipped
 
-- [ ] **7.3 — Scripts**
-  - [ ] Add `typecheck`
-  - [ ] Add `build`
-  - [ ] Add `test`
-  - [ ] Keep example scripts aligned with actual files
+- [x] **7.3 — Scripts**
+  - [x] Add `typecheck`
+  - [x] Add `build`
+  - [x] Add `test`
+  - [x] Keep example scripts aligned with actual files
 
 - [ ] **7.4 — CI**
   - [ ] Add GitHub Actions for typecheck, test, and build
