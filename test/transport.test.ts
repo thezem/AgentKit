@@ -177,3 +177,82 @@ test('mid-turn transport close rejects active stream', async () => {
 
   await assert.rejects(collect, /transport crashed/)
 })
+
+test('close on windows attempts taskkill and skips process.kill when taskkill succeeds', () => {
+  const { transport, process } = createAppServerTransport()
+  const TransportCtor = AppServerTransport as unknown as {
+    platform: () => NodeJS.Platform
+    taskkill: (pid: number) => void
+  }
+
+  const originalPlatform = TransportCtor.platform
+  const originalTaskkill = TransportCtor.taskkill
+  let killedPid: number | null = null
+
+  TransportCtor.platform = () => 'win32'
+  TransportCtor.taskkill = (pid: number) => {
+    killedPid = pid
+  }
+
+  try {
+    transport.close()
+    assert.equal(killedPid, process.pid)
+    assert.equal(process.killCalls, 0)
+  } finally {
+    TransportCtor.platform = originalPlatform
+    TransportCtor.taskkill = originalTaskkill
+  }
+})
+
+test('close on windows falls back to process.kill when taskkill fails', () => {
+  const { transport, process } = createAppServerTransport()
+  const TransportCtor = AppServerTransport as unknown as {
+    platform: () => NodeJS.Platform
+    taskkill: (pid: number) => void
+  }
+
+  const originalPlatform = TransportCtor.platform
+  const originalTaskkill = TransportCtor.taskkill
+  let taskkillAttempts = 0
+
+  TransportCtor.platform = () => 'win32'
+  TransportCtor.taskkill = () => {
+    taskkillAttempts += 1
+    throw new Error('taskkill failed')
+  }
+
+  try {
+    transport.close()
+    assert.equal(taskkillAttempts, 1)
+    assert.equal(process.killCalls, 1)
+  } finally {
+    TransportCtor.platform = originalPlatform
+    TransportCtor.taskkill = originalTaskkill
+  }
+})
+
+test('close on non-windows skips taskkill and uses process.kill', () => {
+  const { transport, process } = createAppServerTransport()
+  const TransportCtor = AppServerTransport as unknown as {
+    platform: () => NodeJS.Platform
+    taskkill: (pid: number) => void
+  }
+
+  const originalPlatform = TransportCtor.platform
+  const originalTaskkill = TransportCtor.taskkill
+  let taskkillAttempts = 0
+
+  TransportCtor.platform = () => 'linux'
+  TransportCtor.taskkill = () => {
+    taskkillAttempts += 1
+  }
+
+  try {
+    transport.close()
+    assert.equal(taskkillAttempts, 0)
+    assert.equal(process.killCalls, 1)
+  } finally {
+    TransportCtor.platform = originalPlatform
+    TransportCtor.taskkill = originalTaskkill
+  }
+})
