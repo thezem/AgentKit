@@ -142,3 +142,7 @@ Short version for tweets / README hero:
 > One clean TypeScript API for Codex + Claude local agents.  
 > Proper sessions, resume handles, discovery, and a stable compatibility layer.  
 > Stop fighting SDK drift. Start building.
+
+---If you're working from any todo file, you mark check tasks in the file as you work. create a branch from 'main' first before proceeding, plan your moves and go wild.
+
+Small commits are appreciated
