@@ -26,6 +26,14 @@
 - For each available provider, prefer returning enough metadata to identify the executable/runtime location when possible, especially for CLI-based providers like Claude.
 - The SDK should expose provider-neutral primitives first, while still allowing provider-specific escape hatches where needed.
 
+## Runtime Contract Guardrails
+
+- Treat `@ouim/agentkit` as a runtime substrate under app-owned adapters, not as the orchestration layer.
+- `agent.session(name)` is local cache convenience only; cross-process resume requires a persisted `AgentSessionHandle`.
+- Shared event ordering is live emission order only for the current attachment; there are no stable event IDs, replay cursors, or replay markers yet.
+- `raw`, `resumeState`, provider-native `items`, and escape hatches are intentional provider-specific surfaces.
+- Do not document or imply durable pending-request IDs, reconnect recovery, or UI-state modeling until the runtime contract actually provides them.
+
 ## Important Implementation Notes
 
 - This package was intentionally rebuilt on top of `codex app-server`, not `@openai/codex-sdk`.
@@ -61,6 +69,7 @@
 - The turn id must be read from `params.turn.id`.
 - A previous bug dropped completion events because the router expected `params.turnId`.
 - If `thread.run()` or `thread.stream()` hangs forever, check this first.
+- `turn.completed` on the shared stream is the normal terminal event when the provider emits a terminal turn result, but transport/runtime shutdown can still end a turn by rejection instead.
 
 ## TypeScript Notes
 

@@ -19,7 +19,8 @@ import type { ProviderAvailabilityOptions } from './providers/provider-types.ts'
  *
  * This is the primary provider-neutral entrypoint. The returned client
  * manages only local process/cache state; remote resumability is represented
- * by {@link import('./agent-types.ts').AgentSessionHandle}.
+ * by {@link import('./agent-types.ts').AgentSessionHandle}. This API is a
+ * runtime substrate, not an orchestration layer.
  *
  * @throws {import('./errors.ts').InputValidationError} If `options.provider` is unknown.
  */
@@ -36,12 +37,11 @@ export async function createAgent(options: CreateAgentOptions): Promise<AgentCli
  * List provider availability in compatibility form.
  *
  * This is a convenience projection over provider inventory. For richer
- * diagnostics (install path, probe strategy, degradation) use
+ * diagnostics (install path, probe strategy, degradation, capability metadata)
+ * use
  * {@link getProviderInventory}.
  */
-export async function getAvailableProviders(
-  options?: ProviderAvailabilityOptions,
-): Promise<AgentProviderAvailability[]> {
+export async function getAvailableProviders(options?: ProviderAvailabilityOptions): Promise<AgentProviderAvailability[]> {
   const inventory = await providerRegistry.getProviderInventory(toInventoryOptions(options))
   return inventory.map(inventoryToAvailability)
 }
@@ -67,7 +67,8 @@ export async function getProviderAvailability(
  * Read detailed inventory for all providers.
  *
  * Inventory is the canonical discovery API and includes installation, runtime,
- * authentication, capability, and probe diagnostics metadata.
+ * authentication, capability, and probe diagnostics metadata. Use this instead
+ * of availability helpers when you need contract-bearing discovery data.
  *
  * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
  */
@@ -79,7 +80,8 @@ export async function getProviderInventory(options?: ProviderInventoryOptions): 
  * Read detailed inventory for one provider.
  *
  * Use this when you need one provider's executable metadata, version/probe
- * details, degraded state, or capability support.
+ * details, degraded state, or capability support. The normalized fields are
+ * the stable discovery contract; `raw` remains provider-native.
  *
  * @throws {import('./errors.ts').InputValidationError} If `provider` is unknown.
  * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
@@ -95,10 +97,7 @@ export async function getProviderInventoryEntry(
 /**
  * List discoverable models across providers or for one provider.
  */
-export async function listModels(
-  provider?: AgentProviderId,
-  options?: AgentModelListOptions,
-): Promise<AgentModelInfo[]> {
+export async function listModels(provider?: AgentProviderId, options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
   return providerRegistry.listModels(provider, options)
 }
 

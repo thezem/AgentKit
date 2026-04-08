@@ -1,12 +1,10 @@
 # @ouim/agentkit — Phase Ground Roadmap
 
-> Last updated: 2026-04-08
-> Focus: orchestration-grade runtime contracts for adapter-layer adoption
+> Last updated: 2026-04-08 Focus: orchestration-grade runtime contracts for adapter-layer adoption
 
 This roadmap translates [docs/agentkit-gap-analysis-for-orchestration-apps.md](/G:/PI/codex-sdk-node/docs/agentkit-gap-analysis-for-orchestration-apps.md) into concrete work.
 
-The goal of Phase Ground is not to turn `@ouim/agentkit` into an orchestration framework.
-It is to make the package trustworthy as the provider-runtime substrate that sits under app-owned adapters in systems like `t3code`.
+The goal of Phase Ground is not to turn `@ouim/agentkit` into an orchestration framework. It is to make the package trustworthy as the provider-runtime substrate that sits under app-owned adapters in systems like `t3code`.
 
 That means closing the contract gaps around:
 
@@ -54,25 +52,27 @@ That means closing the contract gaps around:
 
 > Goal: make the current runtime semantics explicit before expanding the API surface.
 
-- [ ] **1.1 — Document the current runtime contract**
+- [x] **1.1 — Document the current runtime contract**
+
   > Before adding new abstractions, lock down what the package does today and where guarantees stop.
-  - [ ] Define the current ordering guarantees for normalized stream events
-  - [ ] Define what `resumeSession()` means per provider today
-  - [ ] Define current interruption semantics and known ambiguities
-  - [ ] Define current `approval.tool` and `user.input` lifecycle behavior
-  - [ ] Define the difference between local session closure and provider/runtime closure
+  - [x] Define the current ordering guarantees for normalized stream events
+  - [x] Define what `resumeSession()` means per provider today
+  - [x] Define current interruption semantics and known ambiguities
+  - [x] Define current `approval.tool` and `user.input` lifecycle behavior
+  - [x] Define the difference between local session closure and provider/runtime closure
 
-- [ ] **1.2 — Publish explicit non-goals for orchestration apps**
+- [x] **1.2 — Publish explicit non-goals for orchestration apps**
+
   > Adoption gets easier if the boundary is crisp.
-  - [ ] State that `agentkit` is not the orchestration engine, event store, websocket protocol, or UI state model
-  - [ ] State that `agentkit` is intended to sit under app-owned provider adapters
-  - [ ] Add guidance on when to stay in the simple consumer API vs when to use adapter-tier APIs
+  - [x] State that `agentkit` is not the orchestration engine, event store, websocket protocol, or UI state model
+  - [x] State that `agentkit` is intended to sit under app-owned provider adapters
+  - [x] Add guidance on when to stay in the simple consumer API vs when to use adapter-tier APIs
 
-- [ ] **1.3 — Audit the existing public types against the documented contract**
+- [x] **1.3 — Audit the existing public types against the documented contract**
   > The current types expose a mix of strong shapes and opaque escape hatches.
-  - [ ] Identify runtime-critical fields that still rely on `raw?: unknown` or generic payload records
-  - [ ] Mark which existing public types can be hardened without breaking the simple API
-  - [ ] Identify where provider-specific escape hatches should remain intentionally opaque
+  - [x] Identify runtime-critical fields that still rely on `raw?: unknown` or generic payload records
+  - [x] Mark which existing public types can be hardened without breaking the simple API
+  - [x] Identify where provider-specific escape hatches should remain intentionally opaque
 
 ---
 
@@ -81,6 +81,7 @@ That means closing the contract gaps around:
 > Goal: introduce an orchestration-grade event contract without breaking the current simple stream API.
 
 - [ ] **2.1 — Define an event envelope type**
+
   > The simple `AgentEvent` projection is useful, but adapter consumers need a stable outer contract.
   - [ ] Add a shared `AgentEventEnvelope<TEvent>` shape
   - [ ] Include `provider`, `sessionId`, `turnId`, `eventId`, `sequence`, `emittedAt`, and `event`
@@ -90,6 +91,7 @@ That means closing the contract gaps around:
   - [ ] Keep `raw` supplemental rather than central
 
 - [ ] **2.2 — Define event identity and ordering guarantees**
+
   > The envelope is only useful if the sequencing rules are explicit.
   - [ ] Guarantee monotonic sequence ordering within a session stream
   - [ ] Define whether ordering is per-session, per-turn, or stronger
@@ -97,6 +99,7 @@ That means closing the contract gaps around:
   - [ ] Define timestamp format and source-of-truth semantics
 
 - [ ] **2.3 — Add an advanced streaming surface**
+
   > Keep the current event API as the simplified projection; add a stronger adapter-facing stream.
   - [ ] Add an advanced stream API that yields `AgentEventEnvelope`
   - [ ] Preserve `session.stream()` for existing consumers
@@ -117,6 +120,7 @@ That means closing the contract gaps around:
 > Goal: make session ownership and reconnect behavior explicit enough for durable adapter-layer use.
 
 - [ ] **3.1 — Separate open, resume, and attach semantics**
+
   > `resumeSession()` alone is too overloaded.
   - [ ] Define `openSession()` as new runtime/session creation
   - [ ] Narrow `resumeSession()` semantics and document when it creates vs rebinds
@@ -124,6 +128,7 @@ That means closing the contract gaps around:
   - [ ] Decide whether `detach()` should be explicit in the public API
 
 - [ ] **3.2 — Define stale handle and duplicate attach behavior**
+
   > Products need exact behavior when state drifts.
   - [ ] Add stale-handle detection semantics
   - [ ] Define duplicate attach behavior for the same underlying session
@@ -131,6 +136,7 @@ That means closing the contract gaps around:
   - [ ] Define whether multiple local attachments can coexist safely
 
 - [ ] **3.3 — Clarify local-vs-remote lifecycle transitions**
+
   > Correctness depends on precise lifecycle meanings.
   - [ ] Define local close vs remote close vs transport death
   - [ ] Define what `interrupt()` guarantees about terminal events
@@ -150,6 +156,7 @@ That means closing the contract gaps around:
 > Goal: upgrade approvals and user prompts from callback conveniences into durable runtime interaction records.
 
 - [ ] **4.1 — Introduce typed pending request records**
+
   > Runtime interactions need their own durable identity.
   - [ ] Add a shared `AgentPendingRequest` union for `approval.tool` and `user.input`
   - [ ] Include `id`, `provider`, `sessionId`, `turnId`, `createdAt`, `status`, and typed request payload
@@ -157,6 +164,7 @@ That means closing the contract gaps around:
   - [ ] Preserve raw provider payloads as supplemental debug context only
 
 - [ ] **4.2 — Add explicit request response APIs**
+
   > Apps need to target a specific pending request directly.
   - [ ] Add response methods keyed by request ID
   - [ ] Define explicit accept/deny/cancel behavior for approvals
@@ -164,6 +172,7 @@ That means closing the contract gaps around:
   - [ ] Ensure responses correlate to subsequent turn/runtime events
 
 - [ ] **4.3 — Define pending request lifecycle states**
+
   > Durable UI state depends on lifecycle guarantees.
   - [ ] Define `pending`, `resolved`, `expired`, and `cancelled`
   - [ ] Define timeout behavior
@@ -184,6 +193,7 @@ That means closing the contract gaps around:
 > Goal: make final outcomes precise enough for product UI, telemetry, and retry logic.
 
 - [ ] **5.1 — Define a structured terminal-state model**
+
   > `completed` / `interrupted` / `failed` is directionally right but too coarse.
   - [ ] Add a normalized `AgentTerminalState` union
   - [ ] Distinguish `completed`, `interrupted`, `failed`, `cancelled`, and `timed_out`
@@ -191,6 +201,7 @@ That means closing the contract gaps around:
   - [ ] Add phase-aware timeout categories where meaningful
 
 - [ ] **5.2 — Add a normalized failure taxonomy**
+
   > Adapter logic needs machine-readable failure reasons.
   - [ ] Separate transport failure from model/runtime failure
   - [ ] Add typed failure codes
@@ -232,6 +243,7 @@ That means closing the contract gaps around:
 > Goal: add a lower-level shared API for provider adapters without degrading the simple host-app API.
 
 - [ ] **7.1 — Introduce an explicit adapter-oriented API tier**
+
   > Serious apps need more than the current consumer-oriented surface.
   - [ ] Expose event envelopes directly
   - [ ] Expose pending request enumeration and response APIs
@@ -287,6 +299,7 @@ That means closing the contract gaps around:
 > Goal: make the package legible to orchestration-heavy adopters without confusing simple host-app users.
 
 - [ ] **9.1 — Reposition the product language**
+
   > The value proposition is reliable runtime substrate, not just cleaner syntax.
   - [ ] Update README language to describe `agentkit` as a provider-runtime substrate for local agent applications
   - [ ] Keep the simple host-app story, but add explicit adapter-layer positioning

@@ -202,16 +202,31 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     })
 
     const events = await eventsPromise
-    const types = events.map((event) => event.type)
+    const types = events.map(event => event.type)
 
-    assert.ok(types.includes('message.delta'))
-    assert.ok(types.includes('reasoning.delta'))
-    assert.ok(types.includes('approval.tool'))
-    assert.ok(types.includes('user.input'))
-    assert.ok(types.includes('provider.notification'))
-    assert.ok(types.includes('turn.completed'))
+    assert.deepEqual(types, [
+      'provider.notification',
+      'message.delta',
+      'reasoning.delta',
+      'approval.tool',
+      'user.input',
+      'provider.notification',
+      'provider.notification',
+      'turn.completed',
+    ])
 
-    const completion = events.find((event) => event.type === 'turn.completed')?.payload as
+    assert.deepEqual(fakeTransport.responses, [
+      {
+        id: 101,
+        result: { decision: 'accept' },
+      },
+      {
+        id: 102,
+        result: { answers: { q1: { answers: ['yes'] } } },
+      },
+    ])
+
+    const completion = events.find(event => event.type === 'turn.completed')?.payload as
       | { type: 'turn.completed'; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
@@ -221,6 +236,7 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     assert.equal(completion.result.status, 'completed')
     assert.equal(completion.result.text, 'Hello world')
     assert.ok(Array.isArray(completion.result.items))
+    assert.equal((completion.result.items as Array<{ type?: string }>)[0]?.type, 'agentMessage')
     assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'thread-codex-1')
   } finally {
     CodexCtor.create = originalCreate
@@ -235,7 +251,7 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
   const originalFactory = ClaudeSessionCtor.runtimeFactory
   let runtimeRef: FakeClaudeRuntime | null = null
 
-  ClaudeSessionCtor.runtimeFactory = (input) => {
+  ClaudeSessionCtor.runtimeFactory = input => {
     runtimeRef = new FakeClaudeRuntime(input.options)
     return runtimeRef
   }
@@ -318,17 +334,19 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
     })
 
     const events = await eventsPromise
-    const types = events.map((event) => event.type)
+    const types = events.map(event => event.type)
 
-    assert.ok(types.includes('message.delta'))
-    assert.ok(types.includes('message.completed'))
-    assert.ok(types.includes('status'))
-    assert.ok(types.includes('approval.tool'))
-    assert.ok(types.includes('user.input'))
-    assert.ok(types.includes('provider.notification'))
-    assert.ok(types.includes('turn.completed'))
+    assert.deepEqual(types, [
+      'approval.tool',
+      'message.delta',
+      'user.input',
+      'message.completed',
+      'status',
+      'provider.notification',
+      'turn.completed',
+    ])
 
-    const completion = events.find((event) => event.type === 'turn.completed')?.payload as
+    const completion = events.find(event => event.type === 'turn.completed')?.payload as
       | { type: 'turn.completed'; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
@@ -339,6 +357,7 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
     assert.ok(Array.isArray(completion.result.items))
     assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'claude-session-1')
     assert.equal((completion.result.handle as { resumeAt?: string }).resumeAt, 'assistant-uuid-1')
+    assert.equal((completion.result.resumeState as { resumeSessionAt?: string }).resumeSessionAt, 'assistant-uuid-1')
 
     await session.close()
   } finally {
@@ -353,7 +372,7 @@ test('claude user input errors map to error event and failed completion', async 
   const originalFactory = ClaudeSessionCtor.runtimeFactory
   let runtimeRef: FakeClaudeRuntime | null = null
 
-  ClaudeSessionCtor.runtimeFactory = (input) => {
+  ClaudeSessionCtor.runtimeFactory = input => {
     runtimeRef = new FakeClaudeRuntime(input.options)
     return runtimeRef
   }
@@ -392,13 +411,13 @@ test('claude user input errors map to error event and failed completion', async 
     })
 
     const events = await eventsPromise
-    const types = events.map((event) => event.type)
+    const types = events.map(event => event.type)
 
     assert.ok(types.includes('user.input'))
     assert.ok(types.includes('error'))
     assert.ok(types.includes('turn.completed'))
 
-    const completion = events.find((event) => event.type === 'turn.completed')?.payload as
+    const completion = events.find(event => event.type === 'turn.completed')?.payload as
       | { type: 'turn.completed'; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)

@@ -7,6 +7,14 @@ export type AgentProviderId = 'codex' | 'claude'
 /**
  * Provider-neutral resume payload.
  *
+ * Stable fields:
+ * - `provider`, `sessionId`, and `name`
+ * - `resumeKey` and `resumeAt` as cross-provider slots
+ *
+ * Escape hatches:
+ * - `resumeKey` and `resumeAt` values remain provider-specific
+ * - `raw` contains provider-native resume metadata and should be treated as opaque
+ *
  * Persist this handle if you need to resume a session across process restarts.
  * Local `agent.session(name)` cache entries are not sufficient for cross-process
  * resume without this handle.
@@ -41,6 +49,9 @@ export type AgentAccountState = {
 
 /**
  * Normalized provider capability metadata used for feature gating.
+ *
+ * The enum/boolean fields are the stable cross-provider contract.
+ * `raw` is reserved for provider-native supplemental data.
  */
 export type AgentCapabilities = {
   provider: AgentProviderId
@@ -84,12 +95,34 @@ export type AgentCapabilities = {
   raw?: unknown
 }
 
+/**
+ * Normalized approval request surfaced through the shared API.
+ *
+ * Stable fields:
+ * - `provider`
+ * - `kind`
+ *
+ * Escape hatches:
+ * - `payload` is intentionally provider-shaped because approval request payloads
+ *   are not yet fully normalized across providers
+ */
 export type AgentToolApprovalRequest = {
   provider: AgentProviderId
   kind: string
   payload: Record<string, unknown>
 }
 
+/**
+ * Normalized user-input request surfaced through the shared API.
+ *
+ * Stable fields:
+ * - `provider`
+ * - `question`
+ * - `options`
+ *
+ * Escape hatches:
+ * - `raw` contains the provider-native request object
+ */
 export type AgentUserInputRequest = {
   provider: AgentProviderId
   question: string
@@ -107,6 +140,10 @@ export type AgentHandlers = {
 
 /**
  * Provider-neutral streamed events emitted by `AgentSession.stream(...)`.
+ *
+ * Stream ordering is the live emission order for the current attachment only.
+ * The current contract does not include stable event ids, replay cursors, or
+ * live-vs-replay markers.
  */
 export type AgentEvent =
   | { provider: AgentProviderId; type: 'message.delta'; text: string; raw?: unknown }
@@ -122,6 +159,14 @@ export type AgentEvent =
 /**
  * Normalized final turn result returned by `run()` and attached to
  * `turn.completed` stream events.
+ *
+ * Stable fields:
+ * - `provider`, `sessionId`, `turnId`, `status`, `text`, `items`
+ * - optional `handle`
+ *
+ * Escape hatches:
+ * - `items` are provider-native terminal items
+ * - `raw` and `resumeState` are provider-specific metadata
  */
 export type AgentRunResult = {
   provider: AgentProviderId
@@ -283,6 +328,8 @@ export type ProviderInventoryOptions = {
  *
  * `status` + `degraded` summarize runtime health. `diagnostics` contains probe
  * strategy/failure details and is intended for troubleshooting UI/logging.
+ * The `diagnostics` object is normalized and stable. `raw` remains the
+ * provider-native escape hatch.
  */
 export type AgentProviderInventory = {
   provider: AgentProviderId
@@ -334,19 +381,21 @@ export interface AgentSession {
    */
   getSessionInfo(): AgentSessionSummary
   /**
-   * Execute one turn and wait for completion.
+   * Execute one live turn and wait for completion.
    */
   run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult>
   /**
-   * Execute one turn and stream normalized events.
+   * Execute one live turn and stream normalized events in adapter emission order.
    */
   stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>>
   /**
    * Interrupt the active turn, if the provider supports interruption.
+   * Rejects when no turn is currently active.
    */
   interrupt(): Promise<void>
   /**
-   * Close local session resources.
+   * Close local session resources owned by this session object.
+   * Remote/runtime impact remains provider-specific.
    */
   close(): Promise<void>
 }
@@ -366,10 +415,12 @@ export interface AgentClient {
   session(name: string, options?: AgentSessionOptions): AgentSession
   /**
    * Open a new provider session explicitly.
+   * This returns a new wrapper and does not consult the local named-session cache.
    */
   openSession(options?: AgentOpenSessionOptions): Promise<AgentSession>
   /**
    * Resume a provider session from a persisted handle.
+   * Use this for cross-process/session recovery rather than `session(name)`.
    */
   resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession>
   listSessions?(): Promise<AgentSessionSummary[]>
@@ -389,10 +440,12 @@ export interface AgentClient {
   close(): Promise<void>
   /**
    * Escape hatch for provider-specific Codex APIs.
+   * Outside the normalized contract once non-null.
    */
   asCodex(): CodexClient | null
   /**
    * Escape hatch for provider-specific Claude APIs.
+   * Outside the normalized contract once non-null.
    */
   asClaude(): ClaudeProviderHandle | null
 }
