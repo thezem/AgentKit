@@ -31,7 +31,8 @@
     "example:ci": "node --experimental-strip-types examples/ci.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test test/**/*.test.ts",
-    "prepublishOnly": "npm run build"
+    "prepack": "npm run build",
+    "prepare": "npm run build"
   },
   "engines": {
     "node": ">=22.6"
