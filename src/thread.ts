@@ -1,6 +1,9 @@
 import type { CodexClient } from './codex-client.ts'
 import type { CodexStreamEvent, CodexThreadData, RunOptions, RunResult, UserInput } from './types.ts'
 
+/**
+ * Codex thread wrapper around provider-native thread identity.
+ */
 export class CodexThread {
   readonly id: string
   readonly data: CodexThreadData
@@ -13,14 +16,23 @@ export class CodexThread {
     this.data = data
   }
 
+  /**
+   * Run one turn to completion on this thread.
+   */
   async run(input: UserInput, options?: RunOptions): Promise<RunResult> {
     return this.client.runThread(this, input, options)
   }
 
+  /**
+   * Start one turn and stream Codex events.
+   */
   async stream(input: UserInput, options?: RunOptions): Promise<AsyncIterable<CodexStreamEvent>> {
     return this.client.streamThread(this, input, options)
   }
 
+  /**
+   * Send steering input to the active turn.
+   */
   async steer(input: UserInput): Promise<void> {
     if (!this.activeTurnId) {
       throw new Error('No active turn to steer')
@@ -33,6 +45,9 @@ export class CodexThread {
     })
   }
 
+  /**
+   * Interrupt the active turn.
+   */
   async interrupt(): Promise<void> {
     if (!this.activeTurnId) {
       throw new Error('No active turn to interrupt')
@@ -44,6 +59,9 @@ export class CodexThread {
     })
   }
 
+  /**
+   * Fork this thread into a new thread.
+   */
   async fork(options?: RunOptions): Promise<CodexThread> {
     return this.client.threads.fork(this.id, options)
   }
@@ -53,6 +71,9 @@ export class CodexThread {
   }
 }
 
+/**
+ * Locally cached session wrapper that lazily creates/resumes one Codex thread.
+ */
 export class CodexSession {
   readonly name: string
   private readonly client: CodexClient
@@ -65,10 +86,16 @@ export class CodexSession {
     this.options = options
   }
 
+  /**
+   * Backing Codex thread id once created/resumed.
+   */
   get id(): string | null {
     return this.threadId
   }
 
+  /**
+   * Open or resume the underlying Codex thread for this session.
+   */
   async thread(): Promise<CodexThread> {
     if (this.threadId) {
       return this.client.threads.resume(this.threadId)
@@ -79,21 +106,33 @@ export class CodexSession {
     return thread
   }
 
+  /**
+   * Run one turn using this session's default options merged with call options.
+   */
   async run(input: UserInput, options?: RunOptions): Promise<RunResult> {
     const thread = await this.thread()
     return thread.run(input, mergeRunOptions(this.options, options))
   }
 
+  /**
+   * Stream one turn using this session's default options merged with call options.
+   */
   async stream(input: UserInput, options?: RunOptions): Promise<AsyncIterable<CodexStreamEvent>> {
     const thread = await this.thread()
     return thread.stream(input, mergeRunOptions(this.options, options))
   }
 
+  /**
+   * Forward steering input to the underlying thread.
+   */
   async steer(input: UserInput): Promise<void> {
     const thread = await this.thread()
     return thread.steer(input)
   }
 
+  /**
+   * Interrupt the active turn on the underlying thread.
+   */
   async interrupt(): Promise<void> {
     const thread = await this.thread()
     return thread.interrupt()

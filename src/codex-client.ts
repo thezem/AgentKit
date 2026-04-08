@@ -84,6 +84,11 @@ class CodexThreadsApi {
   }
 }
 
+/**
+ * Codex compatibility client backed by `codex app-server`.
+ *
+ * This surface is provider-specific and mirrors Codex thread/turn semantics.
+ */
 export class CodexClient {
   readonly options: CreateCodexOptions
   readonly raw: { request: <T = unknown>(method: string, params?: unknown) => Promise<T> }
@@ -155,6 +160,9 @@ export class CodexClient {
     })
   }
 
+  /**
+   * Create and initialize a Codex client transport.
+   */
   static async create(options: CreateCodexOptions = {}): Promise<CodexClient> {
     const transport = await AppServerTransport.start({
       codexPath: options.codexPath,
@@ -170,6 +178,12 @@ export class CodexClient {
     return client
   }
 
+  /**
+   * Return a locally cached `CodexSession` by name.
+   *
+   * This cache exists only in the current process. Persist thread ids if you
+   * need resumability across process restarts.
+   */
   session(name: string, options?: RunOptions): CodexSession {
     const existing = this.sessions.get(name)
     if (existing) return existing
@@ -178,22 +192,37 @@ export class CodexClient {
     return session
   }
 
+  /**
+   * Evict one locally cached session wrapper.
+   */
   clearSession(name: string): void {
     this.sessions.delete(name)
   }
 
+  /**
+   * Evict all locally cached session wrappers.
+   */
   clearSessions(): void {
     this.sessions.clear()
   }
 
+  /**
+   * Return current in-process turn state for a thread.
+   */
   getThreadTurnState(threadId: string): 'idle' | TurnState {
     return this.threadTurnState.get(threadId) ?? 'idle'
   }
 
+  /**
+   * Close transport and fail any inflight work.
+   */
   async close(): Promise<void> {
     this.transport.close()
   }
 
+  /**
+   * Restart the underlying transport, typically after external auth changes.
+   */
   async restartTransport(): Promise<void> {
     this.transport.close()
     this.transport = await AppServerTransport.start({

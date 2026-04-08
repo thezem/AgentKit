@@ -61,6 +61,9 @@ type CodexSessionInit = {
   threadId?: string
 }
 
+/**
+ * Options for writing Codex skill configuration on disk.
+ */
 export type WriteCodexSkillConfigOptions = {
   path: string
   enabled: boolean
@@ -415,6 +418,9 @@ export async function listCodexSkills(options?: AgentSkillListOptions): Promise<
   }
 }
 
+/**
+ * Enable/disable a Codex skill config entry and write it via `codex skills config write`.
+ */
 export async function writeCodexSkillConfig(options: WriteCodexSkillConfigOptions): Promise<AgentSkillConfigResult> {
   const before = await listCodexSkills({
     codexPath: options.codexPath,

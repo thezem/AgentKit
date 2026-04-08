@@ -4,6 +4,13 @@ import type { CreateCodexOptions, UserInput } from './types.ts'
 
 export type AgentProviderId = 'codex' | 'claude'
 
+/**
+ * Provider-neutral resume payload.
+ *
+ * Persist this handle if you need to resume a session across process restarts.
+ * Local `agent.session(name)` cache entries are not sufficient for cross-process
+ * resume without this handle.
+ */
 export type AgentSessionHandle = {
   provider: AgentProviderId
   sessionId: string | null
@@ -32,6 +39,9 @@ export type AgentAccountState = {
   raw?: unknown
 }
 
+/**
+ * Normalized provider capability metadata used for feature gating.
+ */
 export type AgentCapabilities = {
   provider: AgentProviderId
   sessionLifecycle: {
@@ -87,11 +97,17 @@ export type AgentUserInputRequest = {
   raw?: unknown
 }
 
+/**
+ * Optional interactive handlers used during `run()` and `stream()`.
+ */
 export type AgentHandlers = {
   onToolApproval?: (request: AgentToolApprovalRequest) => Promise<'allow' | 'deny'> | 'allow' | 'deny'
   onUserInput?: (request: AgentUserInputRequest) => Promise<string[] | string> | string[] | string
 }
 
+/**
+ * Provider-neutral streamed events emitted by `AgentSession.stream(...)`.
+ */
 export type AgentEvent =
   | { provider: AgentProviderId; type: 'message.delta'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.completed'; text: string; raw?: unknown }
@@ -103,6 +119,10 @@ export type AgentEvent =
   | { provider: AgentProviderId; type: 'provider.notification'; method: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'error'; error: string; raw?: unknown }
 
+/**
+ * Normalized final turn result returned by `run()` and attached to
+ * `turn.completed` stream events.
+ */
 export type AgentRunResult = {
   provider: AgentProviderId
   sessionId: string | null
@@ -180,6 +200,9 @@ export type CreateAgentOptions =
 
 export type AgentProviderAvailability = AgentAccountState
 
+/**
+ * Normalized model discovery entry.
+ */
 export type AgentModelInfo = {
   provider: AgentProviderId
   id: string
@@ -203,6 +226,9 @@ export type AgentModelInfo = {
   raw?: unknown
 }
 
+/**
+ * Normalized skill discovery entry.
+ */
 export type AgentSkillInfo = {
   provider: AgentProviderId
   name: string
@@ -252,6 +278,12 @@ export type ProviderInventoryOptions = {
   probeTimeoutMs?: number
 }
 
+/**
+ * Canonical provider discovery record.
+ *
+ * `status` + `degraded` summarize runtime health. `diagnostics` contains probe
+ * strategy/failure details and is intended for troubleshooting UI/logging.
+ */
 export type AgentProviderInventory = {
   provider: AgentProviderId
   installed: boolean
@@ -293,25 +325,74 @@ export interface AgentSession {
   readonly provider: AgentProviderId
   readonly name: string
   readonly id: string | null
+  /**
+   * Return the current resumable handle, or `null` if no remote session exists yet.
+   */
   getHandle(): AgentSessionHandle | null
+  /**
+   * Return session metadata known locally by this SDK process.
+   */
   getSessionInfo(): AgentSessionSummary
+  /**
+   * Execute one turn and wait for completion.
+   */
   run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult>
+  /**
+   * Execute one turn and stream normalized events.
+   */
   stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>>
+  /**
+   * Interrupt the active turn, if the provider supports interruption.
+   */
   interrupt(): Promise<void>
+  /**
+   * Close local session resources.
+   */
   close(): Promise<void>
 }
 
+/**
+ * Shared provider-neutral client interface.
+ *
+ * `session(name)` is local cache convenience. `openSession` and `resumeSession`
+ * are explicit lifecycle operations. Cache clearing does not delete remote
+ * provider state.
+ */
 export interface AgentClient {
   readonly provider: AgentProviderId
+  /**
+   * Return a locally cached session wrapper by name, creating one if needed.
+   */
   session(name: string, options?: AgentSessionOptions): AgentSession
+  /**
+   * Open a new provider session explicitly.
+   */
   openSession(options?: AgentOpenSessionOptions): Promise<AgentSession>
+  /**
+   * Resume a provider session from a persisted handle.
+   */
   resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession>
   listSessions?(): Promise<AgentSessionSummary[]>
+  /**
+   * Evict one locally cached session wrapper by name.
+   */
   clearSession(name: string): void
+  /**
+   * Evict all locally cached session wrappers.
+   */
   clearSessions(): void
   getAccountState(): Promise<AgentAccountState>
   getCapabilities(): Promise<AgentCapabilities>
+  /**
+   * Close provider client resources in this process.
+   */
   close(): Promise<void>
+  /**
+   * Escape hatch for provider-specific Codex APIs.
+   */
   asCodex(): CodexClient | null
+  /**
+   * Escape hatch for provider-specific Claude APIs.
+   */
   asClaude(): ClaudeProviderHandle | null
 }
