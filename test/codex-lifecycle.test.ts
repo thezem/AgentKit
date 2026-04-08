@@ -35,18 +35,24 @@ function createClient(transport: FakeTransport, handlers?: RequestHandlers): Cod
   return new ClientCtor(transport, handlers ? { handlers } : {})
 }
 
-async function waitForThreadState(
-  client: CodexClient,
-  threadId: string,
-  expected: 'idle' | 'starting' | 'active',
-): Promise<void> {
+async function waitForThreadState(client: CodexClient, threadId: string, expected: 'idle' | 'starting' | 'active'): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (client.getThreadTurnState(threadId) === expected) {
       return
     }
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
   }
   assert.fail(`Thread ${threadId} did not reach state ${expected}`)
+}
+
+async function waitForResponseCount(transport: FakeTransport, expectedCount: number): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (transport.responses.length + transport.responseErrors.length >= expectedCount) {
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  assert.fail(`Timed out waiting for ${expectedCount} transport response(s)`)
 }
 
 test('thread/start returns CodexThread with created id', async () => {
@@ -164,6 +170,47 @@ test('stream() yields events in notification order', async () => {
   assert.equal(second.value?.type, 'turn.completed')
 })
 
+test('interrupt() forwards turn/interrupt for the active turn', async () => {
+  const transport = new FakeTransport()
+  transport.respondWith('turn/start', { turn: { id: 'turn-1' } })
+  transport.respondWith('turn/interrupt', {})
+
+  const client = createClient(transport)
+  const thread = new CodexThread(client, createThreadData('thread-1'))
+  const stream = await client.streamThread(thread, 'hello')
+  await waitForThreadState(client, 'thread-1', 'active')
+
+  await thread.interrupt()
+
+  assert.deepEqual(transport.requestLog.at(-1), {
+    method: 'turn/interrupt',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+    },
+  })
+
+  transport.simulateNotification({
+    jsonrpc: '2.0',
+    method: 'turn/completed',
+    params: {
+      threadId: 'thread-1',
+      turn: {
+        id: 'turn-1',
+        items: [],
+        status: 'interrupted',
+        error: null,
+      },
+    },
+  })
+
+  const iterator = stream[Symbol.asyncIterator]()
+  const completion = await iterator.next()
+  assert.equal(completion.done, false)
+  assert.equal(completion.value?.type, 'turn.completed')
+  assert.equal(completion.value?.turn.status, 'interrupted')
+})
+
 test('concurrent run() on same thread rejects with ConcurrentTurnError', async () => {
   const transport = new FakeTransport()
   transport.respondWith('turn/start', { turn: { id: 'turn-1' } })
@@ -177,7 +224,7 @@ test('concurrent run() on same thread rejects with ConcurrentTurnError', async (
   })
   await waitForThreadState(client, 'thread-1', 'active')
 
-  await assert.rejects(client.runThread(thread, 'second prompt'), (error) => {
+  await assert.rejects(client.runThread(thread, 'second prompt'), error => {
     assert.ok(error instanceof ConcurrentTurnError)
     return true
   })
@@ -203,7 +250,7 @@ test('approval request uses onCommandApproval handler and responds', async () =>
     method: 'item/commandExecution/requestApproval',
     params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'cmd-1' },
   })
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await waitForResponseCount(transport, 1)
 
   assert.deepEqual(transport.responses[0], { id: 101, result: { decision: 'accept' } })
 })
@@ -230,7 +277,7 @@ test('tool input request uses onToolInput handler and responds', async () => {
       questions: [{ id: 'q1', header: 'Q1', question: 'Pick one' }],
     },
   })
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await waitForResponseCount(transport, 1)
 
   assert.deepEqual(transport.responses[0], {
     id: 202,

@@ -48,6 +48,21 @@ await session.close()
 await agent.close()
 ```
 
+## Runtime Contract
+
+The shared API is intentionally a runtime substrate, not an orchestration framework.
+
+- Current normative behavior and boundaries are documented in [docs/RUNTIME_CONTRACT.md](https://github.com/thezem/AgentKit/blob/main/docs/RUNTIME_CONTRACT.md).
+- Persist `AgentSessionHandle` if you need cross-process resume.
+- Treat `agent.session(name)` as local cache convenience only.
+- Treat `raw`, `resumeState`, and provider escape hatches as provider-specific data.
+
+Non-goals today:
+
+- no event replay or cursor model
+- no durable pending-request recovery
+- no orchestration, websocket, or UI-state abstraction layer
+
 ## Shared API
 
 ### Lifecycle
@@ -57,8 +72,8 @@ await agent.close()
 - `agent.resumeSession(handle, options?)`
 - `agent.session(name, options?)` local cached convenience handle
 - `agent.clearSession(name)` and `agent.clearSessions()` clear only local cache entries
-- `session.close()` closes the local session object/runtime resources for that provider
-- `agent.close()` closes client-level runtime resources
+- `session.close()` always closes the local session object; remote/runtime impact is provider-specific today
+- `agent.close()` closes client-owned runtime resources in the current process
 
 ### Resume Handle
 
@@ -101,6 +116,12 @@ type AgentSessionHandle = {
 - `provider.notification`: passthrough provider notification for advanced use
 - `error`: normalized stream error event
 
+Current event boundary:
+
+- event order is the live adapter/runtime emission order for the current stream attachment
+- `turn.completed` carries the normalized final `AgentRunResult` for that turn
+- there are no stable event IDs, replay cursors, or live-vs-replay markers yet
+
 ## Handlers (Approvals and User Input)
 
 Handlers are passed through `createAgent(...).openSession(...).stream(...)` (or `run(...)`) via `options.handlers`.
@@ -113,11 +134,11 @@ const session = await agent.openSession({ name: 'handlers-demo' })
 
 const stream = await session.stream('Inspect package.json and summarize scripts.', {
   handlers: {
-    onToolApproval: async (request) => {
+    onToolApproval: async request => {
       console.log('Approval request:', request.kind)
       return 'allow'
     },
-    onUserInput: async (request) => {
+    onUserInput: async request => {
       console.log('User input request:', request.question)
       return ['example answer']
     },
@@ -166,6 +187,8 @@ All README-listed examples exist and map to npm scripts:
 - `npm run example:ci` -> `examples/ci.ts`
 
 ## Troubleshooting
+
+For precise lifecycle, stream-ordering, interrupt, and close semantics, use [docs/RUNTIME_CONTRACT.md](docs/RUNTIME_CONTRACT.md) as the source of truth.
 
 ### Provider binary missing
 

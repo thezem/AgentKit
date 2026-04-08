@@ -8,8 +8,10 @@ import {
   getProviderInventory,
   getProviderInventoryEntry,
 } from '../src/agent-client.ts'
+import { CodexClient } from '../src/codex-client.ts'
 import { InputValidationError, ProviderProbeTimeoutError } from '../src/errors.ts'
 import { providerRegistry } from '../src/providers/provider-registry.ts'
+import { FakeTransport } from './helpers/fake-transport.ts'
 import { createMockAgentClient } from './helpers/mock-provider.ts'
 
 type Registry = typeof providerRegistry
@@ -31,9 +33,40 @@ function restoreRegistry(snapshot: RegistrySnapshot): void {
   providerRegistry.getProviderInventory = snapshot.getProviderInventory
 }
 
+function createThreadData(id: string) {
+  return {
+    id,
+    preview: '',
+    ephemeral: false,
+    modelProvider: 'openai',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    status: 'idle',
+    path: null,
+    cwd: process.cwd(),
+    cliVersion: 'test',
+    source: 'test',
+    agentNickname: null,
+    agentRole: null,
+    gitInfo: null,
+    name: null,
+    turns: [],
+  }
+}
+
+async function waitForRequest(fakeTransport: FakeTransport, method: string): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (fakeTransport.requestLog.some(entry => entry.method === method)) {
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  assert.fail(`Timed out waiting for request method ${method}`)
+}
+
 test('createAgent("codex") returns codex provider client', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = ((provider) => {
+  providerRegistry.get = (provider => {
     assert.equal(provider, 'codex')
     return {
       id: 'codex',
@@ -62,7 +95,7 @@ test('createAgent("codex") returns codex provider client', async () => {
 
 test('createAgent("claude") returns claude provider client', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = ((provider) => {
+  providerRegistry.get = (provider => {
     assert.equal(provider, 'claude')
     return {
       id: 'claude',
@@ -90,7 +123,7 @@ test('createAgent("claude") returns claude provider client', async () => {
 })
 
 test('createAgent throws InputValidationError for unknown provider id', async () => {
-  await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), (error) => {
+  await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), error => {
     assert.ok(error instanceof InputValidationError)
     assert.equal(error.field, 'provider')
     return true
@@ -108,6 +141,75 @@ test('session caching returns same handle and clearSession invalidates it', () =
 
   const third = client.session('project-a')
   assert.notEqual(first, third)
+})
+
+test('persisted handle survives local cache eviction and can resume the same codex thread', async () => {
+  const fakeTransport = new FakeTransport()
+  fakeTransport.respondWith('thread/start', { thread: createThreadData('thread-1') })
+  fakeTransport.respondWith('turn/start', { turn: { id: 'turn-1' } })
+  fakeTransport.respondWith('thread/resume', { thread: createThreadData('thread-1') })
+
+  const CodexCtor = CodexClient as unknown as {
+    create: (options?: Record<string, unknown>) => Promise<CodexClient>
+    new (transport: FakeTransport, options: Record<string, unknown>): CodexClient
+  }
+  const originalCreate = CodexCtor.create
+  const fakeCodexClient = new CodexCtor(fakeTransport, {})
+  CodexCtor.create = async () => fakeCodexClient
+
+  try {
+    const agent = await createAgent({ provider: 'codex' })
+    const cached = agent.session('persist-me')
+
+    const resultPromise = cached.run('hello')
+
+    await waitForRequest(fakeTransport, 'turn/start')
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        item: { type: 'agentMessage', id: 'msg-1', text: 'hello world' },
+      },
+    })
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-1',
+        turn: {
+          id: 'turn-1',
+          status: 'completed',
+          error: null,
+          items: [{ type: 'agentMessage', id: 'msg-1', text: 'hello world' }],
+        },
+      },
+    })
+
+    const result = await resultPromise
+    assert.equal(result.handle?.provider, 'codex')
+    assert.equal(result.handle?.resumeKey, 'thread-1')
+    assert.equal(result.handle?.sessionId, 'thread-1')
+
+    agent.clearSession('persist-me')
+
+    const recached = agent.session('persist-me')
+    assert.notEqual(recached, cached)
+    assert.equal(recached.getHandle(), null)
+
+    const resumed = await agent.resumeSession(result.handle as NonNullable<typeof result.handle>, { name: 'resumed' })
+    assert.equal(resumed.getHandle()?.resumeKey, 'thread-1')
+    assert.equal(resumed.getSessionInfo().sessionId, 'thread-1')
+
+    assert.deepEqual(
+      fakeTransport.requestLog.map(entry => entry.method),
+      ['thread/start', 'turn/start', 'thread/resume'],
+    )
+  } finally {
+    CodexCtor.create = originalCreate
+    await fakeCodexClient.close()
+  }
 })
 
 test('getAvailableProviders maps inventory entries to availability results', async () => {
@@ -182,7 +284,7 @@ test('getAvailableProviders maps inventory entries to availability results', asy
 
 test('getProviderAvailability returns one mapped entry', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = ((provider) => ({
+  providerRegistry.get = (provider => ({
     id: provider,
     async getInventory() {
       return {
@@ -241,7 +343,7 @@ test('getProviderInventory and getProviderAvailability surface probe timeout fai
 
 test('getProviderInventoryEntry returns selected provider inventory', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = ((provider) => ({
+  providerRegistry.get = (provider => ({
     id: provider,
     async getInventory() {
       return {
