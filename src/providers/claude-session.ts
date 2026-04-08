@@ -45,6 +45,8 @@ type ClaudeTurnContext = {
 }
 
 export class ClaudeSession implements AgentSession {
+  private static runtimeFactory = (input: Parameters<typeof query>[0]): Query => query(input)
+
   readonly provider = 'claude' as const
   readonly name: string
 
@@ -89,7 +91,7 @@ export class ClaudeSession implements AgentSession {
     const runtimeOptions = this.buildRuntimeOptions()
     this.sessionCwd = runtimeOptions.cwd ?? process.cwd()
 
-    this.runtime = query({
+    this.runtime = ClaudeSession.runtimeFactory({
       prompt: this.promptQueue,
       options: runtimeOptions,
     })

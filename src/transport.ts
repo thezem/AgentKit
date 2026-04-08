@@ -42,6 +42,11 @@ function isFailure(message: JsonRpcMessage): message is JsonRpcFailure {
 }
 
 export class AppServerTransport {
+  private static platform = (): NodeJS.Platform => process.platform
+  private static taskkill = (pid: number): void => {
+    execFileSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' })
+  }
+
   private readonly process: ChildProcessWithoutNullStreams
   private readonly lines: readline.Interface
   private readonly pending = new Map<JsonRpcId, PendingRequest>()
@@ -188,9 +193,9 @@ export class AppServerTransport {
     this.closed = true
     this.rejectPending(new Error('codex app-server transport is closed'))
     this.lines.close()
-    if (process.platform === 'win32' && this.process.pid) {
+    if (AppServerTransport.platform() === 'win32' && this.process.pid) {
       try {
-        execFileSync('taskkill', ['/pid', String(this.process.pid), '/t', '/f'], { stdio: 'ignore' })
+        AppServerTransport.taskkill(this.process.pid)
         return
       } catch {
         // Fall back to a normal kill below.

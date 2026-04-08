@@ -50,7 +50,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
 - [x] Rich machine inventory API for installed providers and resolved executable paths
 - [x] Unified model listing across providers
 - [x] Unified skills listing/configuration across providers
-- [ ] Test suite
+- [x] Test suite
 - [ ] Standard build output for npm consumption without `--experimental-strip-types`
 
 ---
@@ -205,7 +205,7 @@ The roadmap below marks what is already complete and focuses the remaining work 
   - [x] Transport close rejects inflight requests
   - [x] Request timeout rejects and ignores late responses
   - [x] Queue overflow and transport-death stream failure behavior
-  - [ ] Windows cleanup path coverage
+  - [x] Windows cleanup path coverage
 
 - [x] **5.3 — Codex lifecycle tests**
   - [x] Thread start/resume/fork behavior
@@ -216,14 +216,14 @@ The roadmap below marks what is already complete and focuses the remaining work 
 - [x] **5.4 — Shared provider API tests**
   - [x] `createAgent()` creates the right adapter
   - [x] Session caching/clearing behavior
-  - [ ] Normalized event mapping for Codex
-  - [ ] Normalized event mapping for Claude
-  - [ ] Capability and availability reporting
+  - [x] Normalized event mapping for Codex
+  - [x] Normalized event mapping for Claude
+  - [x] Capability and availability reporting
 
-- [ ] **5.5 — Smoke/integration tests**
-  - [ ] Stub or fixture runtime for Codex protocol tests
-  - [ ] Minimal Claude adapter integration strategy
-  - [ ] CI smoke test for README/example flows
+- [x] **5.5 — Smoke/integration tests**
+  - [x] Stub or fixture runtime for Codex protocol tests
+  - [x] Minimal Claude adapter integration strategy
+  - [x] CI smoke test for README/example flows
 
 ---
 
