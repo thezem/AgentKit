@@ -1,6 +1,6 @@
 # @ouim/agentkit — Development Roadmap
 
-> Last updated: 2026-04-07
+> Last updated: 2026-04-08
 > Version: 0.1.0
 
 This roadmap has been realigned to the current product shape.
@@ -305,3 +305,39 @@ The roadmap below marks what is already complete and focuses the remaining work 
 - [ ] **8.4 — Conversation/message history helpers**
   - [ ] Expose higher-level message history APIs where they add value
   - [ ] Keep low-level turn/item access available
+
+---
+
+## Phase 9 — Builder Workflow Layer (Later) 🟢 P3
+
+> Goal: track higher-level builder features that may be valuable later, while keeping the core SDK focused on provider-neutral runtime normalization first.
+
+- [ ] **9.1 — MCP management surface**
+  - [ ] Expose provider-backed MCP server discovery where supported
+  - [ ] Add lightweight reload/refresh helpers for MCP server state
+  - [ ] Decide whether MCP registration belongs in this package or a higher-level companion package
+
+- [ ] **9.2 — First-class tracing and durable observability**
+  - [ ] Add an optional session/turn tracing API built on top of existing event streams
+  - [ ] Support pluggable sinks such as file, callback, or external logger
+  - [ ] Keep transport diagnostics and builder-facing traces clearly separated
+
+- [ ] **9.3 — Hooks and middleware**
+  - [ ] Evaluate a provider-neutral `onEvent` or middleware API for session lifecycle and turn events
+  - [ ] Define safe extension points for approvals, prompts, and turn execution without bypassing the shared abstractions
+
+- [ ] **9.4 — Thin context helpers**
+  - [ ] Evaluate lightweight helpers such as repo-context loading or prompt prelude assembly
+  - [ ] Avoid provider-specific memory compaction semantics in the core package unless they can be normalized cleanly
+
+- [ ] **9.5 — Production execution policies**
+  - [ ] Explore shared primitives for structured outputs, retries, verification steps, and error recovery
+  - [ ] Keep policy features outcome-focused and avoid coupling the core SDK to one agent framework style
+
+- [ ] **9.6 — Optional orchestration helpers**
+  - [ ] Revisit subagents or orchestration only after the base SDK surface is stable
+  - [ ] Prefer an optional helper layer unless a truly provider-neutral orchestration primitive emerges
+
+- [ ] **9.7 — Hybrid local/cloud execution**
+  - [ ] Reassess local-first with cloud fallback only if it aligns with the package identity later
+  - [ ] Avoid expanding into a general execution platform before the local runtime abstraction is complete
