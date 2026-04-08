@@ -120,8 +120,16 @@ test('getAvailableProviders maps inventory entries to availability results', asy
       authenticated: true,
       degraded: false,
       status: 'authenticated',
+      capabilitySupport: { provider: 'codex', supportsResume: true },
+      version: '1.2.3',
+      executablePath: '/usr/local/bin/codex',
+      executableSource: 'path',
+      diagnostics: {
+        probeMode: 'deep',
+        probeStrategy: 'runtime-init',
+      },
       account: { email: 'user@example.com' },
-      raw: { source: 'test' },
+      raw: { source: 'test', detail: 'codex' },
     },
     {
       provider: 'claude',
@@ -130,8 +138,17 @@ test('getAvailableProviders maps inventory entries to availability results', asy
       authenticated: false,
       degraded: true,
       status: 'degraded',
+      capabilitySupport: { provider: 'claude', supportsResume: true },
+      version: '0.2.0',
+      executablePath: 'C:\\claude\\claude.exe',
+      executableSource: 'configured',
+      diagnostics: {
+        probeMode: 'cheap',
+        probeStrategy: 'sdk-import',
+        failureReason: 'not authenticated',
+      },
       account: null,
-      raw: { source: 'test' },
+      raw: { source: 'test', detail: 'claude' },
     },
   ]) as Registry['getProviderInventory']
 
@@ -143,16 +160,21 @@ test('getAvailableProviders maps inventory entries to availability results', asy
         available: true,
         authenticated: true,
         account: { email: 'user@example.com' },
-        raw: { source: 'test' },
+        raw: { source: 'test', detail: 'codex' },
       },
       {
         provider: 'claude',
         available: false,
         authenticated: false,
         account: null,
-        raw: { source: 'test' },
+        raw: { source: 'test', detail: 'claude' },
       },
     ])
+
+    assert.equal('version' in availability[0], false)
+    assert.equal('capabilitySupport' in availability[0], false)
+    assert.equal('executablePath' in availability[0], false)
+    assert.equal('diagnostics' in availability[0], false)
   } finally {
     restoreRegistry(snapshot)
   }
@@ -229,7 +251,16 @@ test('getProviderInventoryEntry returns selected provider inventory', async () =
         authenticated: true,
         degraded: false,
         status: 'authenticated',
+        capabilitySupport: { provider, supportsResume: true },
+        version: '9.9.9',
+        executablePath: `/bin/${provider}`,
+        executableSource: 'path' as const,
+        diagnostics: {
+          probeMode: 'deep',
+          probeStrategy: 'runtime-init',
+        },
         account: { id: provider },
+        raw: { marker: provider },
       }
     },
     async isAvailable() {
@@ -247,6 +278,115 @@ test('getProviderInventoryEntry returns selected provider inventory', async () =
     const entry = await getProviderInventoryEntry('claude')
     assert.equal(entry.provider, 'claude')
     assert.equal(entry.authenticated, true)
+    assert.equal(entry.version, '9.9.9')
+    assert.equal(entry.executablePath, '/bin/claude')
+    assert.equal(entry.executableSource, 'path')
+    assert.deepEqual(entry.diagnostics, {
+      probeMode: 'deep',
+      probeStrategy: 'runtime-init',
+    })
+    assert.deepEqual(entry.raw, { marker: 'claude' })
+    assert.equal(entry.capabilitySupport?.provider, 'claude')
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('getProviderInventory preserves rich discovery metadata for all providers', async () => {
+  const snapshot = snapshotRegistry()
+  providerRegistry.getProviderInventory = (async () => [
+    {
+      provider: 'codex',
+      installed: true,
+      runnable: true,
+      authenticated: true,
+      degraded: false,
+      status: 'authenticated',
+      capabilitySupport: {
+        provider: 'codex',
+        sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
+        controls: { interrupt: true, modelSwitch: 'turn', permissionModeSwitch: 'none' },
+        interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: true },
+        discovery: { inventory: true, modelListing: true, skillsListing: true, skillConfiguration: true },
+        semantics: { sessionIdentity: 'thread-id', resumeHandle: 'structured', longLivedRuntime: false },
+        supportsResume: true,
+        supportsInterrupt: true,
+        supportsModelSwitch: true,
+        supportsPermissionModeSwitch: false,
+        supportsPartialMessages: true,
+        supportsToolApproval: true,
+        supportsUserInputRequests: true,
+      },
+      version: '1.0.0',
+      executablePath: '/usr/bin/codex',
+      executableSource: 'path',
+      diagnostics: {
+        probeMode: 'deep',
+        probeStrategy: 'runtime-init',
+        notes: ['ok'],
+      },
+      account: { email: 'codex@example.com' },
+      raw: { provider: 'codex', source: 'test' },
+    },
+    {
+      provider: 'claude',
+      installed: true,
+      runnable: true,
+      authenticated: false,
+      degraded: false,
+      status: 'runnable',
+      capabilitySupport: {
+        provider: 'claude',
+        sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
+        controls: { interrupt: true, modelSwitch: 'session', permissionModeSwitch: 'session' },
+        interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: false },
+        discovery: { inventory: true, modelListing: true, skillsListing: false, skillConfiguration: false },
+        semantics: { sessionIdentity: 'runtime-session', resumeHandle: 'structured', longLivedRuntime: true },
+        supportsResume: true,
+        supportsInterrupt: true,
+        supportsModelSwitch: true,
+        supportsPermissionModeSwitch: true,
+        supportsPartialMessages: true,
+        supportsToolApproval: true,
+        supportsUserInputRequests: true,
+      },
+      version: '0.2.92',
+      executablePath: 'C:\\Claude\\claude.exe',
+      executableSource: 'configured',
+      diagnostics: {
+        probeMode: 'cheap',
+        probeStrategy: 'sdk-import',
+      },
+      account: null,
+      raw: { provider: 'claude', source: 'test' },
+    },
+  ]) as Registry['getProviderInventory']
+
+  try {
+    const inventory = await getProviderInventory()
+    assert.equal(inventory.length, 2)
+    assert.equal(inventory[0].provider, 'codex')
+    assert.equal(inventory[0].version, '1.0.0')
+    assert.equal(inventory[0].executablePath, '/usr/bin/codex')
+    assert.equal(inventory[0].executableSource, 'path')
+    assert.equal(inventory[0].capabilitySupport?.provider, 'codex')
+    assert.deepEqual(inventory[0].diagnostics, {
+      probeMode: 'deep',
+      probeStrategy: 'runtime-init',
+      notes: ['ok'],
+    })
+    assert.deepEqual(inventory[0].raw, { provider: 'codex', source: 'test' })
+
+    assert.equal(inventory[1].provider, 'claude')
+    assert.equal(inventory[1].version, '0.2.92')
+    assert.equal(inventory[1].executablePath, 'C:\\Claude\\claude.exe')
+    assert.equal(inventory[1].executableSource, 'configured')
+    assert.equal(inventory[1].capabilitySupport?.provider, 'claude')
+    assert.deepEqual(inventory[1].diagnostics, {
+      probeMode: 'cheap',
+      probeStrategy: 'sdk-import',
+    })
+    assert.deepEqual(inventory[1].raw, { provider: 'claude', source: 'test' })
   } finally {
     restoreRegistry(snapshot)
   }
