@@ -105,8 +105,9 @@ export async function listModels(
 /**
  * List provider skills for one provider.
  *
- * Skills are currently Codex-backed. Unsupported providers throw a typed
- * unsupported capability error.
+ * Skills are currently Codex-backed. Unsupported providers may cause the
+ * underlying provider registry to throw an error if skill listing is not
+ * implemented for the selected provider.
  */
 export async function listSkills(provider: AgentProviderId, options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
   return providerRegistry.listSkills(provider, options)
