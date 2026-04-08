@@ -13,9 +13,12 @@
     "smoke": "node --experimental-strip-types examples/basic.ts",
     "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
     "example:agent:claude": "node --experimental-strip-types examples/agent-claude.ts",
+    "example:lifecycle": "node --experimental-strip-types examples/agent-lifecycle.ts",
+    "example:handlers": "node --experimental-strip-types examples/handlers.ts",
     "example:models": "node --experimental-strip-types examples/models.ts",
     "example:skills": "node --experimental-strip-types examples/skills.ts",
     "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",
+    "example:ci": "node --experimental-strip-types examples/ci.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test test/**/*.test.ts"
   },

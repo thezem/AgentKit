@@ -134,6 +134,11 @@ export type {
   ProviderInventoryOptions,
 } from './agent-types.ts'
 
+/**
+ * Create a Codex compatibility client.
+ *
+ * Prefer `createAgent({ provider: 'codex' })` for provider-neutral usage.
+ */
 export async function createCodex(options: CreateCodexOptions = {}): Promise<CodexClient> {
   return CodexClient.create(options)
 }

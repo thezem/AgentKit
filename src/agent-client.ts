@@ -15,7 +15,12 @@ import { providerRegistry } from './providers/provider-registry.ts'
 import type { ProviderAvailabilityOptions } from './providers/provider-types.ts'
 
 /**
- * Create a provider-backed shared Agent client.
+ * Create a provider-backed shared agent client.
+ *
+ * This is the primary provider-neutral entrypoint. The returned client
+ * manages only local process/cache state; remote resumability is represented
+ * by {@link import('./agent-types.ts').AgentSessionHandle}.
+ *
  * @throws {import('./errors.ts').InputValidationError} If `options.provider` is unknown.
  */
 export async function createAgent(options: CreateAgentOptions): Promise<AgentClient> {
@@ -27,6 +32,13 @@ export async function createAgent(options: CreateAgentOptions): Promise<AgentCli
   return provider.createClient(options)
 }
 
+/**
+ * List provider availability in compatibility form.
+ *
+ * This is a convenience projection over provider inventory. For richer
+ * diagnostics (install path, probe strategy, degradation) use
+ * {@link getProviderInventory}.
+ */
 export async function getAvailableProviders(
   options?: ProviderAvailabilityOptions,
 ): Promise<AgentProviderAvailability[]> {
@@ -36,6 +48,10 @@ export async function getAvailableProviders(
 
 /**
  * Read availability for one provider.
+ *
+ * This is a compatibility surface over inventory and intentionally returns a
+ * smaller shape. Prefer {@link getProviderInventoryEntry} for diagnostics.
+ *
  * @throws {import('./errors.ts').InputValidationError} If `provider` is unknown.
  * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
  */
@@ -49,6 +65,10 @@ export async function getProviderAvailability(
 
 /**
  * Read detailed inventory for all providers.
+ *
+ * Inventory is the canonical discovery API and includes installation, runtime,
+ * authentication, capability, and probe diagnostics metadata.
+ *
  * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
  */
 export async function getProviderInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory[]> {
@@ -57,6 +77,10 @@ export async function getProviderInventory(options?: ProviderInventoryOptions): 
 
 /**
  * Read detailed inventory for one provider.
+ *
+ * Use this when you need one provider's executable metadata, version/probe
+ * details, degraded state, or capability support.
+ *
  * @throws {import('./errors.ts').InputValidationError} If `provider` is unknown.
  * @throws {import('./errors.ts').ProviderProbeTimeoutError} When a deep runtime probe exceeds timeout.
  */
@@ -68,6 +92,9 @@ export async function getProviderInventoryEntry(
   return selected.getInventory(options)
 }
 
+/**
+ * List discoverable models across providers or for one provider.
+ */
 export async function listModels(
   provider?: AgentProviderId,
   options?: AgentModelListOptions,
@@ -75,6 +102,13 @@ export async function listModels(
   return providerRegistry.listModels(provider, options)
 }
 
+/**
+ * List provider skills for one provider.
+ *
+ * Skills are currently Codex-backed. Unsupported providers may cause the
+ * underlying provider registry to throw an error if skill listing is not
+ * implemented for the selected provider.
+ */
 export async function listSkills(provider: AgentProviderId, options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
   return providerRegistry.listSkills(provider, options)
 }
