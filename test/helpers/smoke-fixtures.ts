@@ -25,10 +25,17 @@ class FixtureSession implements AgentSession {
 
   getHandle(): AgentSessionHandle {
     return {
+      version: 1,
       provider: this.provider,
       sessionId: this.id,
       name: this.name,
-      resumeKey: this.id ?? undefined,
+      ...(this.id
+        ? {
+            state: {
+              resumeKey: this.id,
+            },
+          }
+        : {}),
     }
   }
 
@@ -46,24 +53,17 @@ class FixtureSession implements AgentSession {
   }
 
   async run(input: AgentInput): Promise<AgentRunResult> {
-    this.assertOpen()
-    this.turnCounter += 1
-    const text = typeof input === 'string' ? input : '[non-text input]'
-    return {
-      provider: this.provider,
-      sessionId: this.id,
-      turnId: `turn-${this.turnCounter}`,
-      status: 'completed',
-      text: `fixture:${text}`,
-      items: [{ type: 'agentMessage', text: `fixture:${text}` }],
-      handle: this.getHandle(),
-      raw: { fixture: true, turn: this.turnCounter },
-    }
+    return (await this.start(input)).result
   }
 
   async stream(_input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
+    return (await this.start(_input, options)).events
+  }
+
+  async start(input: AgentInput, options?: AgentRunOptions) {
     this.assertOpen()
     this.turnCounter += 1
+    const text = typeof input === 'string' ? input : '[non-text input]'
     const provider = this.provider
     const turnId = `turn-${this.turnCounter}`
     const request = {
@@ -82,32 +82,42 @@ class FixtureSession implements AgentSession {
     const answer = options?.handlers?.onUserInput ? await options.handlers.onUserInput(userRequest) : ''
     const answerText = Array.isArray(answer) ? answer.join(',') : String(answer)
 
+    const result = {
+      provider,
+      sessionId: this.id,
+      turnId,
+      status: 'completed' as const,
+      text: `fixture:${text}`,
+      items: [{ type: 'agentMessage', text: `fixture:${text}` }],
+      handle: this.getHandle(),
+      raw: { fixture: true, turn: this.turnCounter, input: text },
+    }
+
     const events: AgentEvent[] = [
-      { provider, type: 'status', status: 'running' },
+      { provider, type: 'run.started', runId: turnId, sessionId: this.id },
+      { provider, type: 'status.updated', runId: turnId, status: 'running' },
       { provider, type: 'approval.tool', request },
       { provider, type: 'user.input', request: userRequest },
       { provider, type: 'message.delta', text: `approval=${approval};answer=${answerText}` },
       {
         provider,
-        type: 'turn.completed',
-        result: {
-          provider,
-          sessionId: this.id,
-          turnId,
-          status: 'completed',
-          text: `done:${approval}:${answerText}`,
-          items: [{ type: 'agentMessage', text: `done:${approval}:${answerText}` }],
-          handle: this.getHandle(),
-        },
+        type: 'run.completed',
+        runId: turnId,
+        result,
       },
     ]
 
     return {
-      [Symbol.asyncIterator]: async function* () {
-        for (const event of events) {
-          yield event
-        }
+      runId: turnId,
+      events: {
+        [Symbol.asyncIterator]: async function* () {
+          for (const event of events) {
+            yield event
+          }
+        },
       },
+      result: Promise.resolve(result),
+      interrupt: async () => {},
     }
   }
 
@@ -150,7 +160,7 @@ export class FixtureAgentClient implements AgentClient {
 
   async resumeSession(handle: AgentSessionHandle, options?: { name?: string }): Promise<AgentSession> {
     const name = options?.name ?? handle.name ?? `resume-${++this.seq}`
-    return new FixtureSession(this.provider, name, String(handle.resumeKey ?? handle.sessionId ?? `${name}-id`))
+    return new FixtureSession(this.provider, name, String(handle.state?.resumeKey ?? handle.sessionId ?? `${name}-id`))
   }
 
   clearSession(name: string): void {

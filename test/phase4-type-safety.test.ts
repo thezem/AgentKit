@@ -7,6 +7,9 @@ import type { AgentEvent, CodexStreamEvent, TurnItem, UserInput } from '../src/i
 import {
   isAgentErrorEvent,
   isAgentMessageDeltaEvent,
+  isAgentRunCompletedEvent,
+  isAgentRunStartedEvent,
+  isAgentStatusUpdatedEvent,
   isCodexItemCompletedEvent,
   isCodexItemStartedEvent,
   isCodexMessageDeltaEvent,
@@ -129,13 +132,44 @@ test('type guards narrow turn/item events', () => {
 test('type guards narrow AgentEvent variants', () => {
   const event: AgentEvent = {
     provider: 'codex',
-    type: 'message.delta',
-    text: 'partial',
+    type: 'run.started',
+    runId: 'run-1',
+    sessionId: 'thread-1',
   }
 
-  assert.equal(isAgentMessageDeltaEvent(event), true)
+  assert.equal(isAgentRunStartedEvent(event), true)
 
   if (isAgentErrorEvent(event)) {
     assert.fail('did not expect error event')
   }
+
+  const deltaEvent: AgentEvent = {
+    provider: 'codex',
+    type: 'message.delta',
+    text: 'partial',
+  }
+  assert.equal(isAgentMessageDeltaEvent(deltaEvent), true)
+
+  const statusEvent: AgentEvent = {
+    provider: 'claude',
+    type: 'status.updated',
+    runId: 'run-2',
+    status: 'running',
+  }
+  assert.equal(isAgentStatusUpdatedEvent(statusEvent), true)
+
+  const completedEvent: AgentEvent = {
+    provider: 'codex',
+    type: 'run.completed',
+    runId: 'run-3',
+    result: {
+      provider: 'codex',
+      sessionId: 'thread-1',
+      turnId: 'turn-1',
+      status: 'completed',
+      text: 'done',
+      items: [],
+    },
+  }
+  assert.equal(isAgentRunCompletedEvent(completedEvent), true)
 })

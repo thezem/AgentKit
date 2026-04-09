@@ -12,9 +12,17 @@ class MockSession implements AgentSession {
 
   getHandle() {
     return {
+      version: 1 as const,
       provider: this.provider,
       sessionId: this.id,
       name: this.name,
+      ...(this.id
+        ? {
+            state: {
+              resumeKey: this.id,
+            },
+          }
+        : {}),
     }
   }
 
@@ -29,7 +37,11 @@ class MockSession implements AgentSession {
   }
 
   async run() {
-    return {
+    return (await this.start()).result
+  }
+
+  async start() {
+    const result = {
       provider: this.provider,
       sessionId: this.id,
       turnId: 'turn-test',
@@ -38,19 +50,31 @@ class MockSession implements AgentSession {
       items: [],
       handle: this.getHandle(),
     }
+    return {
+      runId: 'turn-test',
+      events: {
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            provider: result.provider,
+            type: 'run.started' as const,
+            runId: 'turn-test',
+            sessionId: result.sessionId,
+          }
+          yield {
+            provider: result.provider,
+            type: 'run.completed' as const,
+            runId: 'turn-test',
+            result,
+          }
+        },
+      },
+      result: Promise.resolve(result),
+      interrupt: async () => {},
+    }
   }
 
   async stream() {
-    const provider = this.provider
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        yield {
-          provider,
-          type: 'status' as const,
-          status: 'idle',
-        }
-      },
-    }
+    return (await this.start()).events
   }
 
   async interrupt() {}

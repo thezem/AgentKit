@@ -11,26 +11,66 @@ import {
 import { CodexClient } from '../src/codex-client.ts'
 import { InputValidationError, ProviderProbeTimeoutError } from '../src/errors.ts'
 import { providerRegistry } from '../src/providers/provider-registry.ts'
+import type { ProviderAdapterFactory } from '../src/providers/provider-types.ts'
 import { FakeTransport } from './helpers/fake-transport.ts'
 import { createMockAgentClient } from './helpers/mock-provider.ts'
 
-type Registry = typeof providerRegistry
-
 type RegistrySnapshot = {
-  get: Registry['get']
-  getProviderInventory: Registry['getProviderInventory']
+  factories: ProviderAdapterFactory[]
 }
 
 function snapshotRegistry(): RegistrySnapshot {
   return {
-    get: providerRegistry.get,
-    getProviderInventory: providerRegistry.getProviderInventory,
+    factories: providerRegistry.getFactories(),
   }
 }
 
 function restoreRegistry(snapshot: RegistrySnapshot): void {
-  providerRegistry.get = snapshot.get
-  providerRegistry.getProviderInventory = snapshot.getProviderInventory
+  providerRegistry.reset(snapshot.factories)
+}
+
+function registerProviders(factories: ProviderAdapterFactory[]): void {
+  providerRegistry.reset(factories)
+}
+
+function createFactory(
+  id: 'codex' | 'claude',
+  overrides?: Partial<ReturnType<ProviderAdapterFactory['create']>>,
+): ProviderAdapterFactory {
+  return {
+    id,
+    create: () => ({
+      id,
+      async getInventory() {
+        return {
+          provider: id,
+          installed: true,
+          runnable: true,
+          authenticated: true,
+          degraded: false,
+          status: 'authenticated',
+          account: { id },
+          raw: { provider: id },
+          ...(overrides?.getInventory ? await overrides.getInventory() : {}),
+        }
+      },
+      async isAvailable() {
+        return true
+      },
+      async getAvailability() {
+        return {
+          provider: id,
+          available: true,
+          authenticated: true,
+          account: { id },
+        }
+      },
+      async createClient() {
+        return createMockAgentClient(id)
+      },
+      ...overrides,
+    }),
+  }
 }
 
 function createThreadData(id: string) {
@@ -66,24 +106,7 @@ async function waitForRequest(fakeTransport: FakeTransport, method: string): Pro
 
 test('createAgent("codex") returns codex provider client', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = (provider => {
-    assert.equal(provider, 'codex')
-    return {
-      id: 'codex',
-      async getInventory() {
-        throw new Error('unused')
-      },
-      async isAvailable() {
-        return true
-      },
-      async getAvailability() {
-        throw new Error('unused')
-      },
-      async createClient() {
-        return createMockAgentClient('codex')
-      },
-    }
-  }) as Registry['get']
+  registerProviders([createFactory('codex'), createFactory('claude')])
 
   try {
     const agent = await createAgent({ provider: 'codex' })
@@ -95,24 +118,7 @@ test('createAgent("codex") returns codex provider client', async () => {
 
 test('createAgent("claude") returns claude provider client', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = (provider => {
-    assert.equal(provider, 'claude')
-    return {
-      id: 'claude',
-      async getInventory() {
-        throw new Error('unused')
-      },
-      async isAvailable() {
-        return true
-      },
-      async getAvailability() {
-        throw new Error('unused')
-      },
-      async createClient() {
-        return createMockAgentClient('claude')
-      },
-    }
-  }) as Registry['get']
+  registerProviders([createFactory('codex'), createFactory('claude')])
 
   try {
     const agent = await createAgent({ provider: 'claude' })
@@ -125,6 +131,9 @@ test('createAgent("claude") returns claude provider client', async () => {
 test('createAgent throws InputValidationError for unknown provider id', async () => {
   await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), error => {
     assert.ok(error instanceof InputValidationError)
+    assert.equal(error.code, 'INVALID_PROVIDER')
+    assert.equal(error.retryable, false)
+    assert.equal(error.provider, undefined)
     assert.equal(error.field, 'provider')
     return true
   })
@@ -188,8 +197,9 @@ test('persisted handle survives local cache eviction and can resume the same cod
     })
 
     const result = await resultPromise
+    assert.equal(result.handle?.version, 1)
     assert.equal(result.handle?.provider, 'codex')
-    assert.equal(result.handle?.resumeKey, 'thread-1')
+    assert.equal(result.handle?.state?.resumeKey, 'thread-1')
     assert.equal(result.handle?.sessionId, 'thread-1')
 
     agent.clearSession('persist-me')
@@ -199,7 +209,7 @@ test('persisted handle survives local cache eviction and can resume the same cod
     assert.equal(recached.getHandle(), null)
 
     const resumed = await agent.resumeSession(result.handle as NonNullable<typeof result.handle>, { name: 'resumed' })
-    assert.equal(resumed.getHandle()?.resumeKey, 'thread-1')
+    assert.equal(resumed.getHandle()?.state?.resumeKey, 'thread-1')
     assert.equal(resumed.getSessionInfo().sessionId, 'thread-1')
 
     assert.deepEqual(
@@ -214,45 +224,53 @@ test('persisted handle survives local cache eviction and can resume the same cod
 
 test('getAvailableProviders maps inventory entries to availability results', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.getProviderInventory = (async () => [
-    {
-      provider: 'codex',
-      installed: true,
-      runnable: true,
-      authenticated: true,
-      degraded: false,
-      status: 'authenticated',
-      capabilitySupport: { provider: 'codex', supportsResume: true },
-      version: '1.2.3',
-      executablePath: '/usr/local/bin/codex',
-      executableSource: 'path',
-      diagnostics: {
-        probeMode: 'deep',
-        probeStrategy: 'runtime-init',
+  registerProviders([
+    createFactory('codex', {
+      async getInventory() {
+        return {
+          provider: 'codex',
+          installed: true,
+          runnable: true,
+          authenticated: true,
+          degraded: false,
+          status: 'authenticated',
+          capabilitySupport: { provider: 'codex', supportsResume: true },
+          version: '1.2.3',
+          executablePath: '/usr/local/bin/codex',
+          executableSource: 'path',
+          diagnostics: {
+            probeMode: 'deep',
+            probeStrategy: 'runtime-init',
+          },
+          account: { email: 'user@example.com' },
+          raw: { source: 'test', detail: 'codex' },
+        }
       },
-      account: { email: 'user@example.com' },
-      raw: { source: 'test', detail: 'codex' },
-    },
-    {
-      provider: 'claude',
-      installed: true,
-      runnable: false,
-      authenticated: false,
-      degraded: true,
-      status: 'degraded',
-      capabilitySupport: { provider: 'claude', supportsResume: true },
-      version: '0.2.0',
-      executablePath: 'C:\\claude\\claude.exe',
-      executableSource: 'configured',
-      diagnostics: {
-        probeMode: 'cheap',
-        probeStrategy: 'sdk-import',
-        failureReason: 'not authenticated',
+    }),
+    createFactory('claude', {
+      async getInventory() {
+        return {
+          provider: 'claude',
+          installed: true,
+          runnable: false,
+          authenticated: false,
+          degraded: true,
+          status: 'degraded',
+          capabilitySupport: { provider: 'claude', supportsResume: true },
+          version: '0.2.0',
+          executablePath: 'C:\\claude\\claude.exe',
+          executableSource: 'configured',
+          diagnostics: {
+            probeMode: 'cheap',
+            probeStrategy: 'sdk-import',
+            failureReason: 'not authenticated',
+          },
+          account: null,
+          raw: { source: 'test', detail: 'claude' },
+        }
       },
-      account: null,
-      raw: { source: 'test', detail: 'claude' },
-    },
-  ]) as Registry['getProviderInventory']
+    }),
+  ])
 
   try {
     const availability = await getAvailableProviders()
@@ -284,30 +302,23 @@ test('getAvailableProviders maps inventory entries to availability results', asy
 
 test('getProviderAvailability returns one mapped entry', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = (provider => ({
-    id: provider,
-    async getInventory() {
-      return {
-        provider,
-        installed: true,
-        runnable: true,
-        authenticated: false,
-        degraded: false,
-        status: 'runnable',
-        account: null,
-        raw: { provider },
-      }
-    },
-    async isAvailable() {
-      return true
-    },
-    async getAvailability() {
-      throw new Error('unused')
-    },
-    async createClient() {
-      return createMockAgentClient(provider)
-    },
-  })) as Registry['get']
+  registerProviders([
+    createFactory('codex', {
+      async getInventory() {
+        return {
+          provider: 'codex',
+          installed: true,
+          runnable: true,
+          authenticated: false,
+          degraded: false,
+          status: 'runnable',
+          account: null,
+          raw: { provider: 'codex' },
+        }
+      },
+    }),
+    createFactory('claude'),
+  ])
 
   try {
     const availability = await getProviderAvailability('codex')
@@ -326,12 +337,27 @@ test('getProviderAvailability returns one mapped entry', async () => {
 test('getProviderInventory and getProviderAvailability surface probe timeout failures', async () => {
   const snapshot = snapshotRegistry()
   const timeoutError = new ProviderProbeTimeoutError('codex', 5)
-  providerRegistry.getProviderInventory = (async () => {
-    throw timeoutError
-  }) as Registry['getProviderInventory']
-  providerRegistry.get = (() => {
-    throw timeoutError
-  }) as Registry['get']
+  registerProviders([
+    {
+      id: 'codex',
+      create: () => ({
+        id: 'codex',
+        async getInventory() {
+          throw timeoutError
+        },
+        async isAvailable() {
+          throw timeoutError
+        },
+        async getAvailability() {
+          throw timeoutError
+        },
+        async createClient() {
+          throw timeoutError
+        },
+      }),
+    },
+    createFactory('claude'),
+  ])
 
   try {
     await assert.rejects(getProviderInventory(), ProviderProbeTimeoutError)
@@ -343,38 +369,31 @@ test('getProviderInventory and getProviderAvailability surface probe timeout fai
 
 test('getProviderInventoryEntry returns selected provider inventory', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.get = (provider => ({
-    id: provider,
-    async getInventory() {
-      return {
-        provider,
-        installed: true,
-        runnable: true,
-        authenticated: true,
-        degraded: false,
-        status: 'authenticated',
-        capabilitySupport: { provider, supportsResume: true },
-        version: '9.9.9',
-        executablePath: `/bin/${provider}`,
-        executableSource: 'path' as const,
-        diagnostics: {
-          probeMode: 'deep',
-          probeStrategy: 'runtime-init',
-        },
-        account: { id: provider },
-        raw: { marker: provider },
-      }
-    },
-    async isAvailable() {
-      return true
-    },
-    async getAvailability() {
-      throw new Error('unused')
-    },
-    async createClient() {
-      return createMockAgentClient(provider)
-    },
-  })) as Registry['get']
+  registerProviders([
+    createFactory('codex'),
+    createFactory('claude', {
+      async getInventory() {
+        return {
+          provider: 'claude',
+          installed: true,
+          runnable: true,
+          authenticated: true,
+          degraded: false,
+          status: 'authenticated',
+          capabilitySupport: { provider: 'claude', supportsResume: true },
+          version: '9.9.9',
+          executablePath: '/bin/claude',
+          executableSource: 'path' as const,
+          diagnostics: {
+            probeMode: 'deep',
+            probeStrategy: 'runtime-init',
+          },
+          account: { id: 'claude' },
+          raw: { marker: 'claude' },
+        }
+      },
+    }),
+  ])
 
   try {
     const entry = await getProviderInventoryEntry('claude')
@@ -396,73 +415,81 @@ test('getProviderInventoryEntry returns selected provider inventory', async () =
 
 test('getProviderInventory preserves rich discovery metadata for all providers', async () => {
   const snapshot = snapshotRegistry()
-  providerRegistry.getProviderInventory = (async () => [
-    {
-      provider: 'codex',
-      installed: true,
-      runnable: true,
-      authenticated: true,
-      degraded: false,
-      status: 'authenticated',
-      capabilitySupport: {
-        provider: 'codex',
-        sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
-        controls: { interrupt: true, modelSwitch: 'turn', permissionModeSwitch: 'none' },
-        interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: true },
-        discovery: { inventory: true, modelListing: true, skillsListing: true, skillConfiguration: true },
-        semantics: { sessionIdentity: 'thread-id', resumeHandle: 'structured', longLivedRuntime: false },
-        supportsResume: true,
-        supportsInterrupt: true,
-        supportsModelSwitch: true,
-        supportsPermissionModeSwitch: false,
-        supportsPartialMessages: true,
-        supportsToolApproval: true,
-        supportsUserInputRequests: true,
+  registerProviders([
+    createFactory('codex', {
+      async getInventory() {
+        return {
+          provider: 'codex',
+          installed: true,
+          runnable: true,
+          authenticated: true,
+          degraded: false,
+          status: 'authenticated',
+          capabilitySupport: {
+            provider: 'codex',
+            sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
+            controls: { interrupt: true, modelSwitch: 'turn', permissionModeSwitch: 'none' },
+            interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: true },
+            discovery: { inventory: true, modelListing: true, skillsListing: true, skillConfiguration: true },
+            semantics: { sessionIdentity: 'thread-id', resumeHandle: 'structured', longLivedRuntime: false },
+            supportsResume: true,
+            supportsInterrupt: true,
+            supportsModelSwitch: true,
+            supportsPermissionModeSwitch: false,
+            supportsPartialMessages: true,
+            supportsToolApproval: true,
+            supportsUserInputRequests: true,
+          },
+          version: '1.0.0',
+          executablePath: '/usr/bin/codex',
+          executableSource: 'path',
+          diagnostics: {
+            probeMode: 'deep',
+            probeStrategy: 'runtime-init',
+            notes: ['ok'],
+          },
+          account: { email: 'codex@example.com' },
+          raw: { provider: 'codex', source: 'test' },
+        }
       },
-      version: '1.0.0',
-      executablePath: '/usr/bin/codex',
-      executableSource: 'path',
-      diagnostics: {
-        probeMode: 'deep',
-        probeStrategy: 'runtime-init',
-        notes: ['ok'],
+    }),
+    createFactory('claude', {
+      async getInventory() {
+        return {
+          provider: 'claude',
+          installed: true,
+          runnable: true,
+          authenticated: false,
+          degraded: false,
+          status: 'runnable',
+          capabilitySupport: {
+            provider: 'claude',
+            sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
+            controls: { interrupt: true, modelSwitch: 'session', permissionModeSwitch: 'session' },
+            interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: false },
+            discovery: { inventory: true, modelListing: true, skillsListing: false, skillConfiguration: false },
+            semantics: { sessionIdentity: 'runtime-session', resumeHandle: 'structured', longLivedRuntime: true },
+            supportsResume: true,
+            supportsInterrupt: true,
+            supportsModelSwitch: true,
+            supportsPermissionModeSwitch: true,
+            supportsPartialMessages: true,
+            supportsToolApproval: true,
+            supportsUserInputRequests: true,
+          },
+          version: '0.2.92',
+          executablePath: 'C:\\Claude\\claude.exe',
+          executableSource: 'configured',
+          diagnostics: {
+            probeMode: 'cheap',
+            probeStrategy: 'sdk-import',
+          },
+          account: null,
+          raw: { provider: 'claude', source: 'test' },
+        }
       },
-      account: { email: 'codex@example.com' },
-      raw: { provider: 'codex', source: 'test' },
-    },
-    {
-      provider: 'claude',
-      installed: true,
-      runnable: true,
-      authenticated: false,
-      degraded: false,
-      status: 'runnable',
-      capabilitySupport: {
-        provider: 'claude',
-        sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
-        controls: { interrupt: true, modelSwitch: 'session', permissionModeSwitch: 'session' },
-        interactions: { partialMessages: true, toolApproval: true, userInputRequests: true, dynamicToolCalls: false },
-        discovery: { inventory: true, modelListing: true, skillsListing: false, skillConfiguration: false },
-        semantics: { sessionIdentity: 'runtime-session', resumeHandle: 'structured', longLivedRuntime: true },
-        supportsResume: true,
-        supportsInterrupt: true,
-        supportsModelSwitch: true,
-        supportsPermissionModeSwitch: true,
-        supportsPartialMessages: true,
-        supportsToolApproval: true,
-        supportsUserInputRequests: true,
-      },
-      version: '0.2.92',
-      executablePath: 'C:\\Claude\\claude.exe',
-      executableSource: 'configured',
-      diagnostics: {
-        probeMode: 'cheap',
-        probeStrategy: 'sdk-import',
-      },
-      account: null,
-      raw: { provider: 'claude', source: 'test' },
-    },
-  ]) as Registry['getProviderInventory']
+    }),
+  ])
 
   try {
     const inventory = await getProviderInventory()

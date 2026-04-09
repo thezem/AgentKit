@@ -205,14 +205,15 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     const types = events.map(event => event.type)
 
     assert.deepEqual(types, [
-      'provider.notification',
+      'run.started',
+      'status.updated',
       'message.delta',
       'reasoning.delta',
       'approval.tool',
       'user.input',
       'provider.notification',
       'provider.notification',
-      'turn.completed',
+      'run.completed',
     ])
 
     assert.deepEqual(fakeTransport.responses, [
@@ -226,18 +227,80 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
       },
     ])
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, 'turn-codex-1')
     assert.equal(completion.result.provider, 'codex')
     assert.equal(completion.result.sessionId, 'thread-codex-1')
     assert.equal(completion.result.turnId, 'turn-codex-1')
     assert.equal(completion.result.status, 'completed')
     assert.equal(completion.result.text, 'Hello world')
+    assert.equal((completion.result.handle as { name?: string }).name, 'shared-codex')
     assert.ok(Array.isArray(completion.result.items))
     assert.equal((completion.result.items as Array<{ type?: string }>)[0]?.type, 'agentMessage')
-    assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'thread-codex-1')
+    assert.equal((completion.result.handle as { version?: number }).version, 1)
+    assert.equal((completion.result.handle as { state?: { resumeKey?: string } }).state?.resumeKey, 'thread-codex-1')
+  } finally {
+    CodexCtor.create = originalCreate
+    await fakeCodexClient.close()
+  }
+})
+
+test('codex start().events normalize to shared AgentEvent contract', async () => {
+  const fakeTransport = new FakeTransport()
+  fakeTransport.respondWith('thread/start', { thread: createThreadData('thread-codex-start-1') })
+  fakeTransport.respondWith('turn/start', { turn: { id: 'turn-codex-start-1' } })
+
+  const CodexCtor = CodexClient as unknown as {
+    create: (options?: Record<string, unknown>) => Promise<CodexClient>
+    new (transport: FakeTransport, options: Record<string, unknown>): CodexClient
+  }
+  const originalCreate = CodexCtor.create
+  const fakeCodexClient = new CodexCtor(fakeTransport, {})
+  CodexCtor.create = async () => fakeCodexClient
+
+  try {
+    const agent = await createAgent({ provider: 'codex' })
+    const session = await agent.openSession({ name: 'shared-codex-start' })
+    const run = await session.start('summarize')
+
+    const eventsPromise = (async () => {
+      const events: string[] = []
+      for await (const event of run.events) {
+        events.push(event.type)
+      }
+      return events
+    })()
+
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread-codex-start-1',
+        turnId: 'turn-codex-start-1',
+        itemId: 'msg-1',
+        delta: 'Hello ',
+      },
+    })
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-codex-start-1',
+        turn: {
+          id: 'turn-codex-start-1',
+          status: 'completed',
+          error: null,
+          items: [],
+        },
+      },
+    })
+
+    assert.deepEqual(await eventsPromise, ['run.started', 'message.delta', 'run.completed'])
+    const result = await run.result
+    assert.equal(result.turnId, 'turn-codex-start-1')
   } finally {
     CodexCtor.create = originalCreate
     await fakeCodexClient.close()
@@ -337,26 +400,29 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
     const types = events.map(event => event.type)
 
     assert.deepEqual(types, [
+      'run.started',
       'approval.tool',
       'message.delta',
       'user.input',
       'message.completed',
-      'status',
+      'status.updated',
       'provider.notification',
-      'turn.completed',
+      'run.completed',
     ])
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, '1')
     assert.equal(completion.result.provider, 'claude')
     assert.equal(completion.result.sessionId, 'claude-session-1')
     assert.equal(completion.result.status, 'completed')
     assert.equal(completion.result.text, 'Hello final')
     assert.ok(Array.isArray(completion.result.items))
-    assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'claude-session-1')
-    assert.equal((completion.result.handle as { resumeAt?: string }).resumeAt, 'assistant-uuid-1')
+    assert.equal((completion.result.handle as { version?: number }).version, 1)
+    assert.equal((completion.result.handle as { state?: { resumeKey?: string } }).state?.resumeKey, 'claude-session-1')
+    assert.equal((completion.result.handle as { state?: { resumeAt?: string } }).state?.resumeAt, 'assistant-uuid-1')
     assert.equal((completion.result.resumeState as { resumeSessionAt?: string }).resumeSessionAt, 'assistant-uuid-1')
 
     await session.close()
@@ -415,12 +481,13 @@ test('claude user input errors map to error event and failed completion', async 
 
     assert.ok(types.includes('user.input'))
     assert.ok(types.includes('error'))
-    assert.ok(types.includes('turn.completed'))
+    assert.ok(types.includes('run.completed'))
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, '1')
     assert.equal(completion.result.provider, 'claude')
     assert.equal(completion.result.status, 'failed')
     assert.equal(completion.result.text, 'Claude requested user input, but no onUserInput handler is configured')

@@ -8,24 +8,27 @@ export type AgentProviderId = 'codex' | 'claude'
  * Provider-neutral resume payload.
  *
  * Stable fields:
- * - `provider`, `sessionId`, and `name`
- * - `resumeKey` and `resumeAt` as cross-provider slots
+ * - `version`, `provider`, `sessionId`, and `name`
+ * - `state.resumeKey` and `state.resumeAt` as cross-provider slots
  *
  * Escape hatches:
- * - `resumeKey` and `resumeAt` values remain provider-specific
- * - `raw` contains provider-native resume metadata and should be treated as opaque
+ * - `state.resumeKey` and `state.resumeAt` values remain provider-specific
+ * - `state.raw` contains provider-native resume metadata and should be treated as opaque
  *
  * Persist this handle if you need to resume a session across process restarts.
  * Local `agent.session(name)` cache entries are not sufficient for cross-process
  * resume without this handle.
  */
 export type AgentSessionHandle = {
+  version: 1
   provider: AgentProviderId
   sessionId: string | null
   name?: string
-  resumeKey?: string
-  resumeAt?: string
-  raw?: unknown
+  state?: {
+    resumeKey?: string
+    resumeAt?: string
+    raw?: unknown
+  }
 }
 
 export type AgentSessionSummary = {
@@ -146,19 +149,20 @@ export type AgentHandlers = {
  * live-vs-replay markers.
  */
 export type AgentEvent =
+  | { provider: AgentProviderId; type: 'run.started'; runId: string; sessionId: string | null; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.delta'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.completed'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'reasoning.delta'; text: string; raw?: unknown }
-  | { provider: AgentProviderId; type: 'status'; status: string; raw?: unknown }
+  | { provider: AgentProviderId; type: 'status.updated'; runId: string; status: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'approval.tool'; request: AgentToolApprovalRequest; raw?: unknown }
   | { provider: AgentProviderId; type: 'user.input'; request: AgentUserInputRequest; raw?: unknown }
-  | { provider: AgentProviderId; type: 'turn.completed'; result: AgentRunResult; raw?: unknown }
+  | { provider: AgentProviderId; type: 'run.completed'; runId: string; result: AgentRunResult; raw?: unknown }
   | { provider: AgentProviderId; type: 'provider.notification'; method: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'error'; error: string; raw?: unknown }
 
 /**
  * Normalized final turn result returned by `run()` and attached to
- * `turn.completed` stream events.
+ * `run.completed` stream events.
  *
  * Stable fields:
  * - `provider`, `sessionId`, `turnId`, `status`, `text`, `items`
@@ -178,6 +182,13 @@ export type AgentRunResult = {
   raw?: unknown
   handle?: AgentSessionHandle
   resumeState?: unknown
+}
+
+export type AgentRun = {
+  runId: string
+  events: AsyncIterable<AgentEvent>
+  result: Promise<AgentRunResult>
+  interrupt(): Promise<void>
 }
 
 export type AgentSessionOptions = {
@@ -380,6 +391,10 @@ export interface AgentSession {
    * Return session metadata known locally by this SDK process.
    */
   getSessionInfo(): AgentSessionSummary
+  /**
+   * Execute one live turn and return the shared run object.
+   */
+  start(input: AgentInput, options?: AgentRunOptions): Promise<AgentRun>
   /**
    * Execute one live turn and wait for completion.
    */

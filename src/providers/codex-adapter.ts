@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { createAgentRun } from '../agent-run.ts'
 import { CodexClient } from '../codex-client.ts'
-import { ProviderProbeTimeoutError } from '../errors.ts'
+import { NoActiveRunError, ProviderProbeTimeoutError, RunInProgressError, SessionClosedError } from '../errors.ts'
+import { normalizeSessionHandle, validateSessionHandle } from '../handle.ts'
 import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
 import type {
@@ -51,14 +53,17 @@ import type {
   ToolInputRequest,
   UserInput,
 } from '../types.ts'
-import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provider-types.ts'
+import type { InternalAgentProvider, ProviderAdapterFactory, ProviderAvailabilityOptions } from './provider-types.ts'
 
 type CodexAgentClientOptions = Extract<CreateAgentOptions, { provider: 'codex' }>
 
 type CodexSessionInit = {
-  codexSessionName?: string
   thread?: CodexThread
   threadId?: string
+}
+
+type ActiveRunState = {
+  interrupt: () => Promise<void>
 }
 
 /**
@@ -79,11 +84,11 @@ class CodexAgentSession implements AgentSession {
   private readonly options?: AgentSessionOptions
   private readonly codexClient: CodexClient
   private readonly onClosed: (name: string, session: CodexAgentSession) => void
-  private readonly codexSessionName?: string
 
   private threadId: string | null = null
   private threadRef: CodexThread | null = null
   private closed = false
+  private activeRun: ActiveRunState | null = null
 
   constructor(
     codexClient: CodexClient,
@@ -96,7 +101,6 @@ class CodexAgentSession implements AgentSession {
     this.name = name
     this.options = options
     this.onClosed = onClosed
-    this.codexSessionName = init?.codexSessionName
     this.threadRef = init?.thread ?? null
     this.threadId = init?.thread?.id ?? init?.threadId ?? null
   }
@@ -120,77 +124,64 @@ class CodexAgentSession implements AgentSession {
       status: this.closed ? 'closed' : runtimeStatus === 'idle' ? 'idle' : 'active',
       ...(this.options?.model ? { model: this.options.model } : {}),
       ...(this.options?.cwd ? { cwd: this.options.cwd } : {}),
-      raw: {
-        codexSessionName: this.codexSessionName,
-      },
+      raw: {},
+    }
+  }
+
+  async start(input: AgentInput, options?: AgentRunOptions) {
+    this.assertCanStartRun()
+    const merged = mergeAgentRunOptions(this.options, options)
+    const release = this.claimActiveRun(() => this.interruptUnderlyingRun())
+
+    try {
+      const thread = await this.ensureThread()
+      const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
+      const runId = thread.getActiveTurnId() ?? `codex-run-${thread.id}-${Date.now()}`
+      const sessionName = this.name
+
+      return createAgentRun({
+        runId,
+        source: {
+          [Symbol.asyncIterator]: async function* () {
+            yield {
+              provider: 'codex' as const,
+              type: 'run.started' as const,
+              runId,
+              sessionId: thread.id,
+            }
+            for await (const event of stream) {
+              yield codexStreamEventToAgent(event, runId, thread.id, sessionName)
+            }
+          },
+        },
+        interrupt: () => this.interruptUnderlyingRun(),
+        onSettled: release,
+      })
+    } catch (error) {
+      release()
+      throw error
     }
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
-    this.assertOpen()
-    const merged = mergeAgentRunOptions(this.options, options)
-
-    if (this.codexSessionName) {
-      const session = this.codexClient.session(this.codexSessionName)
-      const result = await session.run(asCodexInput(input), toCodexRunOptions(merged))
-      this.threadId = session.id
-      return codexRunResultToAgent(result, this.name)
-    }
-
-    const thread = await this.ensureThread()
-    const result = await thread.run(asCodexInput(input), toCodexRunOptions(merged))
-    this.threadId = thread.id
-    return codexRunResultToAgent(result, this.name)
+    return (await this.start(input, options)).result
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
-    this.assertOpen()
-    const merged = mergeAgentRunOptions(this.options, options)
-
-    if (this.codexSessionName) {
-      const session = this.codexClient.session(this.codexSessionName)
-      const stream = await session.stream(asCodexInput(input), toCodexRunOptions(merged))
-      this.threadId = session.id
-      return {
-        [Symbol.asyncIterator]: async function* () {
-          for await (const event of stream) {
-            yield codexStreamEventToAgent(event, session.id)
-          }
-        },
-      }
-    }
-
-    const thread = await this.ensureThread()
-    const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        for await (const event of stream) {
-          yield codexStreamEventToAgent(event, thread.id)
-        }
-      },
-    }
+    return (await this.start(input, options)).events
   }
 
   async interrupt(): Promise<void> {
     this.assertOpen()
-    if (this.codexSessionName) {
-      await this.codexClient.session(this.codexSessionName).interrupt()
-      return
+    if (!this.activeRun) {
+      throw new NoActiveRunError('codex', this.name)
     }
-
-    const thread = this.threadRef
-    if (!thread) {
-      throw new Error(`Session "${this.name}" has no active Codex thread to interrupt`)
-    }
-    await thread.interrupt()
+    await this.activeRun.interrupt()
   }
 
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    if (this.codexSessionName) {
-      this.codexClient.clearSession(this.codexSessionName)
-    }
     this.onClosed(this.name, this)
   }
 
@@ -212,7 +203,38 @@ class CodexAgentSession implements AgentSession {
 
   private assertOpen(): void {
     if (this.closed) {
-      throw new Error(`Session "${this.name}" is closed`)
+      throw new SessionClosedError('codex', this.name)
+    }
+  }
+
+  private assertCanStartRun(): void {
+    this.assertOpen()
+    if (this.activeRun) {
+      throw new RunInProgressError('codex', this.name)
+    }
+  }
+
+  private claimActiveRun(interrupt: () => Promise<void>): () => void {
+    const state: ActiveRunState = { interrupt }
+    this.activeRun = state
+    return () => {
+      if (this.activeRun === state) {
+        this.activeRun = null
+      }
+    }
+  }
+
+  private async interruptUnderlyingRun(): Promise<void> {
+    if (!this.threadRef || !this.threadRef.getActiveTurnId()) {
+      throw new NoActiveRunError('codex', this.name)
+    }
+    try {
+      await this.threadRef.interrupt()
+    } catch (error) {
+      if (error instanceof Error && error.message === 'No active turn to interrupt') {
+        throw new NoActiveRunError('codex', this.name, { cause: error })
+      }
+      throw error
     }
   }
 }
@@ -243,7 +265,6 @@ class CodexAgentClient implements AgentClient {
           this.sessions.delete(sessionName)
         }
       },
-      { codexSessionName: name },
     )
 
     this.sessions.set(name, session)
@@ -260,16 +281,17 @@ class CodexAgentClient implements AgentClient {
   }
 
   async resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession> {
-    if (handle.provider !== 'codex') {
-      throw new Error(`Cannot resume provider=${handle.provider} with codex client`)
+    const validated = validateSessionHandle(handle)
+    if (validated.provider !== 'codex') {
+      throw new Error(`Cannot resume provider=${validated.provider} with codex client`)
     }
 
-    const resumeKey = handle.resumeKey ?? handle.sessionId
+    const resumeKey = validated.state?.resumeKey ?? validated.sessionId
     if (!resumeKey) {
       throw new Error('Codex resume handle requires resumeKey or sessionId')
     }
 
-    const name = options?.name ?? handle.name ?? this.newSessionName('codex-resume')
+    const name = options?.name ?? validated.name ?? this.newSessionName('codex-resume')
     const merged = mergeAgentSessionOptions(this.defaults, options)
     const thread = await this.codexClient.threads.resume(resumeKey, toCodexThreadOptions(merged))
 
@@ -627,29 +649,34 @@ export async function getCodexAvailability(options?: ProviderAvailabilityOptions
   return inventoryToAvailability(inventory)
 }
 
-export const codexProvider: InternalAgentProvider = {
+export const codexProviderFactory: ProviderAdapterFactory = {
   id: 'codex',
-  async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
-    return getCodexInventory(options)
-  },
-  async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
-    const inventory = await getCodexInventory({ ...options, probeMode: 'cheap' })
-    return inventory.runnable
-  },
-  async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
-    return getCodexAvailability(options)
-  },
-  async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
-    return listCodexModels(options)
-  },
-  async listSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
-    return listCodexSkills(options)
-  },
-  async createClient(options: CreateAgentOptions): Promise<AgentClient> {
-    if (options.provider !== 'codex') {
-      throw new Error(`codexProvider cannot handle provider=${options.provider}`)
+  create(): InternalAgentProvider {
+    return {
+      id: 'codex',
+      async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+        return getCodexInventory(options)
+      },
+      async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
+        const inventory = await getCodexInventory({ ...options, probeMode: 'cheap' })
+        return inventory.runnable
+      },
+      async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
+        return getCodexAvailability(options)
+      },
+      async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+        return listCodexModels(options)
+      },
+      async listSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
+        return listCodexSkills(options)
+      },
+      async createClient(options: CreateAgentOptions): Promise<AgentClient> {
+        if (options.provider !== 'codex') {
+          throw new Error(`codexProvider cannot handle provider=${options.provider}`)
+        }
+        return createCodexAgentClient(options)
+      },
     }
-    return createCodexAgentClient(options)
   },
 }
 
@@ -807,16 +834,30 @@ function codexRunResultToAgent(result: RunResult, name?: string): AgentRunResult
   }
 }
 
-function codexStreamEventToAgent(event: CodexStreamEvent, sessionIdHint?: string | null): AgentEvent {
+function codexStreamEventToAgent(
+  event: CodexStreamEvent,
+  runId: string,
+  sessionIdHint?: string | null,
+  sessionName?: string,
+): AgentEvent {
   switch (event.type) {
     case 'message.delta':
       return { provider: 'codex', type: 'message.delta', text: event.text, raw: event }
     case 'reasoning.delta':
       return { provider: 'codex', type: 'reasoning.delta', text: event.text, raw: event }
+    case 'turn.started':
+      return {
+        provider: 'codex',
+        type: 'status.updated',
+        runId,
+        status: String(event.turn.status ?? 'running'),
+        raw: event,
+      }
     case 'turn.completed':
       return {
         provider: 'codex',
-        type: 'turn.completed',
+        type: 'run.completed',
+        runId,
         result: {
           provider: 'codex',
           sessionId: event.threadId,
@@ -825,7 +866,7 @@ function codexStreamEventToAgent(event: CodexStreamEvent, sessionIdHint?: string
           text: codexTurnText(event.turn.items),
           items: event.turn.items,
           raw: event.turn,
-          handle: codexHandle(event.threadId),
+          handle: codexHandle(event.threadId, sessionName),
         },
         raw: event,
       }
@@ -1000,12 +1041,12 @@ function resolveCommandPath(command: string): string | null {
 }
 
 function codexHandle(sessionId: string | null, name?: string): AgentSessionHandle {
-  return {
+  return normalizeSessionHandle({
     provider: 'codex',
     sessionId,
     ...(name ? { name } : {}),
     ...(sessionId ? { resumeKey: sessionId } : {}),
-  }
+  })
 }
 
 function codexCapabilities(): AgentCapabilities {

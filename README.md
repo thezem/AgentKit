@@ -81,16 +81,19 @@ Non-goals today:
 
 ```ts
 type AgentSessionHandle = {
+  version: 1
   provider: 'codex' | 'claude'
   sessionId: string | null
   name?: string
-  resumeKey?: string
-  resumeAt?: string
-  raw?: unknown
+  state?: {
+    resumeKey?: string
+    resumeAt?: string
+    raw?: unknown
+  }
 }
 ```
 
-`sessionId`, `resumeKey`, and `resumeAt` are resumable provider data. Local `session(name)` cache state is not remote state and is not enough by itself for cross-process resume.
+`sessionId`, `state.resumeKey`, and `state.resumeAt` are resumable provider data. Local `session(name)` cache state is not remote state and is not enough by itself for cross-process resume.
 
 ### Discovery
 
@@ -100,26 +103,26 @@ type AgentSessionHandle = {
 - `getProviderInventoryEntry(provider, options?)`
 - `listModels(provider?, options?)`
 - `listSkills(provider, options?)`
-- `writeCodexSkillConfig(options)` (Codex-specific)
 
 ## Normalized Events
 
 `session.stream(...)` emits provider-neutral `AgentEvent` values:
 
+- `run.started`: canonical lifecycle start event keyed by `runId`
 - `message.delta`: incremental assistant text delta
 - `message.completed`: completed assistant message payload
 - `reasoning.delta`: incremental reasoning summary delta where available
-- `status`: provider/session status update
+- `status.updated`: canonical lifecycle status update keyed by `runId`
 - `approval.tool`: request that needs allow/deny approval
 - `user.input`: request for structured user answers
-- `turn.completed`: normalized final turn result for the streamed turn
+- `run.completed`: normalized final run result for the streamed turn
 - `provider.notification`: passthrough provider notification for advanced use
 - `error`: normalized stream error event
 
 Current event boundary:
 
 - event order is the live adapter/runtime emission order for the current stream attachment
-- `turn.completed` carries the normalized final `AgentRunResult` for that turn
+- `run.completed` carries the normalized final `AgentRunResult` for that turn
 - there are no stable event IDs, replay cursors, or live-vs-replay markers yet
 
 ## Handlers (Approvals and User Input)
@@ -161,13 +164,20 @@ Use shared API first. Drop down only when you need provider-specific functionali
 
 ## Codex Compatibility Layer
 
-`@ouim/agentkit` keeps compatibility exports for existing Codex integrations:
+Codex compatibility exports now live under an explicit entrypoint:
+
+```ts
+import { createCodex, CodexClient } from '@ouim/agentkit/compat/codex'
+```
+
+Compatibility entrypoint exports include:
 
 - `createCodex(options?)`
 - `CodexClient`
 - `CodexAuth`
 - `CodexSession`
 - `CodexThread`
+- `writeCodexSkillConfig(options)`
 
 Use this for direct Codex runtime control. Prefer shared `createAgent` for new multi-provider code.
 
@@ -175,7 +185,7 @@ Use this for direct Codex runtime control. Prefer shared `createAgent` for new m
 
 All README-listed examples exist and map to npm scripts:
 
-- `npm run example` -> `examples/basic.ts` (Codex compatibility smoke, stream-only)
+- `npm run example` -> `examples/basic.ts` (provider-neutral Codex smoke)
 - `npm run smoke` -> `examples/basic.ts`
 - `npm run example:agent:codex` -> `examples/agent-codex.ts`
 - `npm run example:agent:claude` -> `examples/agent-claude.ts`

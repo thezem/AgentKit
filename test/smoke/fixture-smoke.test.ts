@@ -131,12 +131,12 @@ test('fixture smoke: stream wiring triggers approval and user input handlers', a
       events.push({
         type: event.type,
         ...(event.type === 'message.delta' ? { text: event.text } : {}),
-        ...(event.type === 'status' ? { status: event.status } : {}),
+        ...(event.type === 'status.updated' ? { status: event.status } : {}),
       })
     }
 
     const eventTypes = events.map((event) => event.type)
-    assert.deepEqual(eventTypes, ['status', 'approval.tool', 'user.input', 'message.delta', 'turn.completed'])
+    assert.deepEqual(eventTypes, ['run.started', 'status.updated', 'approval.tool', 'user.input', 'message.delta', 'run.completed'])
     const delta = events.find((event) => event.type === 'message.delta')
     assert.equal(delta?.text, 'approval=allow;answer=yes')
 

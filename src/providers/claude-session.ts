@@ -1,4 +1,9 @@
 import {
+  NoActiveRunError,
+  RunInProgressError,
+  SessionClosedError,
+} from '../errors.ts'
+import {
   query,
   type ElicitationRequest,
   type ElicitationResult,
@@ -14,6 +19,8 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { AsyncQueue, Deferred } from '../utils.ts'
 import { mergeAgentRunOptions } from '../agent-session.ts'
+import { createAgentRun } from '../agent-run.ts'
+import { normalizeSessionHandle } from '../handle.ts'
 import type {
   AgentEvent,
   AgentHandlers,
@@ -107,14 +114,14 @@ export class ClaudeSession implements AgentSession {
     const resumeKey = this.resumeState?.resume ?? this.sessionId ?? undefined
     const sessionId = this.sessionId ?? this.resumeState?.sessionId ?? null
     if (!resumeKey && !sessionId) return null
-    return {
+    return normalizeSessionHandle({
       provider: 'claude',
       sessionId,
-      name: this.name,
+      ...(this.name ? { name: this.name } : {}),
       ...(resumeKey ? { resumeKey } : {}),
       ...(this.resumeState?.resumeSessionAt ? { resumeAt: this.resumeState.resumeSessionAt } : {}),
       raw: this.resumeState,
-    }
+    })
   }
 
   getSessionInfo(): AgentSessionSummary {
@@ -122,7 +129,7 @@ export class ClaudeSession implements AgentSession {
       provider: 'claude',
       name: this.name,
       sessionId: this.sessionId ?? this.resumeState?.sessionId ?? null,
-      handle: this.getHandle() ?? { provider: 'claude', sessionId: this.sessionId, name: this.name },
+      handle: this.getHandle() ?? normalizeSessionHandle({ provider: 'claude', sessionId: this.sessionId, name: this.name }),
       status: this.closed ? 'closed' : this.turns.length > 0 ? 'active' : 'idle',
       ...(this.currentModel ? { model: this.currentModel } : {}),
       ...(this.sessionCwd ? { cwd: this.sessionCwd } : {}),
@@ -134,22 +141,41 @@ export class ClaudeSession implements AgentSession {
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
-    const context = await this.startTurn(input, options)
-    for await (const _event of context.events) {
-      // drain stream
-    }
-    return context.done.promise
+    return (await this.start(input, options)).result
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
+    return (await this.start(input, options)).events
+  }
+
+  async start(input: AgentInput, options?: AgentRunOptions) {
     const context = await this.startTurn(input, options)
-    return context.events
+    return createAgentRun({
+      runId: context.turnId,
+      source: {
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            provider: 'claude' as const,
+            type: 'run.started' as const,
+            runId: context.turnId,
+            sessionId: null,
+          }
+          for await (const event of context.events) {
+            yield event
+          }
+        },
+      },
+      interrupt: () => this.interrupt(),
+    })
   }
 
   async interrupt(): Promise<void> {
+    if (this.closed) {
+      throw this.closeReason ?? new SessionClosedError('claude', this.name)
+    }
     const current = this.turns[0]
     if (!current) {
-      throw new Error('No active Claude turn to interrupt')
+      throw new NoActiveRunError('claude', this.name)
     }
     current.interrupted = true
     await this.runtime.interrupt()
@@ -158,7 +184,7 @@ export class ClaudeSession implements AgentSession {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    this.closeReason = new Error('Claude session closed')
+    this.closeReason = new SessionClosedError('claude', this.name)
     this.promptQueue.close()
     this.runtime.close()
     this.failPendingTurns(this.closeReason)
@@ -184,7 +210,11 @@ export class ClaudeSession implements AgentSession {
 
   private async startTurn(input: AgentInput, options?: AgentRunOptions): Promise<ClaudeTurnContext> {
     if (this.closed) {
-      throw this.closeReason ?? new Error('Claude session is closed')
+      throw this.closeReason ?? new SessionClosedError('claude', this.name)
+    }
+
+    if (this.turns.length > 0) {
+      throw new RunInProgressError('claude', this.name)
     }
 
     const merged = mergeAgentRunOptions(this.baseOptions, options)
@@ -349,14 +379,20 @@ export class ClaudeSession implements AgentSession {
     if (message.type === 'system') {
       if (message.subtype === 'status') {
         const status = message.status ?? 'idle'
-        current.events.push({ provider: 'claude', type: 'status', status, raw: message })
+        current.events.push({ provider: 'claude', type: 'status.updated', runId: current.turnId, status, raw: message })
         if (message.permissionMode) {
           this.currentPermissionMode = message.permissionMode
         }
         return
       }
       if (message.subtype === 'session_state_changed') {
-        current.events.push({ provider: 'claude', type: 'status', status: message.state, raw: message })
+        current.events.push({
+          provider: 'claude',
+          type: 'status.updated',
+          runId: current.turnId,
+          status: message.state,
+          raw: message,
+        })
         return
       }
       current.events.push({
@@ -377,7 +413,7 @@ export class ClaudeSession implements AgentSession {
         this.resumeState,
         current.forcedFailureReason,
       )
-      current.events.push({ provider: 'claude', type: 'turn.completed', result, raw: message })
+      current.events.push({ provider: 'claude', type: 'run.completed', runId: current.turnId, result, raw: message })
       current.done.resolve(result)
       current.events.end()
       this.turns.shift()
@@ -387,7 +423,8 @@ export class ClaudeSession implements AgentSession {
     if (message.type === 'auth_status') {
       current.events.push({
         provider: 'claude',
-        type: 'status',
+        type: 'status.updated',
+        runId: current.turnId,
         status: message.isAuthenticating ? 'authenticating' : 'authenticated',
         raw: message,
       })
@@ -586,12 +623,14 @@ function mapClaudeResultToRunResult(
     ...(resumeState || sessionId
       ? {
           handle: {
-            provider: 'claude',
-            sessionId: sessionId ?? resumeState?.sessionId ?? null,
-            name: sessionName,
-            ...(resumeState?.resume || sessionId ? { resumeKey: resumeState?.resume ?? sessionId ?? undefined } : {}),
-            ...(resumeState?.resumeSessionAt ? { resumeAt: resumeState.resumeSessionAt } : {}),
-            raw: resumeState,
+            ...normalizeSessionHandle({
+              provider: 'claude',
+              sessionId: sessionId ?? resumeState?.sessionId ?? null,
+              ...(sessionName ? { name: sessionName } : {}),
+              ...(resumeState?.resume || sessionId ? { resumeKey: resumeState?.resume ?? sessionId ?? undefined } : {}),
+              ...(resumeState?.resumeSessionAt ? { resumeAt: resumeState.resumeSessionAt } : {}),
+              raw: resumeState,
+            }),
           } as AgentSessionHandle,
         }
       : {}),

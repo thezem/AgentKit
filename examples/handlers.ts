@@ -42,7 +42,7 @@ for await (const event of stream) {
   if (event.type === 'user.input') {
     console.log(`\n[event] user.input: ${event.request.question}`)
   }
-  if (event.type === 'turn.completed') {
+  if (event.type === 'run.completed') {
     console.log(`\n\nStatus: ${event.result.status}`)
     console.log('Handle:', event.result.handle)
   }

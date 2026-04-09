@@ -23,7 +23,7 @@ const first = await session.stream('Give me a one-paragraph summary of this repo
 
 for await (const event of first) {
   if (event.type === 'message.delta') process.stdout.write(event.text)
-  if (event.type === 'turn.completed') {
+  if (event.type === 'run.completed') {
     console.log(`\n\nFirst turn status: ${event.result.status}`)
   }
 }

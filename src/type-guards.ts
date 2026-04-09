@@ -134,8 +134,12 @@ export function isAgentReasoningDeltaEvent(
   return event.type === 'reasoning.delta'
 }
 
-export function isAgentStatusEvent(event: AgentEvent): event is Extract<AgentEvent, { type: 'status' }> {
-  return event.type === 'status'
+export function isAgentRunStartedEvent(event: AgentEvent): event is Extract<AgentEvent, { type: 'run.started' }> {
+  return event.type === 'run.started'
+}
+
+export function isAgentStatusUpdatedEvent(event: AgentEvent): event is Extract<AgentEvent, { type: 'status.updated' }> {
+  return event.type === 'status.updated'
 }
 
 export function isAgentToolApprovalEvent(
@@ -148,10 +152,10 @@ export function isAgentUserInputEvent(event: AgentEvent): event is Extract<Agent
   return event.type === 'user.input'
 }
 
-export function isAgentTurnCompletedEvent(
+export function isAgentRunCompletedEvent(
   event: AgentEvent,
-): event is Extract<AgentEvent, { type: 'turn.completed' }> {
-  return event.type === 'turn.completed'
+): event is Extract<AgentEvent, { type: 'run.completed' }> {
+  return event.type === 'run.completed'
 }
 
 export function isAgentProviderNotificationEvent(
