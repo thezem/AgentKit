@@ -21,6 +21,7 @@ export {
   RunInProgressError,
   SessionClosedError,
   TransportRequestTimeoutError,
+  UnsupportedCapabilityError,
 } from './errors.ts'
 export {
   isAgentErrorEvent,
@@ -36,10 +37,13 @@ export {
 } from './type-guards.ts'
 export type {
   AgentAccountState,
+  AgentAccessMode,
+  AgentActivityItem,
   AgentCapabilities,
   AgentClient,
   AgentEvent,
   AgentHandlers,
+  AgentInteractionMode,
   AgentModelInfo,
   AgentModelListOptions,
   AgentOpenSessionOptions,

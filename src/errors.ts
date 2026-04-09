@@ -1,6 +1,7 @@
 export type AgentErrorCode =
   | 'INPUT_VALIDATION'
   | 'INVALID_PROVIDER'
+  | 'UNSUPPORTED_CAPABILITY'
   | 'TRANSPORT_REQUEST_TIMEOUT'
   | 'CONCURRENT_TURN'
   | 'QUEUE_OVERFLOW'
@@ -45,6 +46,27 @@ export class InputValidationError extends AgentError {
     this.name = 'InputValidationError'
     this.code = options?.code ?? 'INPUT_VALIDATION'
     if (field !== undefined) this.field = field
+  }
+}
+
+/** Thrown when a provider cannot honor a requested shared capability. */
+export class UnsupportedCapabilityError extends AgentError {
+  readonly code = 'UNSUPPORTED_CAPABILITY'
+  readonly capability: string
+
+  constructor(
+    provider: 'codex' | 'claude',
+    capability: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, {
+      ...options,
+      retryable: false,
+      provider,
+    })
+    this.name = 'UnsupportedCapabilityError'
+    this.capability = capability
   }
 }
 

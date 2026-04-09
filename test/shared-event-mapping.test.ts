@@ -211,8 +211,8 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
       'reasoning.delta',
       'approval.tool',
       'user.input',
-      'provider.notification',
-      'provider.notification',
+      'plan.delta',
+      'item.completed',
       'run.completed',
     ])
 
@@ -226,6 +226,23 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
         result: { answers: { q1: { answers: ['yes'] } } },
       },
     ])
+
+    const planDelta = events.find(event => event.type === 'plan.delta')?.payload as
+      | { type: 'plan.delta'; item: { id: string; kind: string; text?: string; raw?: unknown } }
+      | undefined
+    assert.ok(planDelta)
+    assert.equal(planDelta.item.id, 'plan-1')
+    assert.equal(planDelta.item.kind, 'plan')
+    assert.equal(planDelta.item.text, 'plan step')
+
+    const itemCompleted = events.find(event => event.type === 'item.completed')?.payload as
+      | { type: 'item.completed'; item: { id: string; kind: string; text?: string; status?: string; raw?: unknown } }
+      | undefined
+    assert.ok(itemCompleted)
+    assert.equal(itemCompleted.item.id, 'msg-1')
+    assert.equal(itemCompleted.item.kind, 'message')
+    assert.equal(itemCompleted.item.text, 'Hello world')
+    assert.equal(itemCompleted.item.status, 'completed')
 
     const completion = events.find(event => event.type === 'run.completed')?.payload as
       | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
@@ -356,6 +373,13 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
       },
     })
     runtime.emit({
+      type: 'tool_use',
+      session_id: 'claude-session-1',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-1',
+      input: { command: 'pwd' },
+    })
+    runtime.emit({
       type: 'system',
       subtype: 'status',
       status: 'running',
@@ -405,10 +429,19 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
       'message.delta',
       'user.input',
       'message.completed',
+      'item.started',
       'status.updated',
       'provider.notification',
       'run.completed',
     ])
+
+    const itemStarted = events.find(event => event.type === 'item.started')?.payload as
+      | { type: 'item.started'; item: { kind: string; toolName?: string; status?: string; raw?: unknown } }
+      | undefined
+    assert.ok(itemStarted)
+    assert.equal(itemStarted.item.kind, 'tool')
+    assert.equal(itemStarted.item.toolName, 'Bash')
+    assert.equal(itemStarted.item.status, 'in_progress')
 
     const completion = events.find(event => event.type === 'run.completed')?.payload as
       | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
@@ -491,6 +524,63 @@ test('claude user input errors map to error event and failed completion', async 
     assert.equal(completion.result.provider, 'claude')
     assert.equal(completion.result.status, 'failed')
     assert.equal(completion.result.text, 'Claude requested user input, but no onUserInput handler is configured')
+
+    await session.close()
+  } finally {
+    ClaudeSessionCtor.runtimeFactory = originalFactory
+  }
+})
+
+test('claude tool activity stays normalized when tool_name is absent', async () => {
+  const ClaudeSessionCtor = ClaudeSession as unknown as {
+    runtimeFactory: (input: { options: ClaudeRuntimeOptions }) => FakeClaudeRuntime
+  }
+  const originalFactory = ClaudeSessionCtor.runtimeFactory
+  let runtimeRef: FakeClaudeRuntime | null = null
+
+  ClaudeSessionCtor.runtimeFactory = input => {
+    runtimeRef = new FakeClaudeRuntime(input.options)
+    return runtimeRef
+  }
+
+  try {
+    const session = new ClaudeSession('shared-claude-tool-fallback')
+    const stream = await session.stream('hello')
+
+    const eventsPromise = (async () => {
+      const events: Array<{ type: string; payload?: unknown }> = []
+      for await (const event of stream) {
+        events.push({ type: event.type, payload: event })
+      }
+      return events
+    })()
+
+    const runtime = runtimeRef as FakeClaudeRuntime
+    runtime.emit({
+      type: 'tool_use',
+      session_id: 'claude-session-3',
+      tool_use_id: 'tool-use-fallback-1',
+      input: { command: 'pwd' },
+    })
+    runtime.emit({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'claude-session-3',
+      result: 'done',
+      stop_reason: 'end_turn',
+      terminal_reason: null,
+      errors: [],
+    })
+
+    const events = await eventsPromise
+    const itemStarted = events.find(event => event.type === 'item.started')?.payload as
+      | { type: 'item.started'; item: { id: string; kind: string; toolName?: string } }
+      | undefined
+
+    assert.ok(itemStarted)
+    assert.equal(itemStarted.item.id, 'tool-use-fallback-1')
+    assert.equal(itemStarted.item.kind, 'tool')
+    assert.equal(itemStarted.item.toolName, undefined)
 
     await session.close()
   } finally {

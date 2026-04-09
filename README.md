@@ -1,8 +1,10 @@
 # @ouim/agentkit
 
-One TypeScript API for local coding agents.
+One TypeScript API for local coding-agent runtimes.
 
-`@ouim/agentkit` gives builders one stable host-side SDK for working with local agent runtimes. Use the same lifecycle and streaming patterns across Codex and Claude, keep provider-specific escape hatches when you need them, and stop rewriting CLI glue every time a runtime shifts.
+`@ouim/agentkit` is a host-side SDK for builders creating apps on top of local agent CLIs and runtimes like Codex and Claude.
+
+If you're building an agent UI, review bot, desktop app, internal tool, or automation runner, this package is the layer that should sit between your app and the provider runtime. It gives you one API for sessions, streaming, approvals, user input, discovery, and resume handles so you can spend your time building product behavior instead of provider glue.
 
 ## Why People Pick It
 
@@ -12,6 +14,36 @@ One TypeScript API for local coding agents.
 - normalized agent events, approvals, and user-input prompts
 - discovery APIs for installed providers, models, and skills
 - Codex compatibility entrypoint for existing integrations
+
+## Build UIs, Not Glue
+
+This library is for the kind of app that needs controls like:
+
+- model pickers
+- reasoning / thinking-level selectors
+- access-mode toggles such as supervised vs fuller autonomy
+- approval prompts for tool calls and dangerous actions
+- streaming turns with tool activity, reasoning, and completion state
+- resumable sessions that survive process boundaries
+
+Those apps are usually built today by stitching directly against vendor CLIs and SDKs. That means re-implementing session lifecycle, approval flows, provider discovery, model catalogs, runtime probing, and every provider quirk by hand.
+
+`@ouim/agentkit` exists to be that control layer.
+
+## Product Boundary
+
+`@ouim/agentkit` is intentionally a runtime substrate, not the orchestration engine.
+
+It should help you build:
+
+- your own chat or plan-style agent UI
+- your own approval and supervision flows
+- your own persistence, replay, and websocket layers
+- your own canonical event model if your product needs one
+
+It is not trying to replace your app architecture. It is trying to replace the low-level Codex/Claude runtime glue that usually sits underneath it.
+
+Sessions still belong to their provider runtime. Resume handles are structured and durable across process restarts, but they are not portable across providers.
 
 ## Install
 
@@ -33,7 +65,11 @@ import { createSession } from '@ouim/agentkit'
 
 const session = await createSession({
   provider: 'codex',
-  defaults: { cwd: process.cwd() },
+  defaults: {
+    cwd: process.cwd(),
+    interactionMode: 'chat',
+    accessMode: 'supervised',
+  },
   name: 'demo',
 })
 
@@ -46,6 +82,65 @@ await session.close()
 ```
 
 `createSession(...)` is the ergonomic path: it creates a private agent client, opens one session, and automatically closes that private client when you call `session.close()`.
+
+## What You Can Control Today
+
+- choose a provider and create or resume a session
+- switch shared `interactionMode` between `chat` and `plan`
+- switch shared `accessMode` between `supervised`, `auto-edit`, and `full-access`
+- set `reasoningEffort` when the provider/runtime supports it
+- switch models through one API
+- stream turns and inspect final run results
+- handle approvals and user-input prompts
+- interrupt active work
+- inspect provider capabilities before rendering UI controls
+- query provider inventory, models, and skills
+
+The shared API is provider-neutral first. When a builder needs richer provider-native behavior, the library keeps explicit escape hatches available.
+
+## Builder Controls
+
+The shared API is now explicit about the control bar most apps want:
+
+```ts
+const agent = await createAgent({
+  provider: 'codex',
+  defaults: { cwd: process.cwd() },
+})
+
+const session = await agent.openSession({
+  name: 'repo-ui',
+  model: 'gpt-5.4',
+  interactionMode: 'plan',
+  accessMode: 'auto-edit',
+})
+
+const result = await session.run('Plan the next refactor and make the first safe edit.', {
+  reasoningEffort: 'high',
+})
+```
+
+Shared builder controls:
+
+- `interactionMode?: 'chat' | 'plan'`
+- `accessMode?: 'supervised' | 'auto-edit' | 'full-access'`
+- `reasoningEffort?: string`
+
+Legacy `permissionMode` still exists as a low-level escape hatch, but shared APIs reject mixed `accessMode + permissionMode` input instead of silently guessing.
+
+## Capability Matrix
+
+Use `agent.getCapabilities()` plus `listModels()` to decide which controls to render:
+
+| Capability | Codex | Claude |
+| --- | --- | --- |
+| `modelSwitch` | `turn` | `session` |
+| `interactionModeSwitch` | `turn` | `session` |
+| `accessModeSwitch` | `turn` | `session` |
+| Shared runtime `reasoningEffort` | Yes | Not yet |
+| Normalized `plan.delta` / `item.*` activity | Yes | Partial |
+
+`listModels()` is the source of truth for model-level `reasoningEfforts`. Claude discovery can advertise reasoning metadata before the shared runtime setter is enabled.
 
 ## Who It Is For
 
@@ -139,6 +234,9 @@ type AgentSessionHandle = {
 - `message.delta`: incremental assistant text delta
 - `message.completed`: completed assistant message payload
 - `reasoning.delta`: incremental reasoning summary delta where available
+- `plan.delta`: normalized plan activity item for UI plan panes
+- `item.started`: normalized tool/file/other activity start event
+- `item.completed`: normalized tool/file/message/other activity completion event
 - `status.updated`: canonical lifecycle status update keyed by `runId`
 - `approval.tool`: request that needs allow/deny approval
 - `user.input`: request for structured user answers
@@ -151,6 +249,16 @@ Current event boundary:
 - event order is the live adapter/runtime emission order for the current stream attachment
 - `run.completed` carries the normalized final `AgentRunResult` for that turn
 - there are no stable event IDs, replay cursors, or live-vs-replay markers yet
+
+For `plan.delta`, `item.started`, and `item.completed`, the normalized item payload includes:
+
+- `id`
+- `kind`
+- optional `text`
+- optional `toolName`
+- optional `path`
+- optional `status`
+- `raw`
 
 ## Safety Presets
 
@@ -220,6 +328,8 @@ Use shared API first. Drop down only when you need provider-specific functionali
 
 - `agent.asCodex()` returns `CodexClient | null`
 - `agent.asClaude()` returns `ClaudeProviderHandle | null`
+
+Use escape hatches when your UI needs provider-specific controls or richer runtime detail than the normalized surface exposes today.
 
 ## Codex Compatibility Layer
 

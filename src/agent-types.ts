@@ -3,6 +3,19 @@ import type { CodexClient } from './codex-client.ts'
 import type { CreateCodexOptions, UserInput } from './types.ts'
 
 export type AgentProviderId = 'codex' | 'claude'
+export type AgentInteractionMode = 'chat' | 'plan'
+export type AgentAccessMode = 'supervised' | 'auto-edit' | 'full-access'
+export type AgentItemKind = 'message' | 'reasoning' | 'plan' | 'tool' | 'command' | 'file' | 'other'
+
+export type AgentActivityItem = {
+  id: string
+  kind: AgentItemKind
+  text?: string
+  toolName?: string
+  path?: string
+  status?: string
+  raw: unknown
+}
 
 /**
  * Provider-neutral resume payload.
@@ -68,6 +81,8 @@ export type AgentCapabilities = {
   controls: {
     interrupt: boolean
     modelSwitch: 'none' | 'session' | 'turn'
+    interactionModeSwitch: 'none' | 'session' | 'turn'
+    accessModeSwitch: 'none' | 'session' | 'turn'
     permissionModeSwitch: 'none' | 'session' | 'turn'
   }
   interactions: {
@@ -153,6 +168,9 @@ export type AgentEvent =
   | { provider: AgentProviderId; type: 'message.delta'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.completed'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'reasoning.delta'; text: string; raw?: unknown }
+  | { provider: AgentProviderId; type: 'plan.delta'; item: AgentActivityItem; raw?: unknown }
+  | { provider: AgentProviderId; type: 'item.started'; item: AgentActivityItem; raw?: unknown }
+  | { provider: AgentProviderId; type: 'item.completed'; item: AgentActivityItem; raw?: unknown }
   | { provider: AgentProviderId; type: 'status.updated'; runId: string; status: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'approval.tool'; request: AgentToolApprovalRequest; raw?: unknown }
   | { provider: AgentProviderId; type: 'user.input'; request: AgentUserInputRequest; raw?: unknown }
@@ -195,6 +213,9 @@ export type AgentSessionOptions = {
   cwd?: string
   model?: string
   env?: Record<string, string>
+  interactionMode?: AgentInteractionMode
+  accessMode?: AgentAccessMode
+  reasoningEffort?: string
   permissionMode?: string
   additionalDirectories?: string[]
   includePartialMessages?: boolean

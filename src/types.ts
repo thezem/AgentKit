@@ -13,6 +13,14 @@ export type ReasoningSummary = 'none' | 'auto' | 'concise' | 'detailed'
 
 export type Personality = 'none' | 'friendly' | 'pragmatic'
 
+export type CollaborationMode = {
+  mode: 'default' | 'plan'
+  settings?: {
+    reasoning_effort?: string
+    [key: string]: unknown
+  }
+}
+
 export type UserInput =
   | string
   | Array<
@@ -352,6 +360,7 @@ export type ThreadOptions = {
   cwd?: string
   approvalPolicy?: ApprovalPolicy
   sandboxMode?: SandboxMode
+  collaborationMode?: CollaborationMode
   reasoningEffort?: ReasoningEffort
   reasoningSummary?: ReasoningSummary
   personality?: Personality

@@ -13,6 +13,7 @@ import type {
   CreateSessionOptions,
   ProviderInventoryOptions,
 } from './agent-types.ts'
+import { validateSharedControlOptions } from './control-layer.ts'
 import { InputValidationError } from './errors.ts'
 import { providerRegistry } from './providers/provider-registry.ts'
 import type { ProviderAvailabilityOptions } from './providers/provider-types.ts'
@@ -183,12 +184,16 @@ function toOpenSessionOptions(options: CreateSessionOptions): AgentOpenSessionOp
   if (options.cwd !== undefined) sessionOptions.cwd = options.cwd
   if (options.model !== undefined) sessionOptions.model = options.model
   if (options.env !== undefined) sessionOptions.env = options.env
+  if (options.interactionMode !== undefined) sessionOptions.interactionMode = options.interactionMode
+  if (options.accessMode !== undefined) sessionOptions.accessMode = options.accessMode
+  if (options.reasoningEffort !== undefined) sessionOptions.reasoningEffort = options.reasoningEffort
   if (options.permissionMode !== undefined) sessionOptions.permissionMode = options.permissionMode
   if (options.additionalDirectories !== undefined) sessionOptions.additionalDirectories = options.additionalDirectories
   if (options.includePartialMessages !== undefined) {
     sessionOptions.includePartialMessages = options.includePartialMessages
   }
 
+  validateSharedControlOptions(sessionOptions)
   return sessionOptions
 }
 
