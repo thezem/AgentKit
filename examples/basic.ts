@@ -15,8 +15,11 @@ const agent = await createAgent({
   },
 })
 
-console.log('Preparing runtime account state if needed...')
-await agent.asCodex()?.auth.ensureLoggedIn()
+const account = await agent.getAccountState()
+console.log('Provider runtime/account state:', account)
+if (!account.authenticated) {
+  console.log('Codex is not authenticated yet. Complete login first, then rerun this example.')
+}
 
 const session = agent.session('basic-demo')
 console.log('Starting session...')

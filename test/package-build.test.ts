@@ -50,6 +50,15 @@ test('package metadata points consumers at dist output', () => {
   const pkg = readPackageJson()
   const scripts = pkg.scripts as Record<string, unknown>
 
+  assert.equal(pkg.license, 'MIT')
+  assert.deepEqual(pkg.repository, {
+    type: 'git',
+    url: 'git+https://github.com/thezem/agentkit.git',
+  })
+  assert.equal(pkg.homepage, 'https://github.com/thezem/agentkit#readme')
+  assert.deepEqual(pkg.bugs, {
+    url: 'https://github.com/thezem/agentkit/issues',
+  })
   assert.equal(pkg.main, './dist/index.js')
   assert.equal(pkg.types, './dist/index.d.ts')
   assert.deepEqual(pkg.exports, {
@@ -93,6 +102,7 @@ test('npm pack publishes dist output and excludes source-only directories', () =
     assert.ok(packedFiles.includes('dist/index.d.ts'))
     assert.ok(packedFiles.includes('dist/compat/codex.js'))
     assert.ok(packedFiles.includes('dist/compat/codex.d.ts'))
+    assert.ok(packedFiles.includes('LICENSE'))
     assert.equal(packedFiles.some((file) => file.startsWith('src/')), false)
     assert.equal(packedFiles.some((file) => file.startsWith('test/')), false)
     assert.equal(packedFiles.some((file) => file.startsWith('docs/')), false)

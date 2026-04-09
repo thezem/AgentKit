@@ -89,9 +89,9 @@ Current guarantee: only the persisted handle is intended to survive process rest
 - It drains the underlying event stream internally and returns the final normalized `AgentRunResult`.
 - Callers should treat the returned result as the terminal summary for that turn, not as a durable event log.
 
-### `turn.completed`
+### `run.completed`
 
-- When a provider emits a terminal result normally, the shared stream emits `type: 'turn.completed'`.
+- When a provider emits a terminal result normally, the shared stream emits `type: 'run.completed'`.
 - That event carries the same normalized result shape used by `run()` for that turn.
 - The result contains stable top-level fields such as `provider`, `sessionId`, `turnId`, `status`, `text`, `items`, and optional `handle`.
 - `items` is intentionally provider-native terminal content in provider order. Its presence is stable; its inner item schema is provider-specific.
@@ -99,7 +99,7 @@ Current guarantee: only the persisted handle is intended to survive process rest
 
 ### Terminal Ordering Boundary
 
-- The current contract expects `turn.completed` to be the normal terminal event when the provider produces a terminal turn result.
+- The current contract expects `run.completed` to be the normal terminal event when the provider produces a terminal turn result.
 - Transport failure or runtime shutdown can terminate a run/stream by rejection instead of a terminal event.
 - No stronger guarantee exists yet for terminal event delivery after transport loss.
 

@@ -1,19 +1,17 @@
 # @ouim/agentkit
 
-One TypeScript SDK for local agent runtimes.
+One TypeScript API for local coding agents.
 
-`@ouim/agentkit` provides a stable host-side API over provider CLIs and runtimes. Codex is first-class today, Claude is supported through the same shared surface, and the API is designed to add more providers without rewriting your app glue.
+`@ouim/agentkit` gives builders one stable host-side SDK for working with local agent runtimes. Use the same lifecycle and streaming patterns across Codex and Claude, keep provider-specific escape hatches when you need them, and stop rewriting CLI glue every time a runtime shifts.
 
-## Why this exists
+## Why People Pick It
 
-Local agent tooling is fragmented:
-
-- provider-specific session identifiers and resume rules
-- different auth/runtime checks per CLI
-- non-portable event streams
-- inconsistent approval and user-prompt wiring
-
-This package normalizes those concerns into one API while preserving provider-native escape hatches.
+- one API across Codex and Claude
+- proper session lifecycle: open, resume, stream, close
+- resumable handles for cross-process recovery
+- normalized agent events, approvals, and user-input prompts
+- discovery APIs for installed providers, models, and skills
+- Codex compatibility entrypoint for existing integrations
 
 ## Install
 
@@ -49,6 +47,23 @@ await session.close()
 
 `createSession(...)` is the ergonomic path: it creates a private agent client, opens one session, and automatically closes that private client when you call `session.close()`.
 
+## Who It Is For
+
+- maintainers building review bots and internal automation on local agent CLIs
+- app builders who need resumable sessions and event streams without provider-specific glue
+- teams migrating from Codex-only integrations toward a provider-neutral SDK
+
+## Why This Exists
+
+Local agent tooling is fragmented:
+
+- provider-specific session identifiers and resume rules
+- different auth/runtime checks per CLI
+- non-portable event streams
+- inconsistent approval and user-prompt wiring
+
+This package normalizes those concerns into one API while preserving provider-native escape hatches.
+
 ## Safe Hello World
 
 ```ts
@@ -73,21 +88,6 @@ await session.close()
 ```
 
 `safety` presets are provider-neutral, best-effort handler factories. They classify approval requests by normalized `request.kind` only, default unknown kinds to deny, and leave provider-specific details available in `request.payload`.
-
-## Runtime Contract
-
-The shared API is intentionally a runtime substrate, not an orchestration framework.
-
-- Current normative behavior and boundaries are documented in [docs/RUNTIME_CONTRACT.md](https://github.com/thezem/AgentKit/blob/main/docs/RUNTIME_CONTRACT.md).
-- Persist `AgentSessionHandle` if you need cross-process resume.
-- Treat `agent.session(name)` as local cache convenience only.
-- Treat `raw`, `resumeState`, and provider escape hatches as provider-specific data.
-
-Non-goals today:
-
-- no event replay or cursor model
-- no durable pending-request recovery
-- no orchestration, websocket, or UI-state abstraction layer
 
 ## Shared API
 
@@ -286,3 +286,18 @@ npm install
 npm run typecheck
 npm test
 ```
+
+## Runtime Contract
+
+The shared API is intentionally a runtime substrate, not an orchestration framework.
+
+- Current normative behavior and boundaries are documented in [docs/RUNTIME_CONTRACT.md](https://github.com/thezem/agentkit/blob/main/docs/RUNTIME_CONTRACT.md).
+- Persist `AgentSessionHandle` if you need cross-process resume.
+- Treat `agent.session(name)` as local cache convenience only.
+- Treat `raw`, `resumeState`, and provider escape hatches as provider-specific data.
+
+Non-goals today:
+
+- no event replay or cursor model
+- no durable pending-request recovery
+- no orchestration, websocket, or UI-state abstraction layer

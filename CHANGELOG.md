@@ -38,6 +38,5 @@ All notable changes to `@ouim/agentkit` are documented here.
 
 ### Current Limitations
 
-- Package entrypoint still targets source `.ts` with Node strip-types workflows; dist build output is tracked as follow-up work.
 - Skills are Codex-first; Claude skill listing/configuration is not yet implemented.
 - Provider behavior is normalized where possible, but some resume/account/runtime details remain provider-specific in `handle.raw`/`result.raw` escape hatches.

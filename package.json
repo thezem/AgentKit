@@ -2,7 +2,26 @@
   "name": "@ouim/agentkit",
   "version": "0.1.0",
   "type": "module",
-  "description": "High-level Node SDK for building on top of local agent runtimes.",
+  "description": "One TypeScript API for building on top of local Codex and Claude agent runtimes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thezem/agentkit.git"
+  },
+  "homepage": "https://github.com/thezem/agentkit#readme",
+  "bugs": {
+    "url": "https://github.com/thezem/agentkit/issues"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "codex",
+    "claude",
+    "sdk",
+    "typescript",
+    "cli",
+    "runtime"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -17,8 +36,12 @@
   },
   "files": [
     "dist",
+    "LICENSE",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md"
   ],
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/index.ts",
