@@ -2,12 +2,15 @@ import type {
   AgentClient,
   AgentModelInfo,
   AgentModelListOptions,
+  AgentOpenSessionOptions,
   AgentProviderInventory,
   AgentProviderAvailability,
   AgentProviderId,
+  AgentSession,
   AgentSkillInfo,
   AgentSkillListOptions,
   CreateAgentOptions,
+  CreateSessionOptions,
   ProviderInventoryOptions,
 } from './agent-types.ts'
 import { InputValidationError } from './errors.ts'
@@ -31,6 +34,26 @@ export async function createAgent(options: CreateAgentOptions): Promise<AgentCli
   }
   const provider = providerRegistry.get(providerId as AgentProviderId)
   return provider.createClient(options)
+}
+
+/**
+ * Create a private provider client, open one session, and bind client cleanup
+ * to the returned session's `close()` lifecycle.
+ */
+export async function createSession(options: CreateSessionOptions): Promise<AgentSession> {
+  const clientOptions = toCreateAgentOptions(options)
+  const sessionOptions = toOpenSessionOptions(options)
+  const client = await createAgent(clientOptions)
+
+  let session: AgentSession
+  try {
+    session = await client.openSession(sessionOptions)
+  } catch (error) {
+    await closePrivatelyOwnedClient(client)
+    throw error
+  }
+
+  return wrapSessionWithOwnedClient(session, client)
 }
 
 /**
@@ -131,4 +154,70 @@ function toInventoryOptions(options?: ProviderAvailabilityOptions): ProviderInve
     probeMode: options.probeRuntime === true ? 'deep' : 'cheap',
     probeTimeoutMs: options.probeTimeoutMs,
   }
+}
+
+function toCreateAgentOptions(options: CreateSessionOptions): CreateAgentOptions {
+  if (options.provider === 'codex') {
+    return {
+      provider: 'codex',
+      codex: options.codex,
+      defaults: options.defaults,
+    }
+  }
+
+  return {
+    provider: 'claude',
+    claude: options.claude,
+    defaults: options.defaults,
+  }
+}
+
+function toOpenSessionOptions(options: CreateSessionOptions): AgentOpenSessionOptions {
+  const sessionOptions: AgentOpenSessionOptions = {}
+
+  if (options.name !== undefined) sessionOptions.name = options.name
+  if (options.cwd !== undefined) sessionOptions.cwd = options.cwd
+  if (options.model !== undefined) sessionOptions.model = options.model
+  if (options.env !== undefined) sessionOptions.env = options.env
+  if (options.permissionMode !== undefined) sessionOptions.permissionMode = options.permissionMode
+  if (options.additionalDirectories !== undefined) sessionOptions.additionalDirectories = options.additionalDirectories
+  if (options.includePartialMessages !== undefined) {
+    sessionOptions.includePartialMessages = options.includePartialMessages
+  }
+
+  return sessionOptions
+}
+
+function wrapSessionWithOwnedClient(session: AgentSession, client: AgentClient): AgentSession {
+  const originalClose = session.close.bind(session)
+
+  Object.defineProperty(session, 'close', {
+    value: async () => {
+      let sessionCloseError: unknown
+
+      try {
+        await originalClose()
+      } catch (error) {
+        sessionCloseError = error
+      }
+
+      try {
+        await closePrivatelyOwnedClient(client)
+      } catch (clientCloseError) {
+        if (sessionCloseError) {
+          throw sessionCloseError
+        }
+        throw clientCloseError
+      }
+
+      if (sessionCloseError) {
+        throw sessionCloseError
+      }
+    },
+  })
+  return session
+}
+
+async function closePrivatelyOwnedClient(client: AgentClient): Promise<void> {
+  await client.close()
 }

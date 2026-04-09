@@ -6,6 +6,8 @@ import * as compatCodex from '../src/compat/codex.ts'
 
 test('root entrypoint exposes provider-neutral exports only', () => {
   assert.equal('createAgent' in root, true)
+  assert.equal('createSession' in root, true)
+  assert.equal('safety' in root, true)
   assert.equal('getProviderInventory' in root, true)
   assert.equal('createCodex' in root, false)
   assert.equal('CodexClient' in root, false)

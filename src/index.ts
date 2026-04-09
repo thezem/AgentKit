@@ -1,5 +1,6 @@
 export {
   createAgent,
+  createSession,
   getAvailableProviders,
   getProviderAvailability,
   getProviderInventory,
@@ -7,6 +8,7 @@ export {
   listModels,
   listSkills,
 } from './agent-client.ts'
+export { safety } from './safety.ts'
 export {
   AgentError,
   ConcurrentTurnError,
@@ -59,6 +61,9 @@ export type {
   AgentUserInputRequest,
   ClaudeProviderHandle,
   CreateAgentOptions,
+  CreateSessionOptions,
   CreateClaudeOptions,
   ProviderInventoryOptions,
+  SafetyConfirmDangerousOptions,
+  SafetyPresets,
 } from './agent-types.ts'
