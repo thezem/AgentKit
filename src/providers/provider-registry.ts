@@ -10,7 +10,7 @@ export const providerRegistry: ProviderRegistry = {
   get(provider: AgentProviderId): InternalAgentProvider {
     const match = providers.find((item) => item.id === provider)
     if (!match) {
-      throw new InputValidationError(`Unknown provider: ${provider}`, 'provider')
+      throw new InputValidationError(`Unknown provider: ${provider}`, 'provider', { code: 'INVALID_PROVIDER' })
     }
     return match
   },

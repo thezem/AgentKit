@@ -125,6 +125,9 @@ test('createAgent("claude") returns claude provider client', async () => {
 test('createAgent throws InputValidationError for unknown provider id', async () => {
   await assert.rejects(createAgent({ provider: 'unknown' as 'codex' }), error => {
     assert.ok(error instanceof InputValidationError)
+    assert.equal(error.code, 'INVALID_PROVIDER')
+    assert.equal(error.retryable, false)
+    assert.equal(error.provider, undefined)
     assert.equal(error.field, 'provider')
     return true
   })
