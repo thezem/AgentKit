@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   createAgent,
+  createSession,
   getAvailableProviders,
   getProviderAvailability,
   getProviderInventory,
@@ -123,6 +124,383 @@ test('createAgent("claude") returns claude provider client', async () => {
   try {
     const agent = await createAgent({ provider: 'claude' })
     assert.equal(agent.provider, 'claude')
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession opens a session for the selected provider and preserves AgentSession behavior', async () => {
+  const snapshot = snapshotRegistry()
+  const calls: Array<{ phase: string; options?: Record<string, unknown> }> = []
+  const session = createMockAgentClient('claude').session('wrapped')
+  const client = {
+    ...createMockAgentClient('claude'),
+    async openSession(options?: Record<string, unknown>) {
+      calls.push({ phase: 'openSession', options })
+      return session
+    },
+    async close() {
+      calls.push({ phase: 'closeClient' })
+    },
+  }
+
+  registerProviders([
+    createFactory('codex'),
+    {
+      id: 'claude',
+      create: () => ({
+        id: 'claude',
+        async getInventory() {
+          return {
+            provider: 'claude',
+            installed: true,
+            runnable: true,
+            authenticated: true,
+            degraded: false,
+            status: 'authenticated',
+            account: { id: 'claude' },
+          }
+        },
+        async isAvailable() {
+          return true
+        },
+        async getAvailability() {
+          return {
+            provider: 'claude',
+            available: true,
+            authenticated: true,
+            account: { id: 'claude' },
+          }
+        },
+        async createClient(options?: Record<string, unknown>) {
+          calls.push({ phase: 'createClient', options })
+          return client
+        },
+      }),
+    },
+  ])
+
+  try {
+    const wrapped = await createSession({
+      provider: 'claude',
+      claude: { executable: 'claude' },
+      defaults: { cwd: '/tmp/workspace', model: 'sonnet' },
+      name: 'hello-session',
+      includePartialMessages: true,
+    })
+
+    assert.equal(wrapped.provider, 'claude')
+    assert.equal(wrapped.name, 'wrapped')
+    const result = await wrapped.run('hello world')
+    assert.equal(result.provider, 'claude')
+    assert.equal(result.status, 'completed')
+
+    await wrapped.close()
+
+    assert.deepEqual(calls, [
+      {
+        phase: 'createClient',
+        options: {
+          provider: 'claude',
+          claude: { executable: 'claude' },
+          defaults: { cwd: '/tmp/workspace', model: 'sonnet' },
+        },
+      },
+      {
+        phase: 'openSession',
+        options: {
+          name: 'hello-session',
+          includePartialMessages: true,
+        },
+      },
+      {
+        phase: 'closeClient',
+      },
+    ])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession forwards provider defaults and explicit session options correctly', async () => {
+  const snapshot = snapshotRegistry()
+  const calls: Array<{ phase: string; options?: Record<string, unknown> }> = []
+
+  registerProviders([
+    {
+      id: 'codex',
+      create: () => ({
+        id: 'codex',
+        async getInventory() {
+          return {
+            provider: 'codex',
+            installed: true,
+            runnable: true,
+            authenticated: true,
+            degraded: false,
+            status: 'authenticated',
+            account: { id: 'codex' },
+          }
+        },
+        async isAvailable() {
+          return true
+        },
+        async getAvailability() {
+          return {
+            provider: 'codex',
+            available: true,
+            authenticated: true,
+            account: { id: 'codex' },
+          }
+        },
+        async createClient(options?: Record<string, unknown>) {
+          calls.push({ phase: 'createClient', options })
+          return {
+            ...createMockAgentClient('codex'),
+            async openSession(sessionOptions?: Record<string, unknown>) {
+              calls.push({ phase: 'openSession', options: sessionOptions })
+              return createMockAgentClient('codex').session('forwarded')
+            },
+            async close() {
+              calls.push({ phase: 'closeClient' })
+            },
+          }
+        },
+      }),
+    },
+    createFactory('claude'),
+  ])
+
+  try {
+    const session = await createSession({
+      provider: 'codex',
+      codex: { cwd: 'G:\\PI\\codex-sdk-node' },
+      defaults: {
+        cwd: 'G:\\PI\\codex-sdk-node',
+        model: 'gpt-5.4',
+        permissionMode: 'default',
+      },
+      name: 'provider-defaults',
+      model: 'gpt-5.4-mini',
+      permissionMode: 'full-auto',
+      additionalDirectories: ['G:\\shared'],
+    })
+
+    await session.close()
+
+    assert.deepEqual(calls, [
+      {
+        phase: 'createClient',
+        options: {
+          provider: 'codex',
+          codex: { cwd: 'G:\\PI\\codex-sdk-node' },
+          defaults: {
+            cwd: 'G:\\PI\\codex-sdk-node',
+            model: 'gpt-5.4',
+            permissionMode: 'default',
+          },
+        },
+      },
+      {
+        phase: 'openSession',
+        options: {
+          name: 'provider-defaults',
+          model: 'gpt-5.4-mini',
+          permissionMode: 'full-auto',
+          additionalDirectories: ['G:\\shared'],
+        },
+      },
+      {
+        phase: 'closeClient',
+      },
+    ])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession closes the private client if openSession fails', async () => {
+  const snapshot = snapshotRegistry()
+  const calls: string[] = []
+
+  registerProviders([
+    {
+      id: 'codex',
+      create: () => ({
+        id: 'codex',
+        async getInventory() {
+          return {
+            provider: 'codex',
+            installed: true,
+            runnable: true,
+            authenticated: true,
+            degraded: false,
+            status: 'authenticated',
+            account: { id: 'codex' },
+          }
+        },
+        async isAvailable() {
+          return true
+        },
+        async getAvailability() {
+          return {
+            provider: 'codex',
+            available: true,
+            authenticated: true,
+            account: { id: 'codex' },
+          }
+        },
+        async createClient() {
+          calls.push('createClient')
+          return {
+            ...createMockAgentClient('codex'),
+            async openSession() {
+              calls.push('openSession')
+              throw new Error('open failed')
+            },
+            async close() {
+              calls.push('closeClient')
+            },
+          }
+        },
+      }),
+    },
+    createFactory('claude'),
+  ])
+
+  try {
+    await assert.rejects(
+      createSession({
+        provider: 'codex',
+        name: 'boom',
+      }),
+      /open failed/,
+    )
+
+    assert.deepEqual(calls, ['createClient', 'openSession', 'closeClient'])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession preserves the original openSession error if cleanup also fails', async () => {
+  const snapshot = snapshotRegistry()
+  const openError = new Error('open failed')
+  const closeError = new Error('close failed')
+  const calls: string[] = []
+
+  registerProviders([
+    {
+      id: 'codex',
+      create: () => ({
+        id: 'codex',
+        async getInventory() {
+          return {
+            provider: 'codex',
+            installed: true,
+            runnable: true,
+            authenticated: true,
+            degraded: false,
+            status: 'authenticated',
+            account: { id: 'codex' },
+          }
+        },
+        async isAvailable() {
+          return true
+        },
+        async getAvailability() {
+          return {
+            provider: 'codex',
+            available: true,
+            authenticated: true,
+            account: { id: 'codex' },
+          }
+        },
+        async createClient() {
+          calls.push('createClient')
+          return {
+            ...createMockAgentClient('codex'),
+            async openSession() {
+              calls.push('openSession')
+              throw openError
+            },
+            async close() {
+              calls.push('closeClient')
+              throw closeError
+            },
+          }
+        },
+      }),
+    },
+    createFactory('claude'),
+  ])
+
+  try {
+    await assert.rejects(createSession({ provider: 'codex' }), error => {
+      assert.equal(error, openError)
+      return true
+    })
+    assert.deepEqual(calls, ['createClient', 'openSession', 'closeClient'])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession close rejects with the original session close error and still closes the private client', async () => {
+  const snapshot = snapshotRegistry()
+  const calls: string[] = []
+  const sessionCloseError = new Error('session close failed')
+
+  registerProviders([
+    createFactory('codex', {
+      async createClient() {
+        return {
+          ...createMockAgentClient('codex'),
+          async openSession() {
+            return {
+              ...createMockAgentClient('codex').session('close-test'),
+              async close() {
+                calls.push('closeSession')
+                throw sessionCloseError
+              },
+            }
+          },
+          async close() {
+            calls.push('closeClient')
+          },
+        }
+      },
+    }),
+    createFactory('claude'),
+  ])
+
+  try {
+    const session = await createSession({ provider: 'codex' })
+    await assert.rejects(session.close(), error => {
+      assert.equal(error, sessionCloseError)
+      return true
+    })
+    assert.deepEqual(calls, ['closeSession', 'closeClient'])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession keeps the wrapped close method writable and configurable', async () => {
+  const snapshot = snapshotRegistry()
+
+  registerProviders([createFactory('codex'), createFactory('claude')])
+
+  try {
+    const session = await createSession({ provider: 'codex' })
+    const descriptor = Object.getOwnPropertyDescriptor(session, 'close')
+
+    assert.ok(descriptor)
+    assert.equal(descriptor.enumerable, false)
+    assert.equal(descriptor.writable, true)
+    assert.equal(descriptor.configurable, true)
+
+    await session.close()
   } finally {
     restoreRegistry(snapshot)
   }

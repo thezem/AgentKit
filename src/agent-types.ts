@@ -254,6 +254,8 @@ export type CreateAgentOptions =
       defaults?: AgentSessionOptions
     }
 
+export type CreateSessionOptions = CreateAgentOptions & AgentOpenSessionOptions
+
 export type AgentProviderAvailability = AgentAccountState
 
 /**
@@ -368,6 +370,18 @@ export type AgentProviderInventory = {
 }
 
 export type AgentInput = UserInput
+
+export type SafetyConfirmDangerousOptions = {
+  allowReadOnly?: boolean
+  allowFileEdits?: boolean
+  allowCommands?: boolean
+}
+
+export type SafetyPresets = {
+  readOnly(): AgentHandlers
+  acceptEditsOnly(): AgentHandlers
+  confirmDangerous(options?: SafetyConfirmDangerousOptions): AgentHandlers
+}
 
 export interface ClaudeProviderHandle {
   getSessionRuntimeMetadata(): {
