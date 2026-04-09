@@ -137,6 +137,7 @@ class CodexAgentSession implements AgentSession {
       const thread = await this.ensureThread()
       const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
       const runId = thread.getActiveTurnId() ?? `codex-run-${thread.id}-${Date.now()}`
+      const sessionName = this.name
 
       return createAgentRun({
         runId,
@@ -149,7 +150,7 @@ class CodexAgentSession implements AgentSession {
               sessionId: thread.id,
             }
             for await (const event of stream) {
-              yield codexStreamEventToAgent(event, runId, thread.id)
+              yield codexStreamEventToAgent(event, runId, thread.id, sessionName)
             }
           },
         },
@@ -224,10 +225,17 @@ class CodexAgentSession implements AgentSession {
   }
 
   private async interruptUnderlyingRun(): Promise<void> {
-    if (!this.threadRef) {
+    if (!this.threadRef || !this.threadRef.getActiveTurnId()) {
       throw new NoActiveRunError('codex', this.name)
     }
-    await this.threadRef.interrupt()
+    try {
+      await this.threadRef.interrupt()
+    } catch (error) {
+      if (error instanceof Error && error.message === 'No active turn to interrupt') {
+        throw new NoActiveRunError('codex', this.name, { cause: error })
+      }
+      throw error
+    }
   }
 }
 
@@ -826,7 +834,12 @@ function codexRunResultToAgent(result: RunResult, name?: string): AgentRunResult
   }
 }
 
-function codexStreamEventToAgent(event: CodexStreamEvent, runId: string, sessionIdHint?: string | null): AgentEvent {
+function codexStreamEventToAgent(
+  event: CodexStreamEvent,
+  runId: string,
+  sessionIdHint?: string | null,
+  sessionName?: string,
+): AgentEvent {
   switch (event.type) {
     case 'message.delta':
       return { provider: 'codex', type: 'message.delta', text: event.text, raw: event }
@@ -853,7 +866,7 @@ function codexStreamEventToAgent(event: CodexStreamEvent, runId: string, session
           text: codexTurnText(event.turn.items),
           items: event.turn.items,
           raw: event.turn,
-          handle: codexHandle(event.threadId),
+          handle: codexHandle(event.threadId, sessionName),
         },
         raw: event,
       }

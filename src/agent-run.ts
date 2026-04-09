@@ -6,8 +6,13 @@ export function createAgentRun(options: {
   source: AsyncIterable<AgentEvent>
   interrupt: () => Promise<void>
   onSettled?: () => void
+  maxBufferedEvents?: number
 }): AgentRun {
-  const events = new AsyncQueue<AgentEvent>()
+  const events = new AsyncQueue<AgentEvent>({
+    // Bound buffered events so `run().result` callers do not accumulate an
+    // unbounded in-memory copy of verbose streams they never consume.
+    maxSize: options.maxBufferedEvents ?? 256,
+  })
   const result = new Deferred<AgentRunResult>()
 
   void pumpAgentRun(options.source, events, result, options.onSettled)
@@ -37,7 +42,7 @@ async function pumpAgentRun(
 
   try {
     for await (const event of source) {
-      events.push(event)
+      void events.push(event)
       if (event.type === 'run.completed') {
         sawTerminalResult = true
         result.resolve(event.result)

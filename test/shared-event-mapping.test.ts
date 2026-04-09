@@ -237,6 +237,7 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     assert.equal(completion.result.turnId, 'turn-codex-1')
     assert.equal(completion.result.status, 'completed')
     assert.equal(completion.result.text, 'Hello world')
+    assert.equal((completion.result.handle as { name?: string }).name, 'shared-codex')
     assert.ok(Array.isArray(completion.result.items))
     assert.equal((completion.result.items as Array<{ type?: string }>)[0]?.type, 'agentMessage')
     assert.equal((completion.result.handle as { version?: number }).version, 1)

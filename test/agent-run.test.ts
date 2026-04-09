@@ -223,3 +223,47 @@ test('AgentRun interrupt() targets the active run', async () => {
     await fakeCodexClient.close()
   }
 })
+
+test('AgentRun interrupt() after completion maps to NO_ACTIVE_RUN for codex', async () => {
+  const fakeTransport = new FakeTransport()
+  fakeTransport.respondWith('thread/start', { thread: createThreadData('thread-4') })
+  fakeTransport.respondWith('turn/start', { turn: { id: 'turn-5' } })
+
+  const CodexCtor = CodexClient as unknown as {
+    create: (options?: Record<string, unknown>) => Promise<CodexClient>
+    new (transport: FakeTransport, options: Record<string, unknown>): CodexClient
+  }
+  const originalCreate = CodexCtor.create
+  const fakeCodexClient = new CodexCtor(fakeTransport, {})
+  CodexCtor.create = async () => fakeCodexClient
+
+  try {
+    const agent = await createAgent({ provider: 'codex' })
+    const session = await agent.openSession({ name: 'agent-run-post-complete' })
+    const run = await session.start('finish first')
+
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-4',
+        turn: {
+          id: 'turn-5',
+          status: 'completed',
+          error: null,
+          items: [],
+        },
+      },
+    })
+
+    await run.result
+
+    await assert.rejects(run.interrupt(), error => {
+      assert.equal((error as { code?: string }).code, 'NO_ACTIVE_RUN')
+      return true
+    })
+  } finally {
+    CodexCtor.create = originalCreate
+    await fakeCodexClient.close()
+  }
+})
