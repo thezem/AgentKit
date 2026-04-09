@@ -290,7 +290,7 @@ export class ClaudeSession implements AgentSession {
     if (!resolved) return
     if (resolved.cwd && resolved.cwd !== this.sessionCwd) {
       throw new Error(
-        `Claude sessions in Codexkit are long-lived and keep a fixed cwd for their lifetime. Session cwd is "${this.sessionCwd}", but turn requested "${resolved.cwd}".`,
+        `Claude sessions in @ouim/agentkit are long-lived and keep a fixed cwd for their lifetime. Session cwd is "${this.sessionCwd}", but turn requested "${resolved.cwd}".`,
       )
     }
     if (resolved.additionalDirectories && this.baseOptions?.additionalDirectories) {
@@ -566,15 +566,17 @@ export class ClaudeSession implements AgentSession {
 }
 
 function claudeItemToActivity(message: Record<string, unknown>): AgentActivityItem {
+  const messageType = typeof message.type === 'string' ? message.type : ''
   return {
     id:
       (typeof message.tool_use_id === 'string' && message.tool_use_id) ||
+      (typeof message.toolUseID === 'string' && message.toolUseID) ||
       (typeof message.uuid === 'string' && message.uuid) ||
       'claude-item',
     kind:
-      typeof message.tool_name === 'string'
+      messageType === 'tool_use' || messageType === 'tool_use_summary'
         ? 'tool'
-        : typeof message.type === 'string' && message.type.includes('file')
+        : messageType.includes('file')
           ? 'file'
           : 'other',
     ...(typeof message.tool_name === 'string' ? { toolName: message.tool_name } : {}),
