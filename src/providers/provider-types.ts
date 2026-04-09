@@ -31,7 +31,15 @@ export interface InternalAgentProvider {
   createClient(options: CreateAgentOptions): Promise<AgentClient>
 }
 
+export type ProviderAdapterFactory = {
+  id: AgentProviderId
+  create(): InternalAgentProvider
+}
+
 export type ProviderRegistry = {
+  register(factory: ProviderAdapterFactory): void
+  reset(factories?: ProviderAdapterFactory[]): void
+  getFactories(): ProviderAdapterFactory[]
   get(provider: AgentProviderId): InternalAgentProvider
   getAll(): InternalAgentProvider[]
   getProviderInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory[]>

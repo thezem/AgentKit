@@ -53,7 +53,7 @@ import type {
   ToolInputRequest,
   UserInput,
 } from '../types.ts'
-import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provider-types.ts'
+import type { InternalAgentProvider, ProviderAdapterFactory, ProviderAvailabilityOptions } from './provider-types.ts'
 
 type CodexAgentClientOptions = Extract<CreateAgentOptions, { provider: 'codex' }>
 
@@ -641,29 +641,34 @@ export async function getCodexAvailability(options?: ProviderAvailabilityOptions
   return inventoryToAvailability(inventory)
 }
 
-export const codexProvider: InternalAgentProvider = {
+export const codexProviderFactory: ProviderAdapterFactory = {
   id: 'codex',
-  async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
-    return getCodexInventory(options)
-  },
-  async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
-    const inventory = await getCodexInventory({ ...options, probeMode: 'cheap' })
-    return inventory.runnable
-  },
-  async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
-    return getCodexAvailability(options)
-  },
-  async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
-    return listCodexModels(options)
-  },
-  async listSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
-    return listCodexSkills(options)
-  },
-  async createClient(options: CreateAgentOptions): Promise<AgentClient> {
-    if (options.provider !== 'codex') {
-      throw new Error(`codexProvider cannot handle provider=${options.provider}`)
+  create(): InternalAgentProvider {
+    return {
+      id: 'codex',
+      async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+        return getCodexInventory(options)
+      },
+      async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
+        const inventory = await getCodexInventory({ ...options, probeMode: 'cheap' })
+        return inventory.runnable
+      },
+      async getAvailability(options?: ProviderAvailabilityOptions): Promise<AgentAccountState> {
+        return getCodexAvailability(options)
+      },
+      async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+        return listCodexModels(options)
+      },
+      async listSkills(options?: AgentSkillListOptions): Promise<AgentSkillInfo[]> {
+        return listCodexSkills(options)
+      },
+      async createClient(options: CreateAgentOptions): Promise<AgentClient> {
+        if (options.provider !== 'codex') {
+          throw new Error(`codexProvider cannot handle provider=${options.provider}`)
+        }
+        return createCodexAgentClient(options)
+      },
     }
-    return createCodexAgentClient(options)
   },
 }
 

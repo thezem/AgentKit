@@ -18,7 +18,7 @@ import { validateSessionHandle } from '../handle.ts'
 import { claudeCapabilities, getClaudeAvailability, getClaudeInventory, isClaudeAvailable } from './claude-detection.ts'
 import { listClaudeModels } from './claude-models.ts'
 import { ClaudeSession } from './claude-session.ts'
-import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provider-types.ts'
+import type { InternalAgentProvider, ProviderAdapterFactory, ProviderAvailabilityOptions } from './provider-types.ts'
 
 type ClaudeAgentClientOptions = Extract<CreateAgentOptions, { provider: 'claude' }>
 
@@ -172,28 +172,33 @@ export async function createClaudeAgentClient(options: ClaudeAgentClientOptions)
   return new ClaudeAgentClient(options.claude, options.defaults)
 }
 
-export const claudeProvider: InternalAgentProvider = {
+export const claudeProviderFactory: ProviderAdapterFactory = {
   id: 'claude',
-  async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
-    return getClaudeInventory(options)
-  },
-  async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
-    return isClaudeAvailable(options)
-  },
-  async getAvailability(options?: ProviderAvailabilityOptions) {
-    return getClaudeAvailability(options)
-  },
-  async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
-    const models = listClaudeModels().filter((model) => options?.includeHidden === true || model.hidden !== true)
-    if (typeof options?.limit === 'number' && options.limit >= 0) {
-      return models.slice(0, options.limit)
+  create(): InternalAgentProvider {
+    return {
+      id: 'claude',
+      async getInventory(options?: ProviderInventoryOptions): Promise<AgentProviderInventory> {
+        return getClaudeInventory(options)
+      },
+      async isAvailable(options?: ProviderInventoryOptions): Promise<boolean> {
+        return isClaudeAvailable(options)
+      },
+      async getAvailability(options?: ProviderAvailabilityOptions) {
+        return getClaudeAvailability(options)
+      },
+      async listModels(options?: AgentModelListOptions): Promise<AgentModelInfo[]> {
+        const models = listClaudeModels().filter((model) => options?.includeHidden === true || model.hidden !== true)
+        if (typeof options?.limit === 'number' && options.limit >= 0) {
+          return models.slice(0, options.limit)
+        }
+        return models
+      },
+      async createClient(options: CreateAgentOptions): Promise<AgentClient> {
+        if (options.provider !== 'claude') {
+          throw new Error(`claudeProvider cannot handle provider=${options.provider}`)
+        }
+        return createClaudeAgentClient(options)
+      },
     }
-    return models
-  },
-  async createClient(options: CreateAgentOptions): Promise<AgentClient> {
-    if (options.provider !== 'claude') {
-      throw new Error(`claudeProvider cannot handle provider=${options.provider}`)
-    }
-    return createClaudeAgentClient(options)
   },
 }
