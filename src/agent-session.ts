@@ -1,11 +1,12 @@
 import type { AgentRunOptions, AgentSessionOptions } from './agent-types.ts'
+import { validateSharedControlOptions } from './control-layer.ts'
 
 export function mergeAgentSessionOptions(
   base?: AgentSessionOptions,
   next?: AgentSessionOptions,
 ): AgentSessionOptions | undefined {
   if (!base && !next) return undefined
-  return {
+  const merged = {
     ...base,
     ...next,
     env: {
@@ -14,11 +15,13 @@ export function mergeAgentSessionOptions(
     },
     additionalDirectories: next?.additionalDirectories ?? base?.additionalDirectories,
   }
+  validateSharedControlOptions(merged)
+  return merged
 }
 
 export function mergeAgentRunOptions(base?: AgentRunOptions, next?: AgentRunOptions): AgentRunOptions | undefined {
   if (!base && !next) return undefined
-  return {
+  const merged = {
     ...base,
     ...next,
     env: {
@@ -31,4 +34,6 @@ export function mergeAgentRunOptions(base?: AgentRunOptions, next?: AgentRunOpti
       ...(next?.handlers ?? {}),
     },
   }
+  validateSharedControlOptions(merged)
+  return merged
 }

@@ -127,7 +127,13 @@ export class MockAgentClient implements AgentClient {
     return {
       provider: this.provider,
       sessionLifecycle: { open: true, resume: true, list: false, clearLocalCache: true, deleteRemote: false },
-      controls: { interrupt: true, modelSwitch: 'session', permissionModeSwitch: 'none' },
+      controls: {
+        interrupt: true,
+        modelSwitch: 'session',
+        interactionModeSwitch: 'session',
+        accessModeSwitch: 'session',
+        permissionModeSwitch: 'none',
+      },
       interactions: { partialMessages: true, toolApproval: false, userInputRequests: false, dynamicToolCalls: false },
       discovery: { inventory: true, modelListing: true, skillsListing: false, skillConfiguration: false },
       semantics: { sessionIdentity: 'opaque', resumeHandle: 'structured', longLivedRuntime: false },

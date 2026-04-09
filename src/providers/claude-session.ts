@@ -3,6 +3,7 @@ import {
   RunInProgressError,
   SessionClosedError,
 } from '../errors.ts'
+import { resolveClaudeRunControls, resolveClaudeSessionControls } from '../control-layer.ts'
 import {
   query,
   type ElicitationRequest,
@@ -22,6 +23,7 @@ import { mergeAgentRunOptions } from '../agent-session.ts'
 import { createAgentRun } from '../agent-run.ts'
 import { normalizeSessionHandle } from '../handle.ts'
 import type {
+  AgentActivityItem,
   AgentEvent,
   AgentHandlers,
   AgentInput,
@@ -82,11 +84,12 @@ export class ClaudeSession implements AgentSession {
     onClosed?: (name: string, session: ClaudeSession) => void,
   ) {
     this.name = name
-    this.baseOptions = baseOptions
+    this.baseOptions = resolveClaudeRunControls(baseOptions)
     this.createClaude = createClaude
     this.onClosed = onClosed
     this.currentModel = baseOptions?.model ?? createClaude?.model
-    this.currentPermissionMode = baseOptions?.permissionMode ?? createClaude?.permissionMode
+    this.currentPermissionMode =
+      resolveClaudeSessionControls(baseOptions)?.permissionMode ?? createClaude?.permissionMode
     this.resumeState =
       createClaude?.resume || createClaude?.resumeSessionAt
         ? {
@@ -237,18 +240,23 @@ export class ClaudeSession implements AgentSession {
   }
 
   private buildRuntimeOptions(): ClaudeOptions {
+    const resolvedBaseOptions = resolveClaudeSessionControls(this.baseOptions)
     const includePartialMessages =
-      this.baseOptions?.includePartialMessages ??
+      resolvedBaseOptions?.includePartialMessages ??
       this.createClaude?.includePartialMessages ??
       true
 
     const options: ClaudeOptions = {
       ...(this.createClaude?.options ?? {}),
-      ...(this.baseOptions?.cwd ? { cwd: this.baseOptions.cwd } : {}),
-      ...(this.baseOptions?.model ? { model: this.baseOptions.model } : {}),
-      ...(this.baseOptions?.env ? { env: this.baseOptions.env } : {}),
-      ...(this.baseOptions?.additionalDirectories ? { additionalDirectories: this.baseOptions.additionalDirectories } : {}),
-      ...(this.baseOptions?.permissionMode ? { permissionMode: toClaudePermissionMode(this.baseOptions.permissionMode) } : {}),
+      ...(resolvedBaseOptions?.cwd ? { cwd: resolvedBaseOptions.cwd } : {}),
+      ...(resolvedBaseOptions?.model ? { model: resolvedBaseOptions.model } : {}),
+      ...(resolvedBaseOptions?.env ? { env: resolvedBaseOptions.env } : {}),
+      ...(resolvedBaseOptions?.additionalDirectories
+        ? { additionalDirectories: resolvedBaseOptions.additionalDirectories }
+        : {}),
+      ...(resolvedBaseOptions?.permissionMode
+        ? { permissionMode: toClaudePermissionMode(resolvedBaseOptions.permissionMode) }
+        : {}),
       ...(this.createClaude?.cwd ? { cwd: this.createClaude.cwd } : {}),
       ...(this.createClaude?.model ? { model: this.createClaude.model } : {}),
       ...(this.createClaude?.env ? { env: this.createClaude.env } : {}),
@@ -262,6 +270,9 @@ export class ClaudeSession implements AgentSession {
         : {}),
       ...(this.createClaude?.resume ? { resume: this.createClaude.resume } : {}),
       ...(this.createClaude?.resumeSessionAt ? { resumeSessionAt: this.createClaude.resumeSessionAt } : {}),
+      ...(resolvedBaseOptions?.allowDangerouslySkipPermissions
+        ? { allowDangerouslySkipPermissions: true }
+        : {}),
       includePartialMessages,
       canUseTool: (toolName, toolInput, sdkOptions) => this.handleToolApproval(toolName, toolInput, sdkOptions),
       onElicitation: (request) => this.handleElicitation(request),
@@ -275,29 +286,30 @@ export class ClaudeSession implements AgentSession {
   }
 
   private async applyMutableRuntimeOptions(options?: AgentRunOptions): Promise<void> {
-    if (!options) return
-    if (options.cwd && options.cwd !== this.sessionCwd) {
+    const resolved = resolveClaudeRunControls(options)
+    if (!resolved) return
+    if (resolved.cwd && resolved.cwd !== this.sessionCwd) {
       throw new Error(
-        `Claude sessions in Codexkit are long-lived and keep a fixed cwd for their lifetime. Session cwd is "${this.sessionCwd}", but turn requested "${options.cwd}".`,
+        `Claude sessions in Codexkit are long-lived and keep a fixed cwd for their lifetime. Session cwd is "${this.sessionCwd}", but turn requested "${resolved.cwd}".`,
       )
     }
-    if (options.additionalDirectories && this.baseOptions?.additionalDirectories) {
+    if (resolved.additionalDirectories && this.baseOptions?.additionalDirectories) {
       const current = this.baseOptions.additionalDirectories.join('|')
-      const next = options.additionalDirectories.join('|')
+      const next = resolved.additionalDirectories.join('|')
       if (current !== next) {
         throw new Error('Claude session runtime is long-lived; changing additionalDirectories per-turn is not supported')
       }
     }
 
-    if (options.model && options.model !== this.currentModel) {
-      await this.runtime.setModel(options.model)
-      this.currentModel = options.model
+    if (resolved.model && resolved.model !== this.currentModel) {
+      await this.runtime.setModel(resolved.model)
+      this.currentModel = resolved.model
     }
 
-    if (options.permissionMode && options.permissionMode !== this.currentPermissionMode) {
-      const mode = toClaudePermissionMode(options.permissionMode)
+    if (resolved.permissionMode && resolved.permissionMode !== this.currentPermissionMode) {
+      const mode = toClaudePermissionMode(resolved.permissionMode)
       await this.runtime.setPermissionMode(mode)
-      this.currentPermissionMode = options.permissionMode
+      this.currentPermissionMode = resolved.permissionMode
     }
   }
 
@@ -373,6 +385,16 @@ export class ClaudeSession implements AgentSession {
         ...(this.sessionId ? { sessionId: this.sessionId, resume: this.sessionId } : {}),
         resumeSessionAt: String(message.uuid),
       }
+      return
+    }
+
+    if (isClaudeToolUseMessage(message)) {
+      current.events.push({
+        provider: 'claude',
+        type: 'item.started',
+        item: claudeItemToActivity(message),
+        raw: message,
+      })
       return
     }
 
@@ -541,6 +563,33 @@ export class ClaudeSession implements AgentSession {
       turn.events.end()
     }
   }
+}
+
+function claudeItemToActivity(message: Record<string, unknown>): AgentActivityItem {
+  return {
+    id:
+      (typeof message.tool_use_id === 'string' && message.tool_use_id) ||
+      (typeof message.uuid === 'string' && message.uuid) ||
+      'claude-item',
+    kind:
+      typeof message.tool_name === 'string'
+        ? 'tool'
+        : typeof message.type === 'string' && message.type.includes('file')
+          ? 'file'
+          : 'other',
+    ...(typeof message.tool_name === 'string' ? { toolName: message.tool_name } : {}),
+    status: 'in_progress',
+    raw: message,
+  }
+}
+
+function isClaudeToolUseMessage(message: SDKMessage): message is SDKMessage & Record<string, unknown> {
+  if (!message || typeof message !== 'object') return false
+  const candidate = message as Record<string, unknown>
+  return (
+    (candidate.type === 'tool_use_summary' || candidate.type === 'tool_use') &&
+    (typeof candidate.tool_name === 'string' || typeof candidate.toolUseID === 'string' || typeof candidate.tool_use_id === 'string')
+  )
 }
 
 function toClaudeUserMessage(input: AgentInput): SDKUserMessage {

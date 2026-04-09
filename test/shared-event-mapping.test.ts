@@ -211,8 +211,8 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
       'reasoning.delta',
       'approval.tool',
       'user.input',
-      'provider.notification',
-      'provider.notification',
+      'plan.delta',
+      'item.completed',
       'run.completed',
     ])
 
@@ -226,6 +226,23 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
         result: { answers: { q1: { answers: ['yes'] } } },
       },
     ])
+
+    const planDelta = events.find(event => event.type === 'plan.delta')?.payload as
+      | { type: 'plan.delta'; item: { id: string; kind: string; text?: string; raw?: unknown } }
+      | undefined
+    assert.ok(planDelta)
+    assert.equal(planDelta.item.id, 'plan-1')
+    assert.equal(planDelta.item.kind, 'plan')
+    assert.equal(planDelta.item.text, 'plan step')
+
+    const itemCompleted = events.find(event => event.type === 'item.completed')?.payload as
+      | { type: 'item.completed'; item: { id: string; kind: string; text?: string; status?: string; raw?: unknown } }
+      | undefined
+    assert.ok(itemCompleted)
+    assert.equal(itemCompleted.item.id, 'msg-1')
+    assert.equal(itemCompleted.item.kind, 'message')
+    assert.equal(itemCompleted.item.text, 'Hello world')
+    assert.equal(itemCompleted.item.status, 'completed')
 
     const completion = events.find(event => event.type === 'run.completed')?.payload as
       | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
@@ -356,6 +373,13 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
       },
     })
     runtime.emit({
+      type: 'tool_use',
+      session_id: 'claude-session-1',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-1',
+      input: { command: 'pwd' },
+    })
+    runtime.emit({
       type: 'system',
       subtype: 'status',
       status: 'running',
@@ -405,10 +429,19 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
       'message.delta',
       'user.input',
       'message.completed',
+      'item.started',
       'status.updated',
       'provider.notification',
       'run.completed',
     ])
+
+    const itemStarted = events.find(event => event.type === 'item.started')?.payload as
+      | { type: 'item.started'; item: { kind: string; toolName?: string; status?: string; raw?: unknown } }
+      | undefined
+    assert.ok(itemStarted)
+    assert.equal(itemStarted.item.kind, 'tool')
+    assert.equal(itemStarted.item.toolName, 'Bash')
+    assert.equal(itemStarted.item.status, 'in_progress')
 
     const completion = events.find(event => event.type === 'run.completed')?.payload as
       | { type: 'run.completed'; runId: string; result: Record<string, unknown> }

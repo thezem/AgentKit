@@ -202,6 +202,8 @@ export function claudeCapabilities(): AgentCapabilities {
     controls: {
       interrupt: true,
       modelSwitch: 'session',
+      interactionModeSwitch: 'session',
+      accessModeSwitch: 'session',
       permissionModeSwitch: 'session',
     },
     interactions: {

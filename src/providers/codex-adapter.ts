@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createAgentRun } from '../agent-run.ts'
 import { CodexClient } from '../codex-client.ts'
+import { resolveCodexRunControls, resolveCodexThreadControls } from '../control-layer.ts'
 import { NoActiveRunError, ProviderProbeTimeoutError, RunInProgressError, SessionClosedError } from '../errors.ts'
 import { normalizeSessionHandle, validateSessionHandle } from '../handle.ts'
 import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
 import type {
+  AgentActivityItem,
   AgentAccountState,
   AgentCapabilities,
   AgentClient,
@@ -704,11 +706,7 @@ async function createCodexDiscoveryClient(options?: {
 }
 
 function toCodexThreadOptions(options?: AgentSessionOptions): ThreadOptions | undefined {
-  if (!options) return undefined
-  return {
-    ...(options.cwd ? { cwd: options.cwd } : {}),
-    ...(options.model ? { model: options.model } : {}),
-  }
+  return resolveCodexThreadControls(options)
 }
 
 function toAgentSessionDefaults(options?: ThreadOptions): AgentSessionOptions | undefined {
@@ -720,11 +718,11 @@ function toAgentSessionDefaults(options?: ThreadOptions): AgentSessionOptions | 
 }
 
 function toCodexRunOptions(options?: AgentRunOptions): RunOptions | undefined {
-  if (!options) return undefined
+  const controls = resolveCodexRunControls(options)
+  if (!options && !controls) return undefined
   return {
-    ...(options.cwd ? { cwd: options.cwd } : {}),
-    ...(options.model ? { model: options.model } : {}),
-    ...(options.handlers ? { handlers: toCodexRequestHandlers(options.handlers) } : {}),
+    ...(controls ?? {}),
+    ...(options?.handlers ? { handlers: toCodexRequestHandlers(options.handlers) } : {}),
   }
 }
 
@@ -845,6 +843,32 @@ function codexStreamEventToAgent(
       return { provider: 'codex', type: 'message.delta', text: event.text, raw: event }
     case 'reasoning.delta':
       return { provider: 'codex', type: 'reasoning.delta', text: event.text, raw: event }
+    case 'plan.delta':
+      return {
+        provider: 'codex',
+        type: 'plan.delta',
+        item: {
+          id: event.itemId,
+          kind: 'plan',
+          text: event.text,
+          raw: event,
+        },
+        raw: event,
+      }
+    case 'item.started':
+      return {
+        provider: 'codex',
+        type: 'item.started',
+        item: codexItemToActivity(event.item, 'in_progress'),
+        raw: event,
+      }
+    case 'item.completed':
+      return {
+        provider: 'codex',
+        type: 'item.completed',
+        item: codexItemToActivity(event.item, 'completed'),
+        raw: event,
+      }
     case 'turn.started':
       return {
         provider: 'codex',
@@ -945,6 +969,39 @@ function codexTurnText(items: Array<{ type: string; text?: unknown }>): string {
     }
   }
   return latest
+}
+
+function codexItemToActivity(item: { id?: string; type?: string; text?: unknown; path?: unknown; name?: unknown }, status: string): AgentActivityItem {
+  return {
+    id: typeof item.id === 'string' ? item.id : 'unknown-item',
+    kind: codexItemKind(item.type),
+    ...(typeof item.text === 'string' ? { text: item.text } : {}),
+    ...(typeof item.path === 'string' ? { path: item.path } : {}),
+    ...(typeof item.name === 'string' ? { toolName: item.name } : {}),
+    status,
+    raw: item,
+  }
+}
+
+function codexItemKind(type: string | undefined): AgentActivityItem['kind'] {
+  switch (type) {
+    case 'agentMessage':
+      return 'message'
+    case 'reasoning':
+      return 'reasoning'
+    case 'plan':
+      return 'plan'
+    case 'functionCall':
+    case 'functionCallOutput':
+    case 'mcpToolCall':
+      return 'tool'
+    case 'commandExecution':
+      return 'command'
+    case 'fileChange':
+      return 'file'
+    default:
+      return 'other'
+  }
 }
 
 function mapCodexStatus(status: string): AgentRunResult['status'] {
@@ -1062,6 +1119,8 @@ function codexCapabilities(): AgentCapabilities {
     controls: {
       interrupt: true,
       modelSwitch: 'turn',
+      interactionModeSwitch: 'turn',
+      accessModeSwitch: 'turn',
       permissionModeSwitch: 'none',
     },
     interactions: {
