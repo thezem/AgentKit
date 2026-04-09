@@ -98,7 +98,7 @@ test('start() returns a stable runId and result resolves from the shared run pat
     })
 
     const [eventTypes, result] = await Promise.all([eventsPromise, run.result])
-    assert.deepEqual(eventTypes, ['message.delta', 'provider.notification', 'turn.completed'])
+    assert.deepEqual(eventTypes, ['run.started', 'message.delta', 'provider.notification', 'run.completed'])
     assert.equal(result.turnId, 'turn-1')
     assert.equal(result.text, 'Hello final')
   } finally {
@@ -166,7 +166,7 @@ test('run() and stream() both delegate to start()', async () => {
       },
     })
 
-    assert.deepEqual(await eventsPromise, ['turn.completed'])
+    assert.deepEqual(await eventsPromise, ['run.started', 'run.completed'])
   } finally {
     CodexCtor.create = originalCreate
     await fakeCodexClient.close()

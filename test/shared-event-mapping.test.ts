@@ -205,14 +205,15 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     const types = events.map(event => event.type)
 
     assert.deepEqual(types, [
-      'provider.notification',
+      'run.started',
+      'status.updated',
       'message.delta',
       'reasoning.delta',
       'approval.tool',
       'user.input',
       'provider.notification',
       'provider.notification',
-      'turn.completed',
+      'run.completed',
     ])
 
     assert.deepEqual(fakeTransport.responses, [
@@ -226,10 +227,11 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
       },
     ])
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, 'turn-codex-1')
     assert.equal(completion.result.provider, 'codex')
     assert.equal(completion.result.sessionId, 'thread-codex-1')
     assert.equal(completion.result.turnId, 'turn-codex-1')
@@ -295,7 +297,7 @@ test('codex start().events normalize to shared AgentEvent contract', async () =>
       },
     })
 
-    assert.deepEqual(await eventsPromise, ['message.delta', 'turn.completed'])
+    assert.deepEqual(await eventsPromise, ['run.started', 'message.delta', 'run.completed'])
     const result = await run.result
     assert.equal(result.turnId, 'turn-codex-start-1')
   } finally {
@@ -397,19 +399,21 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
     const types = events.map(event => event.type)
 
     assert.deepEqual(types, [
+      'run.started',
       'approval.tool',
       'message.delta',
       'user.input',
       'message.completed',
-      'status',
+      'status.updated',
       'provider.notification',
-      'turn.completed',
+      'run.completed',
     ])
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, '1')
     assert.equal(completion.result.provider, 'claude')
     assert.equal(completion.result.sessionId, 'claude-session-1')
     assert.equal(completion.result.status, 'completed')
@@ -476,12 +480,13 @@ test('claude user input errors map to error event and failed completion', async 
 
     assert.ok(types.includes('user.input'))
     assert.ok(types.includes('error'))
-    assert.ok(types.includes('turn.completed'))
+    assert.ok(types.includes('run.completed'))
 
-    const completion = events.find(event => event.type === 'turn.completed')?.payload as
-      | { type: 'turn.completed'; result: Record<string, unknown> }
+    const completion = events.find(event => event.type === 'run.completed')?.payload as
+      | { type: 'run.completed'; runId: string; result: Record<string, unknown> }
       | undefined
     assert.ok(completion)
+    assert.equal(completion.runId, '1')
     assert.equal(completion.result.provider, 'claude')
     assert.equal(completion.result.status, 'failed')
     assert.equal(completion.result.text, 'Claude requested user input, but no onUserInput handler is configured')

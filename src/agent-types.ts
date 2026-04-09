@@ -149,19 +149,20 @@ export type AgentHandlers = {
  * live-vs-replay markers.
  */
 export type AgentEvent =
+  | { provider: AgentProviderId; type: 'run.started'; runId: string; sessionId: string | null; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.delta'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'message.completed'; text: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'reasoning.delta'; text: string; raw?: unknown }
-  | { provider: AgentProviderId; type: 'status'; status: string; raw?: unknown }
+  | { provider: AgentProviderId; type: 'status.updated'; runId: string; status: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'approval.tool'; request: AgentToolApprovalRequest; raw?: unknown }
   | { provider: AgentProviderId; type: 'user.input'; request: AgentUserInputRequest; raw?: unknown }
-  | { provider: AgentProviderId; type: 'turn.completed'; result: AgentRunResult; raw?: unknown }
+  | { provider: AgentProviderId; type: 'run.completed'; runId: string; result: AgentRunResult; raw?: unknown }
   | { provider: AgentProviderId; type: 'provider.notification'; method: string; raw?: unknown }
   | { provider: AgentProviderId; type: 'error'; error: string; raw?: unknown }
 
 /**
  * Normalized final turn result returned by `run()` and attached to
- * `turn.completed` stream events.
+ * `run.completed` stream events.
  *
  * Stable fields:
  * - `provider`, `sessionId`, `turnId`, `status`, `text`, `items`

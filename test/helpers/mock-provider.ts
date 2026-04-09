@@ -56,7 +56,14 @@ class MockSession implements AgentSession {
         [Symbol.asyncIterator]: async function* () {
           yield {
             provider: result.provider,
-            type: 'turn.completed' as const,
+            type: 'run.started' as const,
+            runId: 'turn-test',
+            sessionId: result.sessionId,
+          }
+          yield {
+            provider: result.provider,
+            type: 'run.completed' as const,
+            runId: 'turn-test',
             result,
           }
         },

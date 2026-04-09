@@ -142,8 +142,14 @@ class CodexAgentSession implements AgentSession {
         runId,
         source: {
           [Symbol.asyncIterator]: async function* () {
+            yield {
+              provider: 'codex' as const,
+              type: 'run.started' as const,
+              runId,
+              sessionId: thread.id,
+            }
             for await (const event of stream) {
-              yield codexStreamEventToAgent(event, thread.id)
+              yield codexStreamEventToAgent(event, runId, thread.id)
             }
           },
         },
@@ -815,16 +821,25 @@ function codexRunResultToAgent(result: RunResult, name?: string): AgentRunResult
   }
 }
 
-function codexStreamEventToAgent(event: CodexStreamEvent, sessionIdHint?: string | null): AgentEvent {
+function codexStreamEventToAgent(event: CodexStreamEvent, runId: string, sessionIdHint?: string | null): AgentEvent {
   switch (event.type) {
     case 'message.delta':
       return { provider: 'codex', type: 'message.delta', text: event.text, raw: event }
     case 'reasoning.delta':
       return { provider: 'codex', type: 'reasoning.delta', text: event.text, raw: event }
+    case 'turn.started':
+      return {
+        provider: 'codex',
+        type: 'status.updated',
+        runId,
+        status: String(event.turn.status ?? 'running'),
+        raw: event,
+      }
     case 'turn.completed':
       return {
         provider: 'codex',
-        type: 'turn.completed',
+        type: 'run.completed',
+        runId,
         result: {
           provider: 'codex',
           sessionId: event.threadId,

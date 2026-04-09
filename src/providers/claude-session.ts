@@ -152,7 +152,19 @@ export class ClaudeSession implements AgentSession {
     const context = await this.startTurn(input, options)
     return createAgentRun({
       runId: context.turnId,
-      source: context.events,
+      source: {
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            provider: 'claude' as const,
+            type: 'run.started' as const,
+            runId: context.turnId,
+            sessionId: null,
+          }
+          for await (const event of context.events) {
+            yield event
+          }
+        },
+      },
       interrupt: () => this.interrupt(),
     })
   }
@@ -367,14 +379,20 @@ export class ClaudeSession implements AgentSession {
     if (message.type === 'system') {
       if (message.subtype === 'status') {
         const status = message.status ?? 'idle'
-        current.events.push({ provider: 'claude', type: 'status', status, raw: message })
+        current.events.push({ provider: 'claude', type: 'status.updated', runId: current.turnId, status, raw: message })
         if (message.permissionMode) {
           this.currentPermissionMode = message.permissionMode
         }
         return
       }
       if (message.subtype === 'session_state_changed') {
-        current.events.push({ provider: 'claude', type: 'status', status: message.state, raw: message })
+        current.events.push({
+          provider: 'claude',
+          type: 'status.updated',
+          runId: current.turnId,
+          status: message.state,
+          raw: message,
+        })
         return
       }
       current.events.push({
@@ -395,7 +413,7 @@ export class ClaudeSession implements AgentSession {
         this.resumeState,
         current.forcedFailureReason,
       )
-      current.events.push({ provider: 'claude', type: 'turn.completed', result, raw: message })
+      current.events.push({ provider: 'claude', type: 'run.completed', runId: current.turnId, result, raw: message })
       current.done.resolve(result)
       current.events.end()
       this.turns.shift()
@@ -405,7 +423,8 @@ export class ClaudeSession implements AgentSession {
     if (message.type === 'auth_status') {
       current.events.push({
         provider: 'claude',
-        type: 'status',
+        type: 'status.updated',
+        runId: current.turnId,
         status: message.isAuthenticating ? 'authenticating' : 'authenticated',
         raw: message,
       })

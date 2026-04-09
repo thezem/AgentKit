@@ -38,7 +38,7 @@ async function pumpAgentRun(
   try {
     for await (const event of source) {
       events.push(event)
-      if (event.type === 'turn.completed') {
+      if (event.type === 'run.completed') {
         sawTerminalResult = true
         result.resolve(event.result)
         settle()

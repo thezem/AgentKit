@@ -94,13 +94,15 @@ class FixtureSession implements AgentSession {
     }
 
     const events: AgentEvent[] = [
-      { provider, type: 'status', status: 'running' },
+      { provider, type: 'run.started', runId: turnId, sessionId: this.id },
+      { provider, type: 'status.updated', runId: turnId, status: 'running' },
       { provider, type: 'approval.tool', request },
       { provider, type: 'user.input', request: userRequest },
       { provider, type: 'message.delta', text: `approval=${approval};answer=${answerText}` },
       {
         provider,
-        type: 'turn.completed',
+        type: 'run.completed',
+        runId: turnId,
         result,
       },
     ]
