@@ -1,4 +1,4 @@
-import { createCodex } from '../src/index.ts'
+import { createCodex } from '../src/compat/codex.ts'
 
 const codex = await createCodex({
   defaults: {

@@ -34,10 +34,16 @@ test('build emits publishable runtime and type output under dist', () => {
 
   assert.equal(existsSync(path.join(distDir, 'index.js')), true)
   assert.equal(existsSync(path.join(distDir, 'index.d.ts')), true)
+  assert.equal(existsSync(path.join(distDir, 'compat', 'codex.js')), true)
+  assert.equal(existsSync(path.join(distDir, 'compat', 'codex.d.ts')), true)
 
   const entrypoint = readFileSync(path.join(distDir, 'index.js'), 'utf8')
-  assert.match(entrypoint, /\.\/codex-client\.js/)
+  assert.doesNotMatch(entrypoint, /\.\/codex-client\.js/)
   assert.doesNotMatch(entrypoint, /\.\/codex-client\.ts/)
+
+  const compatEntrypoint = readFileSync(path.join(distDir, 'compat', 'codex.js'), 'utf8')
+  assert.match(compatEntrypoint, /\.\.\/codex-client\.js/)
+  assert.doesNotMatch(compatEntrypoint, /\.\.\/codex-client\.ts/)
 })
 
 test('package metadata points consumers at dist output', () => {
@@ -51,21 +57,19 @@ test('package metadata points consumers at dist output', () => {
       types: './dist/index.d.ts',
       import: './dist/index.js',
     },
+    './compat/codex': {
+      types: './dist/compat/codex.d.ts',
+      import: './dist/compat/codex.js',
+    },
   })
   assert.ok(typeof pkg.scripts === 'object' && pkg.scripts !== null)
   assert.equal(scripts.build, 'tsc -p tsconfig.build.json')
-  assert.equal(
-    scripts['example:agent:t3code'],
-    'node --experimental-strip-types examples/agent-t3code.ts',
-  )
+  assert.equal(scripts['example:agent:t3code'], 'node --experimental-strip-types examples/agent-t3code.ts')
   assert.equal(
     scripts['example:agent:t3code:ask'],
     'node --experimental-strip-types examples/agent-t3code-ask.ts',
   )
-  assert.equal(
-    scripts.prepublishOnly,
-    'npm run build',
-  )
+  assert.equal(scripts.prepublishOnly, 'npm run build')
 })
 
 test('npm pack publishes dist output and excludes source-only directories', () => {
@@ -87,6 +91,8 @@ test('npm pack publishes dist output and excludes source-only directories', () =
 
     assert.ok(packedFiles.includes('dist/index.js'))
     assert.ok(packedFiles.includes('dist/index.d.ts'))
+    assert.ok(packedFiles.includes('dist/compat/codex.js'))
+    assert.ok(packedFiles.includes('dist/compat/codex.d.ts'))
     assert.equal(packedFiles.some((file) => file.startsWith('src/')), false)
     assert.equal(packedFiles.some((file) => file.startsWith('test/')), false)
     assert.equal(packedFiles.some((file) => file.startsWith('docs/')), false)

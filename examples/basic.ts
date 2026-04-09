@@ -1,19 +1,24 @@
-import { createCodex } from '../src/index.ts'
+import { createAgent } from '../src/index.ts'
 
 console.log('Starting agentkit basic example...')
 
-const codex = await createCodex({
+const agent = await createAgent({
+  provider: 'codex',
   defaults: {
     cwd: process.cwd(),
-    sandboxMode: 'workspace-write',
-    approvalPolicy: 'on-request',
+  },
+  codex: {
+    defaults: {
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'on-request',
+    },
   },
 })
 
 console.log('Preparing runtime account state if needed...')
-await codex.auth.ensureLoggedIn()
+await agent.asCodex()?.auth.ensureLoggedIn()
 
-const session = codex.session('basic-demo')
+const session = agent.session('basic-demo')
 console.log('Starting session...')
 const stream = await session.stream('tell me another joke about programmers')
 console.log('Waiting for Codex response...')
@@ -25,4 +30,5 @@ for await (const event of stream) {
 
 console.log()
 console.log('Done.')
-await codex.close()
+await session.close()
+await agent.close()
