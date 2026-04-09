@@ -41,8 +41,20 @@ test('safety.confirmDangerous respects allowReadOnly, allowFileEdits, and allowC
   assert.ok(handlers.onToolApproval)
 
   assert.equal(await handlers.onToolApproval!(createRequest('read_only')), 'allow')
+  assert.equal(await handlers.onToolApproval!(createRequest('read_file')), 'allow')
   assert.equal(await handlers.onToolApproval!(createRequest('edit_file')), 'deny')
   assert.equal(await handlers.onToolApproval!(createRequest('terminal_command')), 'allow')
+})
+
+test('safety.confirmDangerous treats approval.file as a file edit while keeping read_file read-only', async () => {
+  const handlers = safety.confirmDangerous({
+    allowReadOnly: true,
+    allowFileEdits: false,
+  })
+  assert.ok(handlers.onToolApproval)
+
+  assert.equal(await handlers.onToolApproval!(createRequest('approval.file')), 'deny')
+  assert.equal(await handlers.onToolApproval!(createRequest('read_file')), 'allow')
 })
 
 test('safety.confirmDangerous denies unknown approval kinds conservatively', async () => {

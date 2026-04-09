@@ -49,7 +49,11 @@ export async function createSession(options: CreateSessionOptions): Promise<Agen
   try {
     session = await client.openSession(sessionOptions)
   } catch (error) {
-    await closePrivatelyOwnedClient(client)
+    try {
+      await closePrivatelyOwnedClient(client)
+    } catch {
+      // Preserve the original openSession failure if best-effort cleanup also fails.
+    }
     throw error
   }
 
@@ -214,6 +218,9 @@ function wrapSessionWithOwnedClient(session: AgentSession, client: AgentClient):
         throw sessionCloseError
       }
     },
+    writable: true,
+    configurable: true,
+    enumerable: false,
   })
   return session
 }

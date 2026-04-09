@@ -2,7 +2,7 @@ import type { AgentHandlers, AgentToolApprovalRequest, SafetyConfirmDangerousOpt
 
 type ApprovalCategory = 'readOnly' | 'fileEdits' | 'commands' | 'unknown'
 
-const FILE_EDIT_PATTERNS = ['edit', 'write', 'patch', 'apply', 'file']
+const FILE_EDIT_PATTERNS = ['edit', 'write', 'patch', 'apply']
 const COMMAND_PATTERNS = ['command', 'shell', 'exec', 'run', 'terminal', 'process']
 const READ_ONLY_PATTERNS = ['read', 'view', 'list', 'inspect', 'search', 'find', 'grep', 'query']
 
@@ -43,8 +43,9 @@ function classifyApprovalKind(request: AgentToolApprovalRequest): ApprovalCatego
   const normalizedKind = request.kind.trim().toLowerCase().replace(/[\s.-]+/g, '_')
 
   if (matchesAny(normalizedKind, COMMAND_PATTERNS)) return 'commands'
-  if (matchesAny(normalizedKind, FILE_EDIT_PATTERNS)) return 'fileEdits'
   if (matchesAny(normalizedKind, READ_ONLY_PATTERNS)) return 'readOnly'
+  if (normalizedKind === 'approval_file') return 'fileEdits'
+  if (matchesAny(normalizedKind, FILE_EDIT_PATTERNS)) return 'fileEdits'
   return 'unknown'
 }
 

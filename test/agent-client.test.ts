@@ -383,6 +383,69 @@ test('createSession closes the private client if openSession fails', async () =>
   }
 })
 
+test('createSession preserves the original openSession error if cleanup also fails', async () => {
+  const snapshot = snapshotRegistry()
+  const openError = new Error('open failed')
+  const closeError = new Error('close failed')
+  const calls: string[] = []
+
+  registerProviders([
+    {
+      id: 'codex',
+      create: () => ({
+        id: 'codex',
+        async getInventory() {
+          return {
+            provider: 'codex',
+            installed: true,
+            runnable: true,
+            authenticated: true,
+            degraded: false,
+            status: 'authenticated',
+            account: { id: 'codex' },
+          }
+        },
+        async isAvailable() {
+          return true
+        },
+        async getAvailability() {
+          return {
+            provider: 'codex',
+            available: true,
+            authenticated: true,
+            account: { id: 'codex' },
+          }
+        },
+        async createClient() {
+          calls.push('createClient')
+          return {
+            ...createMockAgentClient('codex'),
+            async openSession() {
+              calls.push('openSession')
+              throw openError
+            },
+            async close() {
+              calls.push('closeClient')
+              throw closeError
+            },
+          }
+        },
+      }),
+    },
+    createFactory('claude'),
+  ])
+
+  try {
+    await assert.rejects(createSession({ provider: 'codex' }), error => {
+      assert.equal(error, openError)
+      return true
+    })
+    assert.deepEqual(calls, ['createClient', 'openSession', 'closeClient'])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
 test('createSession close rejects with the original session close error and still closes the private client', async () => {
   const snapshot = snapshotRegistry()
   const calls: string[] = []
@@ -418,6 +481,26 @@ test('createSession close rejects with the original session close error and stil
       return true
     })
     assert.deepEqual(calls, ['closeSession', 'closeClient'])
+  } finally {
+    restoreRegistry(snapshot)
+  }
+})
+
+test('createSession keeps the wrapped close method writable and configurable', async () => {
+  const snapshot = snapshotRegistry()
+
+  registerProviders([createFactory('codex'), createFactory('claude')])
+
+  try {
+    const session = await createSession({ provider: 'codex' })
+    const descriptor = Object.getOwnPropertyDescriptor(session, 'close')
+
+    assert.ok(descriptor)
+    assert.equal(descriptor.enumerable, false)
+    assert.equal(descriptor.writable, true)
+    assert.equal(descriptor.configurable, true)
+
+    await session.close()
   } finally {
     restoreRegistry(snapshot)
   }
