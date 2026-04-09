@@ -291,7 +291,7 @@ npm test
 
 The shared API is intentionally a runtime substrate, not an orchestration framework.
 
-- Current normative behavior and boundaries are documented in [docs/RUNTIME_CONTRACT.md](https://github.com/thezem/agentkit/blob/main/docs/RUNTIME_CONTRACT.md).
+- Current normative behavior and boundaries are documented in [docs/RUNTIME_CONTRACT.md](https://github.com/thezem/AgentKit/blob/main/docs/RUNTIME_CONTRACT.md).
 - Persist `AgentSessionHandle` if you need cross-process resume.
 - Treat `agent.session(name)` as local cache convenience only.
 - Treat `raw`, `resumeState`, and provider escape hatches as provider-specific data.

@@ -53,11 +53,11 @@ test('package metadata points consumers at dist output', () => {
   assert.equal(pkg.license, 'MIT')
   assert.deepEqual(pkg.repository, {
     type: 'git',
-    url: 'git+https://github.com/thezem/agentkit.git',
+    url: 'git+https://github.com/thezem/AgentKit.git',
   })
-  assert.equal(pkg.homepage, 'https://github.com/thezem/agentkit#readme')
+  assert.equal(pkg.homepage, 'https://github.com/thezem/AgentKit#readme')
   assert.deepEqual(pkg.bugs, {
-    url: 'https://github.com/thezem/agentkit/issues',
+    url: 'https://github.com/thezem/AgentKit/issues',
   })
   assert.equal(pkg.main, './dist/index.js')
   assert.equal(pkg.types, './dist/index.d.ts')

@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/thezem/agentkit.git"
+    "url": "git+https://github.com/thezem/AgentKit.git"
   },
-  "homepage": "https://github.com/thezem/agentkit#readme",
+  "homepage": "https://github.com/thezem/AgentKit#readme",
   "bugs": {
-    "url": "https://github.com/thezem/agentkit/issues"
+    "url": "https://github.com/thezem/AgentKit/issues"
   },
   "keywords": [
     "ai",
