@@ -155,3 +155,11 @@ Short version for tweets / README hero:
 ---If you're working from any todo file, you mark check tasks in the file as you work. create a branch from 'main' first before proceeding, plan your moves and go wild.
 
 Small commits are appreciated
+
+---
+
+How to plan:
+
+- High detailed description of the plan at the beginning
+- Your plan should be highly technical with exact files to touch and a brief description of the changes to be made in each file.
+- The plan should be broken down into small, manageable steps that can be completed in a reasonable timeframe.
