@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { CodexClient } from '../codex-client.ts'
 import { ProviderProbeTimeoutError } from '../errors.ts'
+import { normalizeSessionHandle, validateSessionHandle } from '../handle.ts'
 import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
 import type {
@@ -260,16 +261,17 @@ class CodexAgentClient implements AgentClient {
   }
 
   async resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession> {
-    if (handle.provider !== 'codex') {
-      throw new Error(`Cannot resume provider=${handle.provider} with codex client`)
+    const validated = validateSessionHandle(handle)
+    if (validated.provider !== 'codex') {
+      throw new Error(`Cannot resume provider=${validated.provider} with codex client`)
     }
 
-    const resumeKey = handle.resumeKey ?? handle.sessionId
+    const resumeKey = validated.state?.resumeKey ?? validated.sessionId
     if (!resumeKey) {
       throw new Error('Codex resume handle requires resumeKey or sessionId')
     }
 
-    const name = options?.name ?? handle.name ?? this.newSessionName('codex-resume')
+    const name = options?.name ?? validated.name ?? this.newSessionName('codex-resume')
     const merged = mergeAgentSessionOptions(this.defaults, options)
     const thread = await this.codexClient.threads.resume(resumeKey, toCodexThreadOptions(merged))
 
@@ -1000,12 +1002,12 @@ function resolveCommandPath(command: string): string | null {
 }
 
 function codexHandle(sessionId: string | null, name?: string): AgentSessionHandle {
-  return {
+  return normalizeSessionHandle({
     provider: 'codex',
     sessionId,
     ...(name ? { name } : {}),
     ...(sessionId ? { resumeKey: sessionId } : {}),
-  }
+  })
 }
 
 function codexCapabilities(): AgentCapabilities {

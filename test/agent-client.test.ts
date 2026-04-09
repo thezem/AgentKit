@@ -191,8 +191,9 @@ test('persisted handle survives local cache eviction and can resume the same cod
     })
 
     const result = await resultPromise
+    assert.equal(result.handle?.version, 1)
     assert.equal(result.handle?.provider, 'codex')
-    assert.equal(result.handle?.resumeKey, 'thread-1')
+    assert.equal(result.handle?.state?.resumeKey, 'thread-1')
     assert.equal(result.handle?.sessionId, 'thread-1')
 
     agent.clearSession('persist-me')
@@ -202,7 +203,7 @@ test('persisted handle survives local cache eviction and can resume the same cod
     assert.equal(recached.getHandle(), null)
 
     const resumed = await agent.resumeSession(result.handle as NonNullable<typeof result.handle>, { name: 'resumed' })
-    assert.equal(resumed.getHandle()?.resumeKey, 'thread-1')
+    assert.equal(resumed.getHandle()?.state?.resumeKey, 'thread-1')
     assert.equal(resumed.getSessionInfo().sessionId, 'thread-1')
 
     assert.deepEqual(

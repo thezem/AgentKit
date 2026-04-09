@@ -14,6 +14,7 @@ import type {
   ProviderInventoryOptions,
 } from '../agent-types.ts'
 import { mergeAgentSessionOptions } from '../agent-session.ts'
+import { validateSessionHandle } from '../handle.ts'
 import { claudeCapabilities, getClaudeAvailability, getClaudeInventory, isClaudeAvailable } from './claude-detection.ts'
 import { listClaudeModels } from './claude-models.ts'
 import { ClaudeSession } from './claude-session.ts'
@@ -87,23 +88,24 @@ class ClaudeAgentClient implements AgentClient {
   }
 
   async resumeSession(handle: AgentSessionHandle, options?: AgentResumeSessionOptions): Promise<AgentSession> {
-    if (handle.provider !== 'claude') {
-      throw new Error(`Cannot resume provider=${handle.provider} with claude client`)
+    const validated = validateSessionHandle(handle)
+    if (validated.provider !== 'claude') {
+      throw new Error(`Cannot resume provider=${validated.provider} with claude client`)
     }
 
-    const resume = handle.resumeKey ?? handle.sessionId ?? undefined
+    const resume = validated.state?.resumeKey ?? validated.sessionId ?? undefined
     if (!resume) {
       throw new Error('Claude resume handle requires resumeKey or sessionId')
     }
 
-    const name = options?.name ?? handle.name ?? this.newSessionName('claude-resume')
+    const name = options?.name ?? validated.name ?? this.newSessionName('claude-resume')
     const merged = mergeAgentSessionOptions(this.defaults, options)
     const session = new ClaudeSession(
       name,
       {
         ...(this.createOptions ?? {}),
         resume,
-        ...(handle.resumeAt ? { resumeSessionAt: handle.resumeAt } : {}),
+        ...(validated.state?.resumeAt ? { resumeSessionAt: validated.state.resumeAt } : {}),
       },
       merged,
     )

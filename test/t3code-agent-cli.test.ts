@@ -27,7 +27,7 @@ test('default interview prompt asks whether agentkit replaces direct sdk integra
 
 test('resolveT3codeAgentCliConfig prefers explicit handle and explicit prompt', () => {
   const config = resolveT3codeAgentCliConfig({
-    args: ['--handle', '{"provider":"codex","sessionId":"thread-1"}', '--prompt', 'Ask the owner what hurts.'],
+    args: ['--handle', '{"version":1,"provider":"codex","sessionId":"thread-1","state":{"resumeKey":"thread-1"}}', '--prompt', 'Ask the owner what hurts.'],
     stdinText: '',
     env: {},
   })
@@ -35,7 +35,7 @@ test('resolveT3codeAgentCliConfig prefers explicit handle and explicit prompt', 
   assert.equal(config.agentName, T3CODE_AGENT_NAME)
   assert.equal(config.cwd, T3CODE_TARGET_REPO)
   assert.equal(config.model, T3CODE_MODEL)
-  assert.equal(config.handleJson, '{"provider":"codex","sessionId":"thread-1"}')
+  assert.equal(config.handleJson, '{"version":1,"provider":"codex","sessionId":"thread-1","state":{"resumeKey":"thread-1"}}')
   assert.equal(config.prompt, 'Ask the owner what hurts.')
 })
 
@@ -44,17 +44,17 @@ test('resolveT3codeAgentCliConfig uses stdin prompt and env handle when args omi
     args: [],
     stdinText: 'What would make you switch?',
     env: {
-      CODEXKIT_AGENT_HANDLE: '{"provider":"codex","sessionId":"thread-2"}',
+      CODEXKIT_AGENT_HANDLE: '{"version":1,"provider":"codex","sessionId":"thread-2","state":{"resumeKey":"thread-2"}}',
     },
   })
 
-  assert.equal(config.handleJson, '{"provider":"codex","sessionId":"thread-2"}')
+  assert.equal(config.handleJson, '{"version":1,"provider":"codex","sessionId":"thread-2","state":{"resumeKey":"thread-2"}}')
   assert.equal(config.prompt, 'What would make you switch?')
 })
 
 test('resolveT3codeAgentCliConfig falls back to the prepared interview prompt', () => {
   const config = resolveT3codeAgentCliConfig({
-    args: ['--handle', '{"provider":"codex","sessionId":"thread-3"}'],
+    args: ['--handle', '{"version":1,"provider":"codex","sessionId":"thread-3","state":{"resumeKey":"thread-3"}}'],
     stdinText: '',
     env: {},
   })

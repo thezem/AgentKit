@@ -237,7 +237,8 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
     assert.equal(completion.result.text, 'Hello world')
     assert.ok(Array.isArray(completion.result.items))
     assert.equal((completion.result.items as Array<{ type?: string }>)[0]?.type, 'agentMessage')
-    assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'thread-codex-1')
+    assert.equal((completion.result.handle as { version?: number }).version, 1)
+    assert.equal((completion.result.handle as { state?: { resumeKey?: string } }).state?.resumeKey, 'thread-codex-1')
   } finally {
     CodexCtor.create = originalCreate
     await fakeCodexClient.close()
@@ -355,8 +356,9 @@ test('claude stream events normalize to shared AgentEvent contract', async () =>
     assert.equal(completion.result.status, 'completed')
     assert.equal(completion.result.text, 'Hello final')
     assert.ok(Array.isArray(completion.result.items))
-    assert.equal((completion.result.handle as { resumeKey?: string }).resumeKey, 'claude-session-1')
-    assert.equal((completion.result.handle as { resumeAt?: string }).resumeAt, 'assistant-uuid-1')
+    assert.equal((completion.result.handle as { version?: number }).version, 1)
+    assert.equal((completion.result.handle as { state?: { resumeKey?: string } }).state?.resumeKey, 'claude-session-1')
+    assert.equal((completion.result.handle as { state?: { resumeAt?: string } }).state?.resumeAt, 'assistant-uuid-1')
     assert.equal((completion.result.resumeState as { resumeSessionAt?: string }).resumeSessionAt, 'assistant-uuid-1')
 
     await session.close()

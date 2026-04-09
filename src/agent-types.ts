@@ -8,24 +8,27 @@ export type AgentProviderId = 'codex' | 'claude'
  * Provider-neutral resume payload.
  *
  * Stable fields:
- * - `provider`, `sessionId`, and `name`
- * - `resumeKey` and `resumeAt` as cross-provider slots
+ * - `version`, `provider`, `sessionId`, and `name`
+ * - `state.resumeKey` and `state.resumeAt` as cross-provider slots
  *
  * Escape hatches:
- * - `resumeKey` and `resumeAt` values remain provider-specific
- * - `raw` contains provider-native resume metadata and should be treated as opaque
+ * - `state.resumeKey` and `state.resumeAt` values remain provider-specific
+ * - `state.raw` contains provider-native resume metadata and should be treated as opaque
  *
  * Persist this handle if you need to resume a session across process restarts.
  * Local `agent.session(name)` cache entries are not sufficient for cross-process
  * resume without this handle.
  */
 export type AgentSessionHandle = {
+  version: 1
   provider: AgentProviderId
   sessionId: string | null
   name?: string
-  resumeKey?: string
-  resumeAt?: string
-  raw?: unknown
+  state?: {
+    resumeKey?: string
+    resumeAt?: string
+    raw?: unknown
+  }
 }
 
 export type AgentSessionSummary = {

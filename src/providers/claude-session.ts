@@ -14,6 +14,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { AsyncQueue, Deferred } from '../utils.ts'
 import { mergeAgentRunOptions } from '../agent-session.ts'
+import { normalizeSessionHandle } from '../handle.ts'
 import type {
   AgentEvent,
   AgentHandlers,
@@ -107,14 +108,14 @@ export class ClaudeSession implements AgentSession {
     const resumeKey = this.resumeState?.resume ?? this.sessionId ?? undefined
     const sessionId = this.sessionId ?? this.resumeState?.sessionId ?? null
     if (!resumeKey && !sessionId) return null
-    return {
+    return normalizeSessionHandle({
       provider: 'claude',
       sessionId,
-      name: this.name,
+      ...(this.name ? { name: this.name } : {}),
       ...(resumeKey ? { resumeKey } : {}),
       ...(this.resumeState?.resumeSessionAt ? { resumeAt: this.resumeState.resumeSessionAt } : {}),
       raw: this.resumeState,
-    }
+    })
   }
 
   getSessionInfo(): AgentSessionSummary {
@@ -122,7 +123,7 @@ export class ClaudeSession implements AgentSession {
       provider: 'claude',
       name: this.name,
       sessionId: this.sessionId ?? this.resumeState?.sessionId ?? null,
-      handle: this.getHandle() ?? { provider: 'claude', sessionId: this.sessionId, name: this.name },
+      handle: this.getHandle() ?? normalizeSessionHandle({ provider: 'claude', sessionId: this.sessionId, name: this.name }),
       status: this.closed ? 'closed' : this.turns.length > 0 ? 'active' : 'idle',
       ...(this.currentModel ? { model: this.currentModel } : {}),
       ...(this.sessionCwd ? { cwd: this.sessionCwd } : {}),
@@ -586,12 +587,14 @@ function mapClaudeResultToRunResult(
     ...(resumeState || sessionId
       ? {
           handle: {
-            provider: 'claude',
-            sessionId: sessionId ?? resumeState?.sessionId ?? null,
-            name: sessionName,
-            ...(resumeState?.resume || sessionId ? { resumeKey: resumeState?.resume ?? sessionId ?? undefined } : {}),
-            ...(resumeState?.resumeSessionAt ? { resumeAt: resumeState.resumeSessionAt } : {}),
-            raw: resumeState,
+            ...normalizeSessionHandle({
+              provider: 'claude',
+              sessionId: sessionId ?? resumeState?.sessionId ?? null,
+              ...(sessionName ? { name: sessionName } : {}),
+              ...(resumeState?.resume || sessionId ? { resumeKey: resumeState?.resume ?? sessionId ?? undefined } : {}),
+              ...(resumeState?.resumeSessionAt ? { resumeAt: resumeState.resumeSessionAt } : {}),
+              raw: resumeState,
+            }),
           } as AgentSessionHandle,
         }
       : {}),

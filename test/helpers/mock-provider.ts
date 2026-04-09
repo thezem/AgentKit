@@ -12,9 +12,17 @@ class MockSession implements AgentSession {
 
   getHandle() {
     return {
+      version: 1 as const,
       provider: this.provider,
       sessionId: this.id,
       name: this.name,
+      ...(this.id
+        ? {
+            state: {
+              resumeKey: this.id,
+            },
+          }
+        : {}),
     }
   }
 

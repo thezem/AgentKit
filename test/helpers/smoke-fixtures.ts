@@ -25,10 +25,17 @@ class FixtureSession implements AgentSession {
 
   getHandle(): AgentSessionHandle {
     return {
+      version: 1,
       provider: this.provider,
       sessionId: this.id,
       name: this.name,
-      resumeKey: this.id ?? undefined,
+      ...(this.id
+        ? {
+            state: {
+              resumeKey: this.id,
+            },
+          }
+        : {}),
     }
   }
 
@@ -150,7 +157,7 @@ export class FixtureAgentClient implements AgentClient {
 
   async resumeSession(handle: AgentSessionHandle, options?: { name?: string }): Promise<AgentSession> {
     const name = options?.name ?? handle.name ?? `resume-${++this.seq}`
-    return new FixtureSession(this.provider, name, String(handle.resumeKey ?? handle.sessionId ?? `${name}-id`))
+    return new FixtureSession(this.provider, name, String(handle.state?.resumeKey ?? handle.sessionId ?? `${name}-id`))
   }
 
   clearSession(name: string): void {

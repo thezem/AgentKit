@@ -117,3 +117,31 @@ export class ProviderProbeTimeoutError extends AgentError {
     this.timeoutMs = timeoutMs
   }
 }
+
+/** Thrown when a persisted session handle is malformed or unsupported. */
+export class InvalidHandleError extends AgentError {
+  readonly code = 'INVALID_HANDLE'
+
+  constructor(message: string, options?: ErrorOptions & { provider?: 'codex' | 'claude' }) {
+    super(message, {
+      ...options,
+      retryable: false,
+      ...(options?.provider ? { provider: options.provider } : {}),
+    })
+    this.name = 'InvalidHandleError'
+  }
+}
+
+/** Thrown when a persisted session handle has expired and can no longer be resumed. */
+export class ExpiredHandleError extends AgentError {
+  readonly code = 'EXPIRED_HANDLE'
+
+  constructor(provider?: 'codex' | 'claude', options?: ErrorOptions) {
+    super('Session handle has expired and can no longer be resumed', {
+      ...options,
+      retryable: false,
+      ...(provider ? { provider } : {}),
+    })
+    this.name = 'ExpiredHandleError'
+  }
+}
