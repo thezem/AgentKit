@@ -31,6 +31,7 @@
     "example:agent:t3code:ask": "node --experimental-strip-types examples/agent-t3code-ask.ts",
     "example:lifecycle": "node --experimental-strip-types examples/agent-lifecycle.ts",
     "example:handlers": "node --experimental-strip-types examples/handlers.ts",
+    "example:safe-session": "node --experimental-strip-types examples/safe-session.ts",
     "example:models": "node --experimental-strip-types examples/models.ts",
     "example:skills": "node --experimental-strip-types examples/skills.ts",
     "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",

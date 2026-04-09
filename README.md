@@ -31,22 +31,48 @@ Requirements:
 ## Quick Start
 
 ```ts
-import { createAgent } from '@ouim/agentkit'
+import { createSession } from '@ouim/agentkit'
 
-const agent = await createAgent({
+const session = await createSession({
   provider: 'codex',
   defaults: { cwd: process.cwd() },
+  name: 'demo',
 })
 
-const session = await agent.openSession({ name: 'demo' })
 const result = await session.run('Summarize this repository in 3 bullets')
 
 console.log(result.status)
 console.log(result.handle)
 
 await session.close()
-await agent.close()
 ```
+
+`createSession(...)` is the ergonomic path: it creates a private agent client, opens one session, and automatically closes that private client when you call `session.close()`.
+
+## Safe Hello World
+
+```ts
+import { createSession, safety } from '@ouim/agentkit'
+
+const session = await createSession({
+  provider: 'codex',
+  defaults: { cwd: process.cwd() },
+  name: 'safe-hello',
+})
+
+const result = await session.run('Read this repo and suggest a small cleanup.', {
+  handlers: safety.confirmDangerous({
+    allowReadOnly: true,
+    allowFileEdits: true,
+    allowCommands: false,
+  }),
+})
+
+console.log(result.text)
+await session.close()
+```
+
+`safety` presets are provider-neutral, best-effort handler factories. They classify approval requests by normalized `request.kind` only, default unknown kinds to deny, and leave provider-specific details available in `request.payload`.
 
 ## Runtime Contract
 
@@ -67,6 +93,7 @@ Non-goals today:
 
 ### Lifecycle
 
+- `createSession(options)`
 - `createAgent(options)`
 - `agent.openSession(options?)`
 - `agent.resumeSession(handle, options?)`
@@ -125,6 +152,16 @@ Current event boundary:
 - `run.completed` carries the normalized final `AgentRunResult` for that turn
 - there are no stable event IDs, replay cursors, or live-vs-replay markers yet
 
+## Safety Presets
+
+Use the shared `safety` helper when you want simple approval defaults without introducing a policy engine:
+
+- `safety.readOnly()` denies all approval requests.
+- `safety.acceptEditsOnly()` allows file-edit-like kinds and denies the rest.
+- `safety.confirmDangerous({ allowReadOnly, allowFileEdits, allowCommands })` allows only the explicitly enabled categories and denies unknown kinds conservatively.
+
+These presets are intentionally thin convenience helpers over `AgentHandlers`. They do not normalize provider-specific payloads beyond the shared `request.kind` string.
+
 ## Handlers (Approvals and User Input)
 
 Handlers are passed through `createAgent(...).openSession(...).stream(...)` (or `run(...)`) via `options.handlers`.
@@ -154,6 +191,28 @@ for await (const event of stream) {
 ```
 
 See runnable example: `npm run example:handlers`.
+
+## Lower-Level Lifecycle
+
+If you want explicit client ownership, local named-session caching, or multiple sessions on one runtime client, use `createAgent(...)` directly:
+
+```ts
+import { createAgent } from '@ouim/agentkit'
+
+const agent = await createAgent({
+  provider: 'codex',
+  defaults: { cwd: process.cwd() },
+})
+
+const session = await agent.openSession({ name: 'demo' })
+const result = await session.run('Summarize this repository in 3 bullets')
+
+console.log(result.status)
+console.log(result.handle)
+
+await session.close()
+await agent.close()
+```
 
 ## Provider Escape Hatches
 
@@ -191,6 +250,7 @@ All README-listed examples exist and map to npm scripts:
 - `npm run example:agent:claude` -> `examples/agent-claude.ts`
 - `npm run example:lifecycle` -> `examples/agent-lifecycle.ts`
 - `npm run example:handlers` -> `examples/handlers.ts`
+- `npm run example:safe-session` -> `examples/safe-session.ts`
 - `npm run example:inventory` -> `examples/provider-inventory.ts`
 - `npm run example:models` -> `examples/models.ts`
 - `npm run example:skills` -> `examples/skills.ts`
