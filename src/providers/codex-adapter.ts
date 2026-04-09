@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { CodexClient } from '../codex-client.ts'
-import { ProviderProbeTimeoutError } from '../errors.ts'
+import { NoActiveRunError, ProviderProbeTimeoutError, RunInProgressError, SessionClosedError } from '../errors.ts'
 import { normalizeSessionHandle, validateSessionHandle } from '../handle.ts'
 import type { CodexThread } from '../thread.ts'
 import { mergeAgentRunOptions, mergeAgentSessionOptions } from '../agent-session.ts'
@@ -62,6 +62,10 @@ type CodexSessionInit = {
   threadId?: string
 }
 
+type ActiveRunState = {
+  interrupt: () => Promise<void>
+}
+
 /**
  * Options for writing Codex skill configuration on disk.
  */
@@ -85,6 +89,7 @@ class CodexAgentSession implements AgentSession {
   private threadId: string | null = null
   private threadRef: CodexThread | null = null
   private closed = false
+  private activeRun: ActiveRunState | null = null
 
   constructor(
     codexClient: CodexClient,
@@ -128,62 +133,75 @@ class CodexAgentSession implements AgentSession {
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
-    this.assertOpen()
+    this.assertCanStartRun()
     const merged = mergeAgentRunOptions(this.options, options)
+    const release = this.claimActiveRun(() => this.interruptUnderlyingRun())
 
-    if (this.codexSessionName) {
-      const session = this.codexClient.session(this.codexSessionName)
-      const result = await session.run(asCodexInput(input), toCodexRunOptions(merged))
-      this.threadId = session.id
+    try {
+      if (this.codexSessionName) {
+        const session = this.codexClient.session(this.codexSessionName)
+        const result = await session.run(asCodexInput(input), toCodexRunOptions(merged))
+        this.threadId = session.id
+        return codexRunResultToAgent(result, this.name)
+      }
+
+      const thread = await this.ensureThread()
+      const result = await thread.run(asCodexInput(input), toCodexRunOptions(merged))
+      this.threadId = thread.id
       return codexRunResultToAgent(result, this.name)
+    } finally {
+      release()
     }
-
-    const thread = await this.ensureThread()
-    const result = await thread.run(asCodexInput(input), toCodexRunOptions(merged))
-    this.threadId = thread.id
-    return codexRunResultToAgent(result, this.name)
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
-    this.assertOpen()
+    this.assertCanStartRun()
     const merged = mergeAgentRunOptions(this.options, options)
+    const release = this.claimActiveRun(() => this.interruptUnderlyingRun())
 
-    if (this.codexSessionName) {
-      const session = this.codexClient.session(this.codexSessionName)
-      const stream = await session.stream(asCodexInput(input), toCodexRunOptions(merged))
-      this.threadId = session.id
+    try {
+      if (this.codexSessionName) {
+        const session = this.codexClient.session(this.codexSessionName)
+        const stream = await session.stream(asCodexInput(input), toCodexRunOptions(merged))
+        this.threadId = session.id
+        return {
+          [Symbol.asyncIterator]: async function* () {
+            try {
+              for await (const event of stream) {
+                yield codexStreamEventToAgent(event, session.id)
+              }
+            } finally {
+              release()
+            }
+          },
+        }
+      }
+
+      const thread = await this.ensureThread()
+      const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
       return {
         [Symbol.asyncIterator]: async function* () {
-          for await (const event of stream) {
-            yield codexStreamEventToAgent(event, session.id)
+          try {
+            for await (const event of stream) {
+              yield codexStreamEventToAgent(event, thread.id)
+            }
+          } finally {
+            release()
           }
         },
       }
-    }
-
-    const thread = await this.ensureThread()
-    const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        for await (const event of stream) {
-          yield codexStreamEventToAgent(event, thread.id)
-        }
-      },
+    } catch (error) {
+      release()
+      throw error
     }
   }
 
   async interrupt(): Promise<void> {
     this.assertOpen()
-    if (this.codexSessionName) {
-      await this.codexClient.session(this.codexSessionName).interrupt()
-      return
+    if (!this.activeRun) {
+      throw new NoActiveRunError('codex', this.name)
     }
-
-    const thread = this.threadRef
-    if (!thread) {
-      throw new Error(`Session "${this.name}" has no active Codex thread to interrupt`)
-    }
-    await thread.interrupt()
+    await this.activeRun.interrupt()
   }
 
   async close(): Promise<void> {
@@ -213,8 +231,37 @@ class CodexAgentSession implements AgentSession {
 
   private assertOpen(): void {
     if (this.closed) {
-      throw new Error(`Session "${this.name}" is closed`)
+      throw new SessionClosedError('codex', this.name)
     }
+  }
+
+  private assertCanStartRun(): void {
+    this.assertOpen()
+    if (this.activeRun) {
+      throw new RunInProgressError('codex', this.name)
+    }
+  }
+
+  private claimActiveRun(interrupt: () => Promise<void>): () => void {
+    const state: ActiveRunState = { interrupt }
+    this.activeRun = state
+    return () => {
+      if (this.activeRun === state) {
+        this.activeRun = null
+      }
+    }
+  }
+
+  private async interruptUnderlyingRun(): Promise<void> {
+    if (this.codexSessionName) {
+      await this.codexClient.session(this.codexSessionName).interrupt()
+      return
+    }
+
+    if (!this.threadRef) {
+      throw new NoActiveRunError('codex', this.name)
+    }
+    await this.threadRef.interrupt()
   }
 }
 

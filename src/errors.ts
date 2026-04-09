@@ -145,3 +145,58 @@ export class ExpiredHandleError extends AgentError {
     this.name = 'ExpiredHandleError'
   }
 }
+
+/** Thrown when a caller attempts to start a second run on the same session. */
+export class RunInProgressError extends AgentError {
+  readonly code = 'RUN_IN_PROGRESS'
+
+  constructor(provider: 'codex' | 'claude', sessionName?: string, options?: ErrorOptions) {
+    super(
+      sessionName
+        ? `Session "${sessionName}" already has an active run in progress`
+        : 'An active run is already in progress',
+      {
+        ...options,
+        retryable: true,
+        provider,
+      },
+    )
+    this.name = 'RunInProgressError'
+  }
+}
+
+/** Thrown when interruption is requested but no session run is active. */
+export class NoActiveRunError extends AgentError {
+  readonly code = 'NO_ACTIVE_RUN'
+
+  constructor(provider: 'codex' | 'claude', sessionName?: string, options?: ErrorOptions) {
+    super(
+      sessionName
+        ? `Session "${sessionName}" has no active run`
+        : 'No active run is available for this session',
+      {
+        ...options,
+        retryable: false,
+        provider,
+      },
+    )
+    this.name = 'NoActiveRunError'
+  }
+}
+
+/** Thrown when a session wrapper has been closed and can no longer be used. */
+export class SessionClosedError extends AgentError {
+  readonly code = 'SESSION_CLOSED'
+
+  constructor(provider: 'codex' | 'claude', sessionName?: string, options?: ErrorOptions) {
+    super(
+      sessionName ? `Session "${sessionName}" is closed` : 'Session is closed',
+      {
+        ...options,
+        retryable: false,
+        provider,
+      },
+    )
+    this.name = 'SessionClosedError'
+  }
+}

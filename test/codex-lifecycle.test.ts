@@ -226,6 +226,9 @@ test('concurrent run() on same thread rejects with ConcurrentTurnError', async (
 
   await assert.rejects(client.runThread(thread, 'second prompt'), error => {
     assert.ok(error instanceof ConcurrentTurnError)
+    assert.equal(error.code, 'CONCURRENT_TURN')
+    assert.equal(error.retryable, true)
+    assert.equal(error.provider, 'codex')
     return true
   })
 

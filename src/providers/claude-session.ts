@@ -1,4 +1,9 @@
 import {
+  NoActiveRunError,
+  RunInProgressError,
+  SessionClosedError,
+} from '../errors.ts'
+import {
   query,
   type ElicitationRequest,
   type ElicitationResult,
@@ -148,9 +153,12 @@ export class ClaudeSession implements AgentSession {
   }
 
   async interrupt(): Promise<void> {
+    if (this.closed) {
+      throw this.closeReason ?? new SessionClosedError('claude', this.name)
+    }
     const current = this.turns[0]
     if (!current) {
-      throw new Error('No active Claude turn to interrupt')
+      throw new NoActiveRunError('claude', this.name)
     }
     current.interrupted = true
     await this.runtime.interrupt()
@@ -159,7 +167,7 @@ export class ClaudeSession implements AgentSession {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    this.closeReason = new Error('Claude session closed')
+    this.closeReason = new SessionClosedError('claude', this.name)
     this.promptQueue.close()
     this.runtime.close()
     this.failPendingTurns(this.closeReason)
@@ -185,7 +193,11 @@ export class ClaudeSession implements AgentSession {
 
   private async startTurn(input: AgentInput, options?: AgentRunOptions): Promise<ClaudeTurnContext> {
     if (this.closed) {
-      throw this.closeReason ?? new Error('Claude session is closed')
+      throw this.closeReason ?? new SessionClosedError('claude', this.name)
+    }
+
+    if (this.turns.length > 0) {
+      throw new RunInProgressError('claude', this.name)
     }
 
     const merged = mergeAgentRunOptions(this.baseOptions, options)
