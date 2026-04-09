@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { createAgentRun } from '../agent-run.ts'
 import { CodexClient } from '../codex-client.ts'
 import { NoActiveRunError, ProviderProbeTimeoutError, RunInProgressError, SessionClosedError } from '../errors.ts'
 import { normalizeSessionHandle, validateSessionHandle } from '../handle.ts'
@@ -57,7 +58,6 @@ import type { InternalAgentProvider, ProviderAvailabilityOptions } from './provi
 type CodexAgentClientOptions = Extract<CreateAgentOptions, { provider: 'codex' }>
 
 type CodexSessionInit = {
-  codexSessionName?: string
   thread?: CodexThread
   threadId?: string
 }
@@ -84,7 +84,6 @@ class CodexAgentSession implements AgentSession {
   private readonly options?: AgentSessionOptions
   private readonly codexClient: CodexClient
   private readonly onClosed: (name: string, session: CodexAgentSession) => void
-  private readonly codexSessionName?: string
 
   private threadId: string | null = null
   private threadRef: CodexThread | null = null
@@ -102,7 +101,6 @@ class CodexAgentSession implements AgentSession {
     this.name = name
     this.options = options
     this.onClosed = onClosed
-    this.codexSessionName = init?.codexSessionName
     this.threadRef = init?.thread ?? null
     this.threadId = init?.thread?.id ?? init?.threadId ?? null
   }
@@ -126,74 +124,44 @@ class CodexAgentSession implements AgentSession {
       status: this.closed ? 'closed' : runtimeStatus === 'idle' ? 'idle' : 'active',
       ...(this.options?.model ? { model: this.options.model } : {}),
       ...(this.options?.cwd ? { cwd: this.options.cwd } : {}),
-      raw: {
-        codexSessionName: this.codexSessionName,
-      },
+      raw: {},
     }
   }
 
-  async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
+  async start(input: AgentInput, options?: AgentRunOptions) {
     this.assertCanStartRun()
     const merged = mergeAgentRunOptions(this.options, options)
     const release = this.claimActiveRun(() => this.interruptUnderlyingRun())
 
     try {
-      if (this.codexSessionName) {
-        const session = this.codexClient.session(this.codexSessionName)
-        const result = await session.run(asCodexInput(input), toCodexRunOptions(merged))
-        this.threadId = session.id
-        return codexRunResultToAgent(result, this.name)
-      }
-
-      const thread = await this.ensureThread()
-      const result = await thread.run(asCodexInput(input), toCodexRunOptions(merged))
-      this.threadId = thread.id
-      return codexRunResultToAgent(result, this.name)
-    } finally {
-      release()
-    }
-  }
-
-  async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
-    this.assertCanStartRun()
-    const merged = mergeAgentRunOptions(this.options, options)
-    const release = this.claimActiveRun(() => this.interruptUnderlyingRun())
-
-    try {
-      if (this.codexSessionName) {
-        const session = this.codexClient.session(this.codexSessionName)
-        const stream = await session.stream(asCodexInput(input), toCodexRunOptions(merged))
-        this.threadId = session.id
-        return {
-          [Symbol.asyncIterator]: async function* () {
-            try {
-              for await (const event of stream) {
-                yield codexStreamEventToAgent(event, session.id)
-              }
-            } finally {
-              release()
-            }
-          },
-        }
-      }
-
       const thread = await this.ensureThread()
       const stream = await thread.stream(asCodexInput(input), toCodexRunOptions(merged))
-      return {
-        [Symbol.asyncIterator]: async function* () {
-          try {
+      const runId = thread.getActiveTurnId() ?? `codex-run-${thread.id}-${Date.now()}`
+
+      return createAgentRun({
+        runId,
+        source: {
+          [Symbol.asyncIterator]: async function* () {
             for await (const event of stream) {
               yield codexStreamEventToAgent(event, thread.id)
             }
-          } finally {
-            release()
-          }
+          },
         },
-      }
+        interrupt: () => this.interruptUnderlyingRun(),
+        onSettled: release,
+      })
     } catch (error) {
       release()
       throw error
     }
+  }
+
+  async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
+    return (await this.start(input, options)).result
+  }
+
+  async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
+    return (await this.start(input, options)).events
   }
 
   async interrupt(): Promise<void> {
@@ -207,9 +175,6 @@ class CodexAgentSession implements AgentSession {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    if (this.codexSessionName) {
-      this.codexClient.clearSession(this.codexSessionName)
-    }
     this.onClosed(this.name, this)
   }
 
@@ -253,11 +218,6 @@ class CodexAgentSession implements AgentSession {
   }
 
   private async interruptUnderlyingRun(): Promise<void> {
-    if (this.codexSessionName) {
-      await this.codexClient.session(this.codexSessionName).interrupt()
-      return
-    }
-
     if (!this.threadRef) {
       throw new NoActiveRunError('codex', this.name)
     }
@@ -291,7 +251,6 @@ class CodexAgentClient implements AgentClient {
           this.sessions.delete(sessionName)
         }
       },
-      { codexSessionName: name },
     )
 
     this.sessions.set(name, session)

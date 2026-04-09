@@ -69,6 +69,10 @@ export class CodexThread {
   setActiveTurnId(turnId: string | null): void {
     this.activeTurnId = turnId
   }
+
+  getActiveTurnId(): string | null {
+    return this.activeTurnId
+  }
 }
 
 /**

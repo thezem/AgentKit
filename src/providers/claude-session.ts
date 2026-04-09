@@ -19,6 +19,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { AsyncQueue, Deferred } from '../utils.ts'
 import { mergeAgentRunOptions } from '../agent-session.ts'
+import { createAgentRun } from '../agent-run.ts'
 import { normalizeSessionHandle } from '../handle.ts'
 import type {
   AgentEvent,
@@ -140,16 +141,20 @@ export class ClaudeSession implements AgentSession {
   }
 
   async run(input: AgentInput, options?: AgentRunOptions): Promise<AgentRunResult> {
-    const context = await this.startTurn(input, options)
-    for await (const _event of context.events) {
-      // drain stream
-    }
-    return context.done.promise
+    return (await this.start(input, options)).result
   }
 
   async stream(input: AgentInput, options?: AgentRunOptions): Promise<AsyncIterable<AgentEvent>> {
+    return (await this.start(input, options)).events
+  }
+
+  async start(input: AgentInput, options?: AgentRunOptions) {
     const context = await this.startTurn(input, options)
-    return context.events
+    return createAgentRun({
+      runId: context.turnId,
+      source: context.events,
+      interrupt: () => this.interrupt(),
+    })
   }
 
   async interrupt(): Promise<void> {

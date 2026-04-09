@@ -37,7 +37,11 @@ class MockSession implements AgentSession {
   }
 
   async run() {
-    return {
+    return (await this.start()).result
+  }
+
+  async start() {
+    const result = {
       provider: this.provider,
       sessionId: this.id,
       turnId: 'turn-test',
@@ -46,19 +50,24 @@ class MockSession implements AgentSession {
       items: [],
       handle: this.getHandle(),
     }
+    return {
+      runId: 'turn-test',
+      events: {
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            provider: result.provider,
+            type: 'turn.completed' as const,
+            result,
+          }
+        },
+      },
+      result: Promise.resolve(result),
+      interrupt: async () => {},
+    }
   }
 
   async stream() {
-    const provider = this.provider
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        yield {
-          provider,
-          type: 'status' as const,
-          status: 'idle',
-        }
-      },
-    }
+    return (await this.start()).events
   }
 
   async interrupt() {}

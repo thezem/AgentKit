@@ -245,6 +245,65 @@ test('codex stream events normalize to shared AgentEvent contract', async () => 
   }
 })
 
+test('codex start().events normalize to shared AgentEvent contract', async () => {
+  const fakeTransport = new FakeTransport()
+  fakeTransport.respondWith('thread/start', { thread: createThreadData('thread-codex-start-1') })
+  fakeTransport.respondWith('turn/start', { turn: { id: 'turn-codex-start-1' } })
+
+  const CodexCtor = CodexClient as unknown as {
+    create: (options?: Record<string, unknown>) => Promise<CodexClient>
+    new (transport: FakeTransport, options: Record<string, unknown>): CodexClient
+  }
+  const originalCreate = CodexCtor.create
+  const fakeCodexClient = new CodexCtor(fakeTransport, {})
+  CodexCtor.create = async () => fakeCodexClient
+
+  try {
+    const agent = await createAgent({ provider: 'codex' })
+    const session = await agent.openSession({ name: 'shared-codex-start' })
+    const run = await session.start('summarize')
+
+    const eventsPromise = (async () => {
+      const events: string[] = []
+      for await (const event of run.events) {
+        events.push(event.type)
+      }
+      return events
+    })()
+
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread-codex-start-1',
+        turnId: 'turn-codex-start-1',
+        itemId: 'msg-1',
+        delta: 'Hello ',
+      },
+    })
+    fakeTransport.simulateNotification({
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-codex-start-1',
+        turn: {
+          id: 'turn-codex-start-1',
+          status: 'completed',
+          error: null,
+          items: [],
+        },
+      },
+    })
+
+    assert.deepEqual(await eventsPromise, ['message.delta', 'turn.completed'])
+    const result = await run.result
+    assert.equal(result.turnId, 'turn-codex-start-1')
+  } finally {
+    CodexCtor.create = originalCreate
+    await fakeCodexClient.close()
+  }
+})
+
 test('claude stream events normalize to shared AgentEvent contract', async () => {
   const ClaudeSessionCtor = ClaudeSession as unknown as {
     runtimeFactory: (input: { options: ClaudeRuntimeOptions }) => FakeClaudeRuntime

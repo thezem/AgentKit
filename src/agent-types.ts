@@ -183,6 +183,13 @@ export type AgentRunResult = {
   resumeState?: unknown
 }
 
+export type AgentRun = {
+  runId: string
+  events: AsyncIterable<AgentEvent>
+  result: Promise<AgentRunResult>
+  interrupt(): Promise<void>
+}
+
 export type AgentSessionOptions = {
   cwd?: string
   model?: string
@@ -383,6 +390,10 @@ export interface AgentSession {
    * Return session metadata known locally by this SDK process.
    */
   getSessionInfo(): AgentSessionSummary
+  /**
+   * Execute one live turn and return the shared run object.
+   */
+  start(input: AgentInput, options?: AgentRunOptions): Promise<AgentRun>
   /**
    * Execute one live turn and wait for completion.
    */
