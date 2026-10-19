@@ -37,3 +37,19 @@ Written before `test/e2e/durable.ts`. Each line names the check that covers it.
 | 24 | Fork mutates the original conversation | `fork`: original history unchanged, fork lacks the later message |
 | 25 | Fork handle isn't resumable | `fork`: a turn runs on the forked session and remembers early context |
 | 26 | Compact wedges the session or wipes memory entirely | `compact`: next turn completes and still recalls the key word |
+
+## Skills (discovery, search, `$skill` expansion)
+
+Written before `test/e2e/skills.ts`. Ground truth from this machine: 278 SKILL.md files, ~160 names; Claude lists ~/.claude/skills, OpenCode lists .claude + .agents, Codex `skills/list` says ~/.codex + ~/.agents (+ nested, system, plugin; some disabled).
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 27 | Same skill listed 2–3× (copies in .claude/.codex/.agents) | `discovery`: names unique, copies under `sources` |
+| 28 | Drifted copies silently hidden | `discovery`: a planted differing copy appears in `variants` |
+| 29 | Project skill loses to a user skill with the same name | `discovery`: planted project skill wins |
+| 30 | `visibleTo` lies: says a provider loads a skill it doesn't | `visibility`: matches Claude/OpenCode `commands()` and Codex `skills/list` (disabled ones excluded) |
+| 31 | Search misses exact names or ranks description hits above name hits | `search` |
+| 32 | `$PATH`, `$5`, `$unknown`, `a$b` get rewritten | `expand`: untouched |
+| 33 | Expansion moves or alters surrounding text | `expand`: text outside the token is byte-identical |
+| 34 | The model ignores the tag (never reads the skill) | `invoke`: temp skill demands a nonce reply, every provider returns it |
+| 35 | Codex gets the tag instead of its native skill item, or both | `invoke` (codex): text keeps `$name`, input carries `{type:'skill'}` |

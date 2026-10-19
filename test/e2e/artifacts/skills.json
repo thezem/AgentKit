@@ -1,0 +1,180 @@
+{
+  "cwd": "/tmp/agentkit-skills-D1BZh9",
+  "probe": "ak-probe-w5itwm",
+  "providers": [
+    "claude",
+    "codex",
+    "opencode"
+  ],
+  "checks": [
+    {
+      "name": "discovery",
+      "ok": true,
+      "note": "167 unique from 303+ files in 1462ms; 16 drifted; project override + drift + dedupe ok"
+    },
+    {
+      "name": "visibility:claude",
+      "ok": true,
+      "note": "claimed 113; CLI lists 184 entries; missing=[] unclaimed=[skill-creator]"
+    },
+    {
+      "name": "visibility:opencode",
+      "ok": true,
+      "note": "claimed 166; CLI lists 189 entries; missing=[2d-game-ui-design] unclaimed=[]"
+    },
+    {
+      "name": "visibility:codex",
+      "ok": true,
+      "note": "158 = codex skills/list (enabled), 17 disabled excluded"
+    },
+    {
+      "name": "search",
+      "ok": true,
+      "note": "capsule → component-capsule, deploy-capsule-cloudflare, repo-capsule, site-tool-capsule, web-api-capsule"
+    },
+    {
+      "name": "expand",
+      "ok": true,
+      "note": "round-trips byte-for-byte; $PATH $5 $1.5k a$b $unknown untouched; codex keeps $name + native item"
+    },
+    {
+      "name": "invoke:claude",
+      "ok": true,
+      "note": "replied SKILL-OK-w5itwm; model saw: \"<skill-invoked name=\\\"ak-probe-w5itwm\\\" path=\\\"/tmp/agentkit-skills-D1BZh\""
+    },
+    {
+      "name": "invoke:codex",
+      "ok": true,
+      "note": "replied SKILL-OK-w5itwm; model saw: \"$ak-probe-w5itwm\""
+    },
+    {
+      "name": "invoke:opencode",
+      "ok": true,
+      "note": "replied SKILL-OK-w5itwm; model saw: \"<skill-invoked name=\\\"ak-probe-w5itwm\\\" path=\\\"/tmp/agentkit-skills-D1BZh\""
+    }
+  ],
+  "sample": [
+    {
+      "name": "2d-arcade-game-design",
+      "description": "Design, audit, and polish lightweight 2D arcade, mobile arcade, browser canvas, Phaser, PartyKit co-op, and tic-tac-toe-like casual games. Use when improving game feel, controls, feedback, juice, readability, difficulty curves, short-session loops, multiplayer room play, touch controls, or satisfying audiovisual/haptic polish for simple 2D games.",
+      "path": "/home/hazem/.claude/skills/2d-arcade-game-design/SKILL.md",
+      "dir": "/home/hazem/.claude/skills/2d-arcade-game-design",
+      "scope": "user",
+      "sources": [
+        "claude",
+        "codex"
+      ],
+      "visibleTo": [
+        "claude",
+        "codex",
+        "opencode"
+      ],
+      "nativePaths": {
+        "codex": "/home/hazem/.codex/skills/2d-arcade-game-design/SKILL.md"
+      },
+      "variants": [
+        {
+          "path": "/home/hazem/.codex/skills/2d-arcade-game-design/SKILL.md",
+          "source": "codex",
+          "scope": "user",
+          "sameContent": true
+        }
+      ]
+    },
+    {
+      "name": "2d-game-ui-design",
+      "description": "Comprehensive, framework-agnostic principles for designing 2D game UI - menus, HUDs, buttons, dialogs, inventory screens, pause screens, settings, notifications. Covers spacing systems, sizing scales, touch targets, typography hierarchy, button states, motion/juice, feedback loops, theming without dictating colors, accessibility, and platform-specific rules (mobile/desktop/controller). Use this whenever Looza is designing, reviewing, or critiquing UI for any 2D game (Sleepy Game Room, XO, Star Squad, or any future game project), whenever he asks for UI/UX feedback on a game screen, or whenever he's about to prompt another AI (Codex, etc.) to build game UI and wants a spec to hand off. Trigger on words like \"game UI\", \"HUD\", \"menu design\", \"button feel\", \"game screen layout\", even if he doesn't say \"skill\" explicitly.",
+      "path": "/home/hazem/.claude/skills/2d-game-UI/SKILL.md",
+      "dir": "/home/hazem/.claude/skills/2d-game-UI",
+      "scope": "user",
+      "sources": [
+        "claude",
+        "codex"
+      ],
+      "visibleTo": [
+        "claude",
+        "codex",
+        "opencode"
+      ],
+      "nativePaths": {
+        "codex": "/home/hazem/.codex/skills/2d-game-UI/SKILL.md"
+      },
+      "variants": [
+        {
+          "path": "/home/hazem/.codex/skills/2d-game-UI/SKILL.md",
+          "source": "codex",
+          "scope": "user",
+          "sameContent": true
+        }
+      ]
+    },
+    {
+      "name": "aesthetic-intelligence-engine",
+      "description": "A universal aesthetic judgment system for taste, beauty, composition, and artistic direction in any medium (UI, graphics, video, writing, sound, architecture, objects). Use when the output will be seen, heard, or felt and the default look would be generic, or when asked for taste, art direction, or \"make it look/feel right\". Skip for purely functional work with no perceivable surface.",
+      "path": "/home/hazem/.claude/skills/aesthetic-intelligence-engine/SKILL.md",
+      "dir": "/home/hazem/.claude/skills/aesthetic-intelligence-engine",
+      "scope": "user",
+      "sources": [
+        "claude"
+      ],
+      "visibleTo": [
+        "claude",
+        "opencode"
+      ]
+    },
+    {
+      "name": "afterburn",
+      "description": "Design, build, critique, or refine distinctive modern interfaces with task-led UX, creative direction, anti-template visual craft, and bounded verification. Use for product UI, websites, apps, landing pages, and components; not backend-only work or general factual lookup.",
+      "path": "/home/hazem/.claude/skills/afterburn/SKILL.md",
+      "dir": "/home/hazem/.claude/skills/afterburn",
+      "scope": "user",
+      "sources": [
+        "claude",
+        "codex"
+      ],
+      "visibleTo": [
+        "claude",
+        "codex",
+        "opencode"
+      ],
+      "nativePaths": {
+        "codex": "/home/hazem/.codex/skills/afterburn/SKILL.md"
+      },
+      "variants": [
+        {
+          "path": "/home/hazem/.codex/skills/afterburn/SKILL.md",
+          "source": "codex",
+          "scope": "user",
+          "sameContent": true
+        }
+      ]
+    },
+    {
+      "name": "agent-timer",
+      "description": "Use the agent-timer MCP to track elapsed time or follow a user-specified deadline or minimum work duration.",
+      "path": "/home/hazem/.claude/skills/agent-timer/SKILL.md",
+      "dir": "/home/hazem/.claude/skills/agent-timer",
+      "scope": "user",
+      "sources": [
+        "claude",
+        "codex"
+      ],
+      "visibleTo": [
+        "claude",
+        "codex",
+        "opencode"
+      ],
+      "nativePaths": {
+        "codex": "/home/hazem/.codex/skills/agent-timer/SKILL.md"
+      },
+      "variants": [
+        {
+          "path": "/home/hazem/.codex/skills/agent-timer/SKILL.md",
+          "source": "codex",
+          "scope": "user",
+          "sameContent": true
+        }
+      ]
+    }
+  ]
+}

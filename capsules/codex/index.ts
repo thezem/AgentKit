@@ -8,6 +8,7 @@
  *   const result = await session.run('hello')
  */
 import type {
+  NativeSkill,
   AgentModel,
   PersistenceHandle,
   ProviderCatalog,
@@ -162,6 +163,22 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
           title: thread.name ?? thread.preview ?? null,
           updatedAt: new Date((thread.updatedAt ?? thread.createdAt) * 1000),
         }))
+      })
+    },
+
+    /** Codex's own view: nested, system and plugin skills included; `enabled: false` when turned off in config. */
+    async listSkills(options: { cwd: string }): Promise<NativeSkill[]> {
+      return withRpc(options.cwd, async (rpc) => {
+        const response = await rpc.request('skills/list', { cwds: [options.cwd] })
+        return (response.data ?? []).flatMap((entry: any) =>
+          (entry.skills ?? []).map((skill: any) => ({
+            name: skill.name,
+            description: skill.description ?? skill.shortDescription ?? '',
+            path: skill.path,
+            scope: skill.scope === 'repo' ? 'project' : skill.scope === 'system' ? 'system' : skill.pluginId ? 'plugin' : 'user',
+            enabled: skill.enabled !== false,
+          })),
+        )
       })
     },
 

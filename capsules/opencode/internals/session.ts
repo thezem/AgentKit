@@ -599,7 +599,7 @@ function toInput(prompt: PromptInput): { text: string; files: Array<{ uri: strin
   const files: Array<{ uri: string }> = []
   for (const block of prompt) {
     if (block.type === 'text') text.push(block.text)
-    else files.push({ uri: `data:${block.mimeType};base64,${block.data}` })
+    else if (block.type === 'image') files.push({ uri: `data:${block.mimeType};base64,${block.data}` })
   }
   return { text: text.join('\n'), files }
 }

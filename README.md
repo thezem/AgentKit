@@ -78,6 +78,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | slash commands / skills | ✓ | – | ✓ | ✓ |
 | archive | – | ✓ | – | ✓ |
 | exact context window (`session.contextWindow()`) | ✓ (`/context` accounting) | ✓ (after first turn) | ✓ (model registry) | ✓ |
+| skills: discover + search + `$skill` invoke | ✓ | ✓ (native skill item) | ✓ | – |
 | fork (new branch, original untouched) | ✓ | ✓ | ✓ | ✓ |
 | compact context | ✓ (`/compact`) | ✓ (`thread/compact`) | ✓ | ✓ |
 | durable store, idempotent submit, inbox | ✓ | ✓ | ✓ | ✓ (AgentKit-level, every provider) |
@@ -96,6 +97,28 @@ Unsupported calls throw `UnsupportedCapabilityError` before touching the provide
 - **`session.fork({ beforeMessageId })`** → a new session; the original is untouched. **`session.compact(instructions?)`** → native compaction.
 - **`session.handle`** → `kit.resume(handle)`; **`kit.listSessions()`** merges all providers' native sessions.
 - **`session.native`**: the raw capsule session when you need something provider-specific.
+
+## Skills
+
+One list of every installed skill (`.claude`, `.codex`, `.agents`, OpenCode, plugins, project + user), deduped, for your `/` menu:
+
+```ts
+const all = await kit.skills({ cwd })                 // [{ name, description, path, scope, sources, visibleTo, variants? }]
+const hits = await kit.searchSkills('capsule', { cwd }) // name exact > prefix > word > substring > fuzzy > description
+```
+
+When the user **picks** a skill from your menu, write `$name` into the message. That's the whole contract:
+
+```ts
+await session.submit('Look at $repo-capsule and pull out the auth flow')
+```
+
+AgentKit replaces each `$name` that is a real skill **in place** and leaves every other character as typed (`$PATH`, `$5`, `a$b`, unknown `$foo` untouched):
+- Claude / OpenCode get `<skill-invoked name="repo-capsule" path="…/SKILL.md">read it and follow it</skill-invoked>` where the token was. Inlined (SKILL.md body inside the tag) when the session is in plan mode, or with `{ skills: 'inline' }`.
+- Codex keeps `$repo-capsule` in the text and gets its native `{ type: 'skill', name, path }` item (or the tag if Codex doesn't load that skill).
+- `{ skills: false }` turns it off. `splitSkillTags(text)` turns a sent message back into text + chips for rendering history.
+
+`visibleTo` is checked against each CLI's own list (Claude/OpenCode `commands()`, Codex `skills/list`, disabled ones excluded). `variants` shows copies of the same skill in other folders; `sameContent: false` means they drifted.
 
 ## Durable sessions
 
@@ -123,6 +146,7 @@ npm run verify            # typecheck + mock conformance + durable (free, no CLI
 npm run e2e -- claude     # real conformance against your signed-in CLI
 npm run e2e               # claude + codex + opencode
 npm run e2e:durable -- mock   # kill -9 mid-turn, idempotency, inbox, fork, compact
+npm run e2e:skills        # discovery vs each CLI's own list, search, $skill expansion, real invocation
 ```
 
 Artifacts land in `test/e2e/artifacts/<provider>.json`. Failure modes covered: [`test/e2e/FAILURE_MODES.md`](test/e2e/FAILURE_MODES.md).

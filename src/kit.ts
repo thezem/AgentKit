@@ -17,6 +17,8 @@ import { modeForAccess, policies, type AccessLevel, type PermissionHandler } fro
 import { AgentSession, storedSubmission, type SessionHandlers, type Submission } from './session.ts'
 import { sqliteStore, type AgentStore, type StoredSession, type SubmissionRecord } from './store.ts'
 import { randomUUID } from 'node:crypto'
+import { discoverSkills, expandSkillPrompt, searchSkills, type Skill } from './skills.ts'
+import type { NativeSkill, PromptInput } from '../capsules/shared/contract.ts'
 
 export interface AgentKitOptions {
   /** Built-in capsules. `false` disables one. Mock is off unless configured. */
@@ -191,6 +193,43 @@ export class AgentKit {
     return stored ? storedSubmission(stored, this.store!) : null
   }
 
+  private readonly skillCache = new Map<string, { at: number; value: Promise<Skill[]> }>()
+
+  /**
+   * Every installed skill (project, user, plugin, system), deduped by name, with
+   * where copies live and which CLIs load it natively. Cached ~30s per cwd.
+   */
+  skills(options: { cwd?: string; refresh?: boolean } = {}): Promise<Skill[]> {
+    const cwd = options.cwd ?? process.cwd()
+    const hit = this.skillCache.get(cwd)
+    if (hit && !options.refresh && Date.now() - hit.at < 30_000) return hit.value
+    const value = (async () => {
+      const native: Partial<Record<ProviderId, NativeSkill[]>> = {}
+      await Promise.all(
+        [...this.clients.values()]
+          .filter((client) => client.listSkills)
+          .map(async (client) => {
+            if (!(await client.isAvailable().catch(() => false))) return
+            native[client.provider] = await client.listSkills!({ cwd }).catch(() => undefined)
+          }),
+      )
+      return discoverSkills({ cwd, native })
+    })()
+    this.skillCache.set(cwd, { at: Date.now(), value })
+    value.catch(() => this.skillCache.delete(cwd))
+    return value
+  }
+
+  /** For your `/` menu: exact name, then prefix, word, substring, fuzzy, then description. */
+  async searchSkills(query: string, options: { cwd?: string; limit?: number; nativeTo?: ProviderId } = {}): Promise<Skill[]> {
+    return searchSkills(await this.skills(options), query, options)
+  }
+
+  /** What `submit` would send for this provider (preview / your own transport). */
+  async expandSkills(prompt: PromptInput, options: { provider: ProviderId; cwd?: string; mode?: 'reference' | 'inline' }): Promise<{ prompt: PromptInput; invoked: Skill[] }> {
+    return expandSkillPrompt(prompt, { provider: options.provider, mode: options.mode, skills: await this.skills({ cwd: options.cwd }) })
+  }
+
   private requireStore(): AgentStore {
     if (!this.store) throw new AgentKitError('INVALID_INPUT', 'no store configured; pass createAgentKit({ store: "path/to/agentkit.db" })')
     return this.store
@@ -226,6 +265,7 @@ export class AgentKit {
       key,
       store: this.store,
       registry: this.submissions,
+      skills: (cwd) => this.skills({ cwd }),
       open: (handle, forkKey) => this.resume(handle, { key: forkKey, onPermission: handlers.onPermission, onEvent: handlers.onEvent }),
       onClose: () => this.sessions.delete(session),
     })

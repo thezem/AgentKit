@@ -20,6 +20,8 @@ import type {
 import { isTerminalEvent } from '../capsules/shared/contract.ts'
 import { deferred, Emitter } from '../capsules/shared/runtime.ts'
 import { randomUUID } from 'node:crypto'
+import { expandSkillPrompt, type Skill } from './skills.ts'
+import { modeForAccess as planModeFor } from './policy.ts'
 import { TERMINAL_SUBMISSION, type AgentStore, type SubmissionRecord, type SubmissionStatus } from './store.ts'
 import { AgentKitError, UnsupportedCapabilityError } from './errors.ts'
 import { modeForAccess, normalizeDecision, type AccessLevel, type PermissionHandler } from './policy.ts'
@@ -39,6 +41,12 @@ export interface SubmitOptions extends TurnOptions {
   requestId?: string
   /** What to do when a turn is already running. Default 'queue'. */
   whenBusy?: 'queue' | 'steer' | 'reject'
+  /**
+   * `$name` tokens that match an installed skill are invoked (your app writes `$name`
+   * when the user picks a skill). Default true: path reference, inlined in plan mode.
+   * `false` sends the text untouched.
+   */
+  skills?: boolean | 'reference' | 'inline'
 }
 
 /** One prompt's journey: queued → running/steered → outcome. */
@@ -60,11 +68,14 @@ export interface SessionContext {
   store: AgentStore | null
   registry: Map<string, Submission>
   open: (handle: PersistenceHandle, key?: string) => Promise<AgentSession>
+  skills: (cwd: string) => Promise<Skill[]>
   onClose: () => void
 }
 
 interface Live {
   record: SubmissionRecord
+  /** What actually goes to the provider (skills expanded). `record.prompt` keeps what the user wrote. */
+  wire: PromptInput
   options?: TurnOptions
   visible: boolean
   result: ReturnType<typeof deferred<RunResult>>
@@ -213,7 +224,7 @@ export class AgentSession {
    * (falls back to the inbox if the provider can't), 'reject' throws SESSION_BUSY.
    */
   async submit(prompt: PromptInput, options: SubmitOptions = {}): Promise<Submission> {
-    const { requestId, whenBusy = 'queue', ...turnOptions } = options
+    const { requestId, whenBusy = 'queue', skills = true, ...turnOptions } = options
     if (requestId) {
       const known = this.ctx.registry.get(requestId)
       if (known) return known
@@ -225,10 +236,11 @@ export class AgentSession {
     if (busy && whenBusy === 'reject') throw new AgentKitError('SESSION_BUSY', 'a turn is already running; submit with whenBusy "queue" or "steer"', { provider: this.provider })
 
     const live = this.createLive(requestId ?? randomUUID(), prompt, whenBusy, turnOptions)
+    live.wire = await this.expand(prompt, skills)
     if (busy && whenBusy === 'steer') {
       const turnId = this.activeTurnId
       if (turnId && this.capabilities.steer && this.inner.steer && !this.compacting) {
-        const accepted = await this.inner.steer(prompt, { expectedTurnId: turnId }).then((r) => r.accepted, () => false)
+        const accepted = await this.inner.steer(live.wire, { expectedTurnId: turnId }).then((r) => r.accepted, () => false)
         if (accepted) {
           this.save(live, { status: 'steered', turnId })
           this.joinTurn(live, turnId)
@@ -305,7 +317,7 @@ export class AgentSession {
       createdAt: new Date().toISOString(),
       finishedAt: null,
     }
-    const live = { record, options, visible: false, result, settled } as Live
+    const live = { record, wire: prompt, options, visible: false, result, settled } as Live
     const session = this
     live.submission = {
       id,
@@ -319,6 +331,18 @@ export class AgentSession {
     }
     this.ctx.registry.set(id, live.submission)
     return live
+  }
+
+  private async expand(prompt: PromptInput, mode: SubmitOptions['skills']): Promise<PromptInput> {
+    if (mode === false) return prompt
+    const hasDollar = typeof prompt === 'string' ? prompt.includes('$') : prompt.some((b) => b.type === 'text' && b.text.includes('$'))
+    const cwd = this.inner.describePersistence()?.cwd
+    if (!hasDollar || !cwd) return prompt
+    const modeId = this.state.modeId ?? (await this.inner.getRuntimeInfo().catch(() => null))?.modeId ?? null
+    const inPlan = modeId !== null && modeId === planModeFor(this.provider, 'plan')
+    const resolved = mode === 'inline' || mode === 'reference' ? mode : inPlan ? 'inline' : 'reference'
+    const skills = await this.ctx.skills(cwd).catch(() => [] as Skill[])
+    return expandSkillPrompt(prompt, { provider: this.provider, skills, mode: resolved }).prompt
   }
 
   private save(live: Live, patch: Partial<SubmissionRecord>): void {
@@ -407,7 +431,7 @@ export class AgentSession {
         // Intent: saved before the provider sees the prompt.
         this.save(live, { status: 'running', handle: this.inner.describePersistence() })
         try {
-          this.settleFromResult(live, await this.inner.run(live.record.prompt, live.options))
+          this.settleFromResult(live, await this.inner.run(live.wire, live.options))
         } catch (error) {
           this.settle(live, { status: 'failed', error: error instanceof Error ? error.message : String(error) }, error)
         } finally {

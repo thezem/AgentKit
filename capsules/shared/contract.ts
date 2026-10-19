@@ -101,6 +101,17 @@ export type CapabilityName = keyof Capabilities
 export type PromptBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mimeType: string }
+  /** Native skill attachment. AgentKit only sends this to capsules that load skills natively (Codex). */
+  | { type: 'skill'; name: string; path: string }
+
+/** A skill as a provider's own API reports it (Codex `skills/list`). */
+export interface NativeSkill {
+  name: string
+  description: string
+  path: string
+  scope: 'user' | 'project' | 'system' | 'plugin'
+  enabled?: boolean
+}
 
 export type PromptInput = string | PromptBlock[]
 
@@ -357,6 +368,9 @@ export interface ProviderClient {
   readonly provider: ProviderId
   readonly label: string
   readonly capabilities: Capabilities
+
+  /** Skills exactly as this CLI would load them for `cwd`, when it has an API for that. */
+  listSkills?(options: { cwd: string }): Promise<NativeSkill[]>
 
   /** Binary present + runnable. Does not prove the user is signed in. */
   isAvailable(signal?: AbortSignal): Promise<boolean>

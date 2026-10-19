@@ -540,6 +540,10 @@ function decision(response: PermissionResponse): string {
 export function toCodexInput(prompt: PromptInput): unknown[] {
   if (typeof prompt === 'string') return [{ type: 'text', text: prompt, text_elements: [] }]
   return prompt.map((block) =>
-    block.type === 'text' ? { type: 'text', text: block.text, text_elements: [] } : { type: 'image', url: `data:${block.mimeType};base64,${block.data}` },
+    block.type === 'text'
+      ? { type: 'text', text: block.text, text_elements: [] }
+      : block.type === 'skill'
+        ? { type: 'skill', name: block.name, path: block.path }
+        : { type: 'image', url: `data:${block.mimeType};base64,${block.data}` },
   )
 }

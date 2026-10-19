@@ -27,12 +27,12 @@
     {
       "name": "context-window",
       "ok": true,
-      "note": "haiku: 39290/1000000 used; before first turn max=1000000; catalog=n/a"
+      "note": "haiku: 39519/1000000 used; before first turn max=1000000; catalog=1000000"
     },
     {
       "name": "fast-mode",
       "ok": true,
-      "note": "opus: fast turn 12296ms incl. toggle, no warnings"
+      "note": "opus: fast turn 9674ms incl. toggle, no warnings"
     }
   ],
   "codex": [
@@ -63,12 +63,12 @@
     {
       "name": "context-window",
       "ok": true,
-      "note": "gpt-6.1-sol: 26195/475000 used; before first turn max=475000; catalog=475000"
+      "note": "gpt-6.1-sol: 35904/475000 used; before first turn max=475000; catalog=475000"
     },
     {
       "name": "fast-mode",
       "ok": true,
-      "note": "gpt-6.1-sol: fast turn 7637ms incl. toggle, no warnings"
+      "note": "gpt-6.1-sol: fast turn 7278ms incl. toggle, no warnings"
     }
   ],
   "opencode": [
@@ -99,7 +99,7 @@
     {
       "name": "context-window",
       "ok": true,
-      "note": "vercel/deepseek/deepseek-v4.1-flash-1017-fast: 27507/1048576 used; before first turn max=1048576; catalog=1048576"
+      "note": "vercel/deepseek/deepseek-v4.1-flash-1017: 27323/1048576 used; before first turn max=1048576; catalog=1048576"
     },
     {
       "name": "fast-mode",

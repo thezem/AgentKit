@@ -555,8 +555,12 @@ function toSdkMessage(prompt: PromptInput, uuid: string): SDKUserMessage {
   const content =
     typeof prompt === 'string'
       ? prompt
-      : prompt.map((block) =>
-          block.type === 'text' ? { type: 'text' as const, text: block.text } : { type: 'image' as const, source: { type: 'base64' as const, media_type: block.mimeType as any, data: block.data } },
+      : prompt.flatMap((block): any[] =>
+          block.type === 'text'
+            ? [{ type: 'text' as const, text: block.text }]
+            : block.type === 'image'
+              ? [{ type: 'image' as const, source: { type: 'base64' as const, media_type: block.mimeType as any, data: block.data } }]
+              : [],
         )
   return { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid: uuid as any }
 }

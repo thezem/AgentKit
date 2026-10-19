@@ -71,7 +71,8 @@
     "prepack": "npm run build",
     "ui:api": "node examples/web/server.ts",
     "ui": "npm --prefix examples/web run dev",
-    "e2e:durable": "node test/e2e/durable.ts"
+    "e2e:durable": "node test/e2e/durable.ts",
+    "e2e:skills": "node test/e2e/skills.ts"
   },
   "engines": {
     "node": ">=22.6"
