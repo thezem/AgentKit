@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SkillMenu } from '@/components/skill-menu'
 import { api, type SkillSummary } from '@/lib/api'
 import { findSkillTokens } from '../../../../src/skill-tags.ts'
@@ -80,6 +80,28 @@ export function Composer({
     })
   }
 
+  // The highlight layer must lay text out exactly like the textarea: copy its computed metrics.
+  useLayoutEffect(() => {
+    const el = ref.current
+    const layer = mirror.current
+    if (!el || !layer) return
+    const sync = () => {
+      const cs = getComputedStyle(el)
+      for (const prop of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch', 'fontFeatureSettings', 'fontVariationSettings', 'fontKerning', 'letterSpacing', 'wordSpacing', 'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'tabSize', 'textIndent'] as const) {
+        layer.style[prop] = cs[prop]
+      }
+      layer.style.borderStyle = 'solid'
+      layer.style.borderColor = 'transparent'
+      // Wrap at the same width even when the textarea shows a scrollbar.
+      const scrollbar = el.offsetWidth - el.clientWidth - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth)
+      layer.style.width = `${el.getBoundingClientRect().width - scrollbar}px`
+    }
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   /** Same text as the textarea, with picked skills painted as chips underneath. */
   const highlighted = useMemo(() => {
     const out: React.ReactNode[] = []
@@ -87,7 +109,7 @@ export function Composer({
     for (const token of findSkillTokens(text, (name) => known.has(name))) {
       out.push(text.slice(last, token.start))
       out.push(
-        <mark key={token.start} className="rounded-md bg-foreground/12 text-transparent ring-1 ring-foreground/10">
+        <mark key={token.start} className="rounded-[5px] bg-foreground/10 text-transparent shadow-[0_0_0_2px_color-mix(in_oklab,var(--foreground)_10%,transparent)]">
           {text.slice(token.start, token.end)}
         </mark>,
       )
@@ -124,7 +146,7 @@ export function Composer({
       <div
         ref={mirror}
         aria-hidden
-        className="pointer-events-none absolute inset-0 overflow-hidden px-4 pt-3.5 pb-1 text-[15px] leading-6 break-words whitespace-pre-wrap text-transparent"
+        className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden break-words whitespace-pre-wrap text-transparent"
       >
         {highlighted}
       </div>
@@ -164,7 +186,7 @@ export function Composer({
             send()
           }
         }}
-        className="relative max-h-60 min-h-[52px] resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] leading-6 shadow-none dark:bg-transparent"
+        className="relative max-h-60 min-h-[52px] resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] leading-6 shadow-none md:text-[15px] dark:bg-transparent"
       />
       </div>
       <div className="flex items-center gap-2 px-2.5 pb-2.5">
