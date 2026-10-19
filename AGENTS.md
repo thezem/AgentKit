@@ -17,6 +17,8 @@ AgentKit = one TypeScript layer over locally signed-in Claude Code, Codex and Op
 - Run with Node ≥ 22.6 type stripping: no enums, no parameter properties, no namespaces (`erasableSyntaxOnly` is on). Relative imports use `.ts`.
 - A capability flag must be true only if the live E2E proves it.
 - New primitive? Add it to `Capabilities`, implement it in every capsule (or set false), guard it in `AgentSession`, add an E2E step.
+- **Every user-facing change updates [`docs/BUILD_YOUR_CONSUMER_APP.md`](docs/BUILD_YOUR_CONSUMER_APP.md) in the same commit**: its section (real snippet + the UX rule), the checklist if relevant, and the changelog.
+- Browser-safe modules (`src/transcript.ts`, `src/skill-tags.ts`, `capsules/shared/timeline.ts`) must never import `node:*`; they ship as `@ouim/agentkit/transcript` and `/skill-tags`.
 
 ## Verify
 ```bash

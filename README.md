@@ -27,6 +27,8 @@ await kit.shutdown()
 
 Swap `'codex'` for `'claude'` or `'opencode'`. Nothing else changes.
 
+**Building an app on AgentKit?** Start with [Build your consumer app](docs/BUILD_YOUR_CONSUMER_APP.md): pickers, sending, rendering, permissions, persistence, skills, and a checklist for a good harness.
+
 ## A whole harness backend in one file
 
 [`examples/harness-server.ts`](examples/harness-server.ts) is ~100 lines: REST + SSE for sessions, streaming, approvals, steer, interrupt, mode/model/thinking switches, rewind and resume across every provider.

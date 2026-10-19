@@ -48,6 +48,14 @@
     "./contract": {
       "types": "./dist/capsules/shared/contract.d.ts",
       "import": "./dist/capsules/shared/contract.js"
+    },
+    "./transcript": {
+      "types": "./dist/src/transcript.d.ts",
+      "import": "./dist/src/transcript.js"
+    },
+    "./skill-tags": {
+      "types": "./dist/src/skill-tags.d.ts",
+      "import": "./dist/src/skill-tags.js"
     }
   },
   "files": [
