@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/composer'
 import { ConversationDrawer } from '@/components/conversation-drawer'
-import { ModelPicker, ModePicker, ProviderPicker, ThinkingPicker } from '@/components/pickers'
+import { FastToggle, ModelPicker, ModePicker, ProviderPicker, ThinkingPicker } from '@/components/pickers'
 import { PROVIDER_LABEL, ProviderLogo } from '@/components/provider-logo'
 import { Thread } from '@/components/thread'
 import { api, type ConversationSummary, type ProviderCatalog, type ProviderStatus } from '@/lib/api'
@@ -86,9 +86,9 @@ export default function App() {
   const capabilities = detail?.capabilities ?? providers.find((p) => p.provider === provider)?.capabilities
   const running = transcript.status === 'running' || transcript.status === 'waiting_permission'
 
-  const settings = activeId ? { model: detail?.model, mode: detail?.mode, thinking: detail?.thinking } : { model: draft.model, mode: draft.mode, thinking: draft.thinking }
-  const change = async (patch: { model?: string; mode?: string; thinking?: string }) => {
-    if (!activeId) return setDraft((d: typeof draft) => ({ ...d, ...patch, ...(patch.model ? { thinking: undefined } : {}) }))
+  const settings = activeId ? { model: detail?.model, mode: detail?.mode, thinking: detail?.thinking, fast: detail?.fast } : { model: draft.model, mode: draft.mode, thinking: draft.thinking, fast: draft.fast }
+  const change = async (patch: { model?: string; mode?: string; thinking?: string; fast?: boolean }) => {
+    if (!activeId) return setDraft((d: typeof draft) => ({ ...d, ...patch, ...(patch.model ? { thinking: undefined, fast: false } : {}) }))
     setDetail((d) => d && { ...d, ...patch })
     try {
       await api.settings(activeId, patch)
@@ -101,7 +101,7 @@ export default function App() {
     setError(null)
     try {
       if (!activeId) {
-        const conv = await api.create({ provider: draft.provider, cwd: draft.cwd, model: draft.model, mode: draft.mode, thinking: draft.thinking })
+        const conv = await api.create({ provider: draft.provider, cwd: draft.cwd, model: draft.model, mode: draft.mode, thinking: draft.thinking, fast: draft.fast })
         navigate(conv.id)
         await api.send(conv.id, text)
         refreshList()
@@ -119,6 +119,7 @@ export default function App() {
       {!activeId && <ProviderPicker value={draft.provider} providers={providers} onChange={(p) => setDraft((d: typeof draft) => ({ ...d, provider: p, model: undefined, mode: undefined, thinking: undefined }))} />}
       <ModelPicker value={settings.model} catalog={catalog} onChange={(model) => change({ model })} disabled={activeId ? !capabilities?.modelSwitch : false} />
       <ThinkingPicker value={settings.thinking} model={settings.model} catalog={catalog} onChange={(thinking) => change({ thinking })} disabled={activeId ? !capabilities?.thinkingSwitch : false} />
+      <FastToggle value={settings.fast} model={settings.model} catalog={catalog} onChange={(fast) => change({ fast })} disabled={activeId ? !capabilities?.fastMode : false} />
       <ModePicker value={settings.mode} catalog={catalog} onChange={(mode) => change({ mode })} disabled={activeId ? !capabilities?.modeSwitch : false} />
     </>
   )

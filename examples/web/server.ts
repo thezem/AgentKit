@@ -31,6 +31,7 @@ type Conversation = {
   model?: string
   mode?: string
   thinking?: string
+  fast?: boolean
   handle: PersistenceHandle | null
   transcript: Transcript
   createdAt: string
@@ -69,6 +70,7 @@ function wire(conv: Conversation, session: AgentSession) {
     if (event.type === 'mode_changed') conv.mode = event.modeId ?? undefined
     if (event.type === 'model_changed') conv.model = event.model ?? undefined
     if (event.type === 'thinking_changed') conv.thinking = event.thinkingOptionId ?? undefined
+    if (event.type === 'fast_changed') conv.fast = event.enabled
     conv.updatedAt = new Date().toISOString()
     broadcast(conv.id, { type: 'event', event })
     save()
@@ -83,8 +85,8 @@ async function sessionFor(conv: Conversation): Promise<AgentSession> {
   if (!pending) {
     pending = (async () => {
       const session = conv.handle
-        ? await kit.resume(conv.handle, { mode: conv.mode, model: conv.model, thinking: conv.thinking })
-        : await kit.session({ provider: conv.provider, cwd: conv.cwd, mode: conv.mode, model: conv.model, thinking: conv.thinking })
+        ? await kit.resume(conv.handle, { mode: conv.mode, model: conv.model, thinking: conv.thinking, fast: conv.fast })
+        : await kit.session({ provider: conv.provider, cwd: conv.cwd, mode: conv.mode, model: conv.model, thinking: conv.thinking, fast: conv.fast })
       wire(conv, session)
       conv.handle = session.handle
       save()
@@ -139,6 +141,7 @@ const routes: Array<[string, RegExp, Handler]> = [
         model: body.model || undefined,
         mode: body.mode || undefined,
         thinking: body.thinking || undefined,
+        fast: body.fast === true || undefined,
         handle: null,
         transcript: emptyTranscript(),
         createdAt: now,
@@ -179,7 +182,7 @@ const routes: Array<[string, RegExp, Handler]> = [
       const conv = get(id)
       // Not started yet: just store, applied when the session opens.
       if (!live.has(id) && !conv.handle) {
-        Object.assign(conv, { mode: body.mode ?? conv.mode, model: body.model ?? conv.model, thinking: body.thinking ?? conv.thinking })
+        Object.assign(conv, { mode: body.mode ?? conv.mode, model: body.model ?? conv.model, thinking: body.thinking ?? conv.thinking, fast: body.fast ?? conv.fast })
         save()
         return summary(conv)
       }
@@ -187,6 +190,7 @@ const routes: Array<[string, RegExp, Handler]> = [
       if (body.mode !== undefined) await session.setMode(body.mode)
       if (body.model !== undefined) await session.setModel(body.model)
       if (body.thinking !== undefined) await session.setThinking(body.thinking)
+      if (body.fast !== undefined) await session.setFast(body.fast)
       return summary(conv)
     },
   ],

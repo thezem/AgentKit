@@ -1,3 +1,7 @@
+import { Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PROVIDER_LABEL, ProviderLogo } from '@/components/provider-logo'
 import type { ProviderCatalog, ProviderStatus } from '@/lib/api'
@@ -99,5 +103,30 @@ export function ThinkingPicker({ value, model, catalog, onChange, disabled }: { 
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+/** Shown only when the selected model has a fast tier. Tooltip uses the provider's own wording. */
+export function FastToggle({ value, model, catalog, onChange, disabled }: { value?: boolean; model?: string; catalog?: ProviderCatalog; onChange: (v: boolean) => void; disabled?: boolean }) {
+  const models = catalog?.models ?? []
+  const entry = models.find((m) => m.id === model) ?? models.find((m) => m.isDefault) ?? models[0]
+  if (!entry?.supportsFastMode) return null
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          aria-pressed={Boolean(value)}
+          onClick={() => onChange(!value)}
+          className={cn('h-8 gap-1 px-2 text-[13px] text-muted-foreground transition-colors duration-150 hover:text-foreground', value && 'bg-accent text-foreground')}
+        >
+          <Zap className={cn('size-3.5', value && 'fill-current')} />
+          Fast
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{value ? 'Fast mode on' : 'Fast mode'}{entry.fastModeDescription ? ` · ${entry.fastModeDescription}` : ''}</TooltipContent>
+    </Tooltip>
   )
 }

@@ -1,0 +1,34 @@
+{
+  "mock": [
+    {
+      "name": "system-prompt",
+      "ok": false,
+      "note": "reply: \"echo: Say hello.\""
+    },
+    {
+      "name": "structured-output",
+      "ok": false,
+      "note": "got {\"ok\":true}"
+    },
+    {
+      "name": "steer",
+      "ok": false,
+      "note": "steer was not accepted (fell back to queue)"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "1 commands"
+    },
+    {
+      "name": "fast-mode",
+      "ok": true,
+      "note": "mock-1: fast turn 109ms incl. toggle, no warnings"
+    }
+  ]
+}

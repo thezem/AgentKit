@@ -48,6 +48,7 @@ export const CODEX_CAPABILITIES: Capabilities = {
   modeSwitch: true,
   modelSwitch: true,
   thinkingSwitch: true,
+  fastMode: true,
   mcpServers: true,
   steer: true,
   slashCommands: false,
@@ -98,18 +99,21 @@ export class CodexSession implements ProviderSession {
   private modeId: string
   private model: string | null
   private effort: string | null
+  private fast: boolean
+  private models: Promise<any[]> | null = null
 
   private readonly rpc: CodexRpc
   private threadId: string
   private readonly config: SessionConfig
 
-  constructor(rpc: CodexRpc, threadId: string, config: SessionConfig, init: { modeId: string; model: string | null; effort: string | null }) {
+  constructor(rpc: CodexRpc, threadId: string, config: SessionConfig, init: { modeId: string; model: string | null; effort: string | null; fast?: boolean }) {
     this.rpc = rpc
     this.threadId = threadId
     this.config = config
     this.modeId = init.modeId
     this.model = init.model
     this.effort = init.effort
+    this.fast = init.fast ?? false
     rpc.onNotification = (method, params) => this.onNotification(method, params)
     rpc.onServerRequest = (method, params) => this.onServerRequest(method, params)
     void rpc.exited.then(() => {
@@ -132,6 +136,7 @@ export class CodexSession implements ProviderSession {
     if (this.closed) throw new Error('codex session is closed')
     if (this.activeTurnId || this.starting) throw new Error('codex session already has an active turn')
     const preset = PRESETS[this.modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
+    const serviceTier = await this.serviceTier()
     const request = this.rpc.request('turn/start', {
       threadId: this.threadId,
       input: toCodexInput(prompt),
@@ -140,6 +145,7 @@ export class CodexSession implements ProviderSession {
       sandboxPolicy: preset.sandboxPolicy,
       ...(this.model ? { model: this.model } : {}),
       ...(this.effort ? { effort: this.effort } : {}),
+      serviceTier,
       ...(options?.outputSchema !== undefined ? { outputSchema: options.outputSchema } : {}),
       ...(options?.clientMessageId ? { clientUserMessageId: options.clientMessageId } : {}),
     })
@@ -368,7 +374,7 @@ export class CodexSession implements ProviderSession {
   // ------------------------------------------------------------ settings
 
   async getRuntimeInfo(): Promise<RuntimeInfo> {
-    return { provider: 'codex', sessionId: this.threadId, model: this.model, modeId: this.modeId, thinkingOptionId: this.effort }
+    return { provider: 'codex', sessionId: this.threadId, model: this.model, modeId: this.modeId, thinkingOptionId: this.effort, fast: this.fast }
   }
   async getModes(): Promise<AgentMode[]> {
     return CODEX_MODES
@@ -386,12 +392,32 @@ export class CodexSession implements ProviderSession {
     this.effort = effort
     this.events.emit({ type: 'thinking_changed', provider: 'codex', thinkingOptionId: effort })
   }
+  async setFast(enabled: boolean): Promise<void> {
+    if (enabled && !(await this.fastTierId())) throw new Error(`codex model ${this.model ?? 'default'} has no fast service tier`)
+    this.fast = enabled
+    this.events.emit({ type: 'fast_changed', provider: 'codex', enabled })
+  }
+
+  /** The current model's "Fast" tier id (Codex calls it e.g. `priority`), read from model/list. */
+  private async fastTierId(): Promise<string | null> {
+    this.models ??= this.rpc.request('model/list', {}).then((r) => r.data ?? [], () => [])
+    const models = await this.models
+    const model = models.find((m) => m.model === this.model || m.id === this.model) ?? models.find((m) => m.isDefault) ?? models[0]
+    const tiers: Array<{ id: string; name: string }> = model?.serviceTiers ?? []
+    return (tiers.find((tier) => tier.name.toLowerCase() === 'fast') ?? tiers.find((tier) => tier.id === 'fast'))?.id ?? null
+  }
+
+  private async serviceTier(): Promise<string> {
+    if (!this.fast) return 'default'
+    return (await this.fastTierId()) ?? 'default'
+  }
+
   async listCommands(): Promise<SlashCommand[]> {
     return []
   }
 
   describePersistence(): PersistenceHandle {
-    return { provider: 'codex', sessionId: this.threadId, cwd: this.config.cwd, metadata: { modeId: this.modeId, model: this.model, effort: this.effort } }
+    return { provider: 'codex', sessionId: this.threadId, cwd: this.config.cwd, metadata: { modeId: this.modeId, model: this.model, effort: this.effort, fast: this.fast } }
   }
 
   async *history(): AsyncIterable<TimelineItem> {

@@ -50,6 +50,7 @@ export const CLAUDE_CAPABILITIES: Capabilities = {
   modeSwitch: true,
   modelSwitch: true,
   thinkingSwitch: true,
+  fastMode: true,
   mcpServers: true,
   steer: true,
   slashCommands: true,
@@ -119,6 +120,7 @@ export class ClaudeSession implements ProviderSession {
   private modeId: string
   private model: string | null
   private effort: string | null
+  private fast: boolean
   private querySchemaKey: string | null = null
   private closed = false
 
@@ -130,6 +132,7 @@ export class ClaudeSession implements ProviderSession {
     this.modeId = config.modeId ?? DEFAULT_CLAUDE_MODE
     this.model = config.model ?? null
     this.effort = config.thinkingOptionId ?? null
+    this.fast = config.fast ?? false
   }
 
   get id(): string {
@@ -156,6 +159,8 @@ export class ClaudeSession implements ProviderSession {
       ...(this.runtime.binary ? { pathToClaudeCodeExecutable: this.runtime.binary } : {}),
       ...(this.model ? { model: this.model } : {}),
       ...(this.effort ? { effort: this.effort as Options['effort'] } : {}),
+      // Fast mode is a flag-tier setting; also applied live via applyFlagSettings in setFast().
+      ...(this.fast ? { settings: { fastMode: true } as Options['settings'] } : {}),
       ...(this.config.mcpServers ? { mcpServers: this.config.mcpServers as Options['mcpServers'] } : {}),
       ...(this.config.persist === false ? { persistSession: false } : {}),
       ...(outputSchema !== undefined ? { outputFormat: { type: 'json_schema', schema: outputSchema as Record<string, unknown> } } : {}),
@@ -279,6 +284,7 @@ export class ClaudeSession implements ProviderSession {
       this.sessionId = m.session_id
       this.events.emit({ type: 'session_started', provider: 'claude', sessionId: this.sessionId })
     }
+    if (m.fast_mode_state !== undefined && !m.parent_tool_use_id) this.observeFastState(m.fast_mode_state, m.fast_mode_disabled_reason)
     switch (m.type) {
       case 'system':
         if (m.subtype === 'init') {
@@ -416,7 +422,7 @@ export class ClaudeSession implements ProviderSession {
   // ------------------------------------------------------------ settings
 
   async getRuntimeInfo(): Promise<RuntimeInfo> {
-    return { provider: 'claude', sessionId: this.sessionId, model: this.model, modeId: this.modeId, thinkingOptionId: this.effort }
+    return { provider: 'claude', sessionId: this.sessionId, model: this.model, modeId: this.modeId, thinkingOptionId: this.effort, fast: this.fast }
   }
   async getModes(): Promise<AgentMode[]> {
     return CLAUDE_MODES
@@ -437,6 +443,22 @@ export class ClaudeSession implements ProviderSession {
     await this.q?.applyFlagSettings({ effortLevel: effort as any })
     this.events.emit({ type: 'thinking_changed', provider: 'claude', thinkingOptionId: effort })
   }
+  private lastFastState: string | null = null
+  /** Claude reports what it is actually serving: 'on' | 'off' | 'cooldown' (+ why it can't). */
+  private observeFastState(state: string, reason?: unknown): void {
+    if (state === this.lastFastState) return
+    this.lastFastState = state
+    if (this.fast && state !== 'on') {
+      const why = reason ? `: ${typeof reason === 'string' ? reason : safeJson(reason)}` : ''
+      this.timeline({ type: 'notice', level: 'warning', message: state === 'cooldown' ? `Fast mode cooling down after a rate limit; using standard speed${why}` : `Fast mode is not active${why}` })
+    }
+  }
+
+  async setFast(enabled: boolean): Promise<void> {
+    this.fast = enabled
+    await this.q?.applyFlagSettings({ fastMode: enabled })
+    this.events.emit({ type: 'fast_changed', provider: 'claude', enabled })
+  }
   async listCommands(): Promise<SlashCommand[]> {
     await this.ensureQuery(undefined)
     const commands = await this.q!.supportedCommands()
@@ -444,7 +466,7 @@ export class ClaudeSession implements ProviderSession {
   }
 
   describePersistence(): PersistenceHandle {
-    return { provider: 'claude', sessionId: this.sessionId, cwd: this.config.cwd, metadata: { modeId: this.modeId, model: this.model, effort: this.effort } }
+    return { provider: 'claude', sessionId: this.sessionId, cwd: this.config.cwd, metadata: { modeId: this.modeId, model: this.model, effort: this.effort, fast: this.fast } }
   }
 
   async *history(): AsyncIterable<TimelineItem> {

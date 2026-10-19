@@ -112,6 +112,7 @@ export class AgentKit {
       model: options.model,
       modeId,
       thinkingOptionId: options.thinking,
+      fast: options.fast,
       systemPrompt: options.systemPrompt,
       mcpServers: options.mcpServers,
       title: options.title,
@@ -132,6 +133,7 @@ export class AgentKit {
       ...(options.model ? { model: options.model } : {}),
       ...(modeId ? { modeId } : {}),
       ...(options.thinking ? { thinkingOptionId: options.thinking } : {}),
+      ...(options.fast !== undefined ? { fast: options.fast } : {}),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       ...(options.mcpServers ? { mcpServers: options.mcpServers } : {}),
       ...(options.env ? { env: options.env } : {}),
@@ -169,8 +171,9 @@ export class AgentKit {
     return session
   }
 
-  private checkConfig(client: ProviderClient, options: { mcpServers?: Record<string, McpServerConfig>; systemPrompt?: string }): void {
+  private checkConfig(client: ProviderClient, options: { mcpServers?: Record<string, McpServerConfig>; systemPrompt?: string; fast?: boolean }): void {
     if (options.mcpServers && Object.keys(options.mcpServers).length && !client.capabilities.mcpServers) throw new UnsupportedCapabilityError(client.provider, 'mcpServers')
+    if (options.fast && !client.capabilities.fastMode) throw new UnsupportedCapabilityError(client.provider, 'fastMode')
     if (options.systemPrompt && !client.capabilities.systemPrompt) throw new UnsupportedCapabilityError(client.provider, 'systemPrompt')
   }
 

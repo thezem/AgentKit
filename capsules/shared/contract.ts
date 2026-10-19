@@ -46,6 +46,10 @@ export interface AgentModel {
   contextWindowMaxTokens?: number
   thinkingOptions?: ThinkingOption[]
   defaultThinkingOptionId?: string
+  /** Model has a faster (usually pricier) serving tier: Claude fast mode, Codex priority tier. */
+  supportsFastMode?: boolean
+  /** Provider's own wording, e.g. "1.5x speed, increased usage". */
+  fastModeDescription?: string
   metadata?: Metadata
 }
 
@@ -72,6 +76,8 @@ export interface Capabilities {
   modeSwitch: boolean
   modelSwitch: boolean
   thinkingSwitch: boolean
+  /** Toggle a faster serving tier per session (see AgentModel.supportsFastMode). */
+  fastMode: boolean
   mcpServers: boolean
   /** Inject input into a turn that is still running. */
   steer: boolean
@@ -162,6 +168,7 @@ export type AgentEvent =
   | { type: 'mode_changed'; provider: ProviderId; modeId: string | null }
   | { type: 'model_changed'; provider: ProviderId; model: string | null }
   | { type: 'thinking_changed'; provider: ProviderId; thinkingOptionId: string | null }
+  | { type: 'fast_changed'; provider: ProviderId; enabled: boolean }
 
 export type TerminalEvent = Extract<AgentEvent, { type: 'turn_completed' | 'turn_failed' | 'turn_canceled' }>
 
@@ -221,6 +228,8 @@ export interface SessionConfig {
   model?: string
   modeId?: string
   thinkingOptionId?: string
+  /** Start in fast mode when the model supports it. */
+  fast?: boolean
   /** Appended to the provider's own system prompt. */
   systemPrompt?: string
   mcpServers?: Record<string, McpServerConfig>
@@ -246,6 +255,7 @@ export interface RuntimeInfo {
   model: string | null
   modeId: string | null
   thinkingOptionId: string | null
+  fast: boolean
   extra?: Metadata
 }
 
@@ -303,6 +313,7 @@ export interface ProviderSession {
 
   setModel?(model: string | null): Promise<void>
   setThinking?(thinkingOptionId: string | null): Promise<void>
+  setFast?(enabled: boolean): Promise<void>
   steer?(prompt: PromptInput, options: { expectedTurnId: string }): Promise<{ accepted: boolean }>
   listCommands?(): Promise<SlashCommand[]>
   /** Replay the persisted conversation as timeline items. */
@@ -338,6 +349,7 @@ export const NO_CAPABILITIES: Capabilities = {
   modeSwitch: false,
   modelSwitch: false,
   thinkingSwitch: false,
+  fastMode: false,
   mcpServers: false,
   steer: false,
   slashCommands: false,

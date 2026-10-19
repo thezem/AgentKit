@@ -64,6 +64,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | steer a running turn | ✓ | ✓ | ✓ | ✓ |
 | prompt queue (`send`) | ✓ | ✓ | ✓ | ✓ |
 | mode / model / thinking switch | ✓ | ✓ | ✓ | ✓ |
+| fast mode (per model: `supportsFastMode`) | ✓ | ✓ (priority tier) | – | ✓ |
 | provider-neutral `access` levels | ✓ | ✓ | ✓ (via policy) | ✓ |
 | MCP servers | ✓ | ✓ | ✓ | – |
 | system prompt append | ✓ | ✓ | ✓ | ✓ |
@@ -77,7 +78,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | slash commands / skills | ✓ | – | ✓ | ✓ |
 | archive | – | ✓ | – | ✓ |
 
-**Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, system prompt, structured output, resume, history, listing, conversation rewind, slash commands ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** images, MCP injection, structured questions, file rewind, archive.
+**Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** images, MCP injection, structured questions, file rewind, archive.
 
 Unsupported calls throw `UnsupportedCapabilityError` before touching the provider. Check `session.capabilities` to hide the control.
 

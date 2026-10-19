@@ -41,6 +41,7 @@ export const MOCK_CAPABILITIES: Capabilities = {
   modeSwitch: true,
   modelSwitch: true,
   thinkingSwitch: true,
+  fastMode: true,
   mcpServers: false,
   steer: true,
   slashCommands: true,
@@ -76,6 +77,7 @@ class MockSession implements ProviderSession {
   private modeId: string
   private model: string | null
   private thinking: string | null
+  private fast: boolean
 
   constructor(id: string, config: SessionConfig, delayMs: number) {
     this.id = id
@@ -84,6 +86,7 @@ class MockSession implements ProviderSession {
     this.modeId = config.modeId ?? 'ask'
     this.model = config.model ?? 'mock-1'
     this.thinking = config.thinkingOptionId ?? null
+    this.fast = config.fast ?? false
     if (!store.has(id)) store.set(id, { cwd: config.cwd, title: config.title ?? null, updatedAt: new Date(), timeline: [] })
   }
 
@@ -137,7 +140,7 @@ class MockSession implements ProviderSession {
         return
       }
       const reply = options?.outputSchema !== undefined ? JSON.stringify({ ok: true }) : `echo: ${text.replace(/\[(tool|ask|slow)\]/g, '').trim()}`
-      const wait = text.includes('[slow]') ? 250 : this.delayMs
+      const wait = text.includes('[slow]') ? 250 : this.fast ? Math.max(1, this.delayMs / 3) : this.delayMs
       for (const word of reply.split(/(?<= )/)) {
         await delay(wait, undefined, { signal })
         this.emitItem({ type: 'assistant_message', text: word, messageId: turn.id }, turn.id)
@@ -188,7 +191,7 @@ class MockSession implements ProviderSession {
     entry.resolve(response)
   }
   async getRuntimeInfo(): Promise<RuntimeInfo> {
-    return { provider: 'mock', sessionId: this.id, model: this.model, modeId: this.modeId, thinkingOptionId: this.thinking }
+    return { provider: 'mock', sessionId: this.id, model: this.model, modeId: this.modeId, thinkingOptionId: this.thinking, fast: this.fast }
   }
   async getModes() {
     return MODES
@@ -204,6 +207,10 @@ class MockSession implements ProviderSession {
   async setThinking(id: string | null) {
     this.thinking = id
     this.events.emit({ type: 'thinking_changed', provider: 'mock', thinkingOptionId: id })
+  }
+  async setFast(enabled: boolean) {
+    this.fast = enabled
+    this.events.emit({ type: 'fast_changed', provider: 'mock', enabled })
   }
   async listCommands() {
     return [{ name: 'compact', description: 'Pretend to compact', kind: 'command' as const }]
@@ -238,7 +245,7 @@ export function createMockClient(config: MockCapsuleConfig = {}): ProviderClient
     async fetchCatalog() {
       return {
         models: [
-          { provider: 'mock', id: 'mock-1', label: 'Mock 1', isDefault: true, thinkingOptions: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] },
+          { provider: 'mock', id: 'mock-1', label: 'Mock 1', isDefault: true, supportsFastMode: true, fastModeDescription: '3x faster streaming', thinkingOptions: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] },
           { provider: 'mock', id: 'mock-2', label: 'Mock 2' },
         ],
         modes: MODES,

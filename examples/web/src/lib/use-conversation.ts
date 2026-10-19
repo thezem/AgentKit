@@ -28,6 +28,7 @@ export function useConversation(id: string | null) {
         if (e.type === 'mode_changed') setDetail((d) => d && { ...d, mode: e.modeId ?? undefined })
         if (e.type === 'model_changed') setDetail((d) => d && { ...d, model: e.model ?? undefined })
         if (e.type === 'thinking_changed') setDetail((d) => d && { ...d, thinking: e.thinkingOptionId ?? undefined })
+        if (e.type === 'fast_changed') setDetail((d) => d && { ...d, fast: e.enabled })
       } else setError(payload.message)
     }
     return () => {

@@ -34,6 +34,11 @@ export interface CodexCapsuleConfig {
 export { CODEX_CAPABILITIES, CODEX_MODES }
 export type { CodexSession }
 
+function fastInfo(tiers: Array<{ id: string; name: string; description?: string }> | undefined) {
+  const fast = tiers?.find((tier) => tier.name.toLowerCase() === 'fast' || tier.id === 'fast')
+  return fast ? { supportsFastMode: true, fastModeDescription: fast.description } : { supportsFastMode: false }
+}
+
 export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClient {
   let binaryPromise: Promise<string | null> | null = null
   const binary = () => (binaryPromise ??= findBinary('codex', config.binary))
@@ -86,6 +91,7 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
             description: model.description,
             isDefault: model.isDefault,
             defaultThinkingOptionId: model.defaultReasoningEffort ?? undefined,
+            ...fastInfo(model.serviceTiers),
             thinkingOptions: (model.supportedReasoningEfforts ?? []).map((option: any) => ({
               id: option.reasoningEffort,
               label: option.reasoningEffort,
@@ -106,6 +112,7 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
           modeId,
           model: session.model ?? started.model ?? null,
           effort: session.thinkingOptionId ?? started.reasoningEffort ?? null,
+          fast: session.fast,
         })
       } catch (error) {
         await rpc.dispose()
@@ -114,7 +121,7 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
     },
 
     async resumeSession(handle: PersistenceHandle, overrides: Partial<SessionConfig> = {}): Promise<ProviderSession> {
-      const meta = (handle.metadata ?? {}) as { modeId?: string; model?: string; effort?: string }
+      const meta = (handle.metadata ?? {}) as { modeId?: string; model?: string; effort?: string; fast?: boolean }
       const session: SessionConfig = { cwd: handle.cwd, ...overrides }
       const modeId = overrides.modeId ?? meta.modeId ?? DEFAULT_CODEX_MODE
       const rpc = await connect(session.cwd, session.env)
@@ -128,6 +135,7 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
           modeId,
           model: overrides.model ?? resumed.model ?? meta.model ?? null,
           effort: overrides.thinkingOptionId ?? meta.effort ?? resumed.reasoningEffort ?? null,
+          fast: overrides.fast ?? meta.fast,
         })
       } catch (error) {
         await rpc.dispose()

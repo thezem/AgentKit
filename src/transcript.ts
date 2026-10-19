@@ -19,6 +19,7 @@ export interface Transcript {
   modeId: string | null
   model: string | null
   thinkingOptionId: string | null
+  fast: boolean
 }
 
 export function emptyTranscript(): Transcript {
@@ -33,6 +34,7 @@ export function emptyTranscript(): Transcript {
     modeId: null,
     model: null,
     thinkingOptionId: null,
+    fast: false,
   }
 }
 
@@ -67,5 +69,7 @@ export function reduceTranscript(state: Transcript, event: AgentEvent): Transcri
       return { ...state, model: event.model }
     case 'thinking_changed':
       return { ...state, thinkingOptionId: event.thinkingOptionId }
+    case 'fast_changed':
+      return { ...state, fast: event.enabled }
   }
 }

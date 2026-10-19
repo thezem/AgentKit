@@ -9,4 +9,5 @@ Breaking rewrite.
 - Claude Code and Codex capsules rewritten (Claude: long-lived streaming query; Codex: direct app-server JSON-RPC, zero deps).
 - Primitives now uniform across providers: steer, prompt queue, rewind (conversation/files), history replay, native session listing, structured output, MCP injection, system prompt append, slash commands, typed tool details, structured questions, provider-neutral access levels, permission policies, transcript reducer.
 - `createAgentKit()` replaces `createAgent()` / `createSession()`. 0.1 handles are not compatible.
+- Fast mode: `supportsFastMode` per model, `fast` session option, `session.setFast()`, `fast_changed` event. Claude (fast mode, live state feedback) and Codex (serving tier); OpenCode has no native tier.
 - Conformance E2E against real signed-in CLIs with JSON artifacts.

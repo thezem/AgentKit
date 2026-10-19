@@ -245,6 +245,11 @@ export class AgentSession {
     this.guard('thinkingSwitch')
     await this.inner.setThinking!(optionId)
   }
+  /** Faster serving tier for models with `supportsFastMode` (Claude fast mode, Codex priority tier). */
+  async setFast(enabled: boolean): Promise<void> {
+    this.guard('fastMode')
+    await this.inner.setFast!(enabled)
+  }
   async commands(): Promise<SlashCommand[]> {
     if (!this.capabilities.slashCommands || !this.inner.listCommands) return []
     return this.inner.listCommands()

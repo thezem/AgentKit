@@ -33,6 +33,8 @@ export const OPENCODE_CAPABILITIES: Capabilities = {
   modeSwitch: true,
   modelSwitch: true,
   thinkingSwitch: true,
+  /** No native fast tier; OpenCode's "-fast" entries are separate model ids. */
+  fastMode: false,
   mcpServers: true,
   steer: true,
   slashCommands: true,
@@ -482,6 +484,7 @@ export class OpenCodeSession implements ProviderSession {
       model: model ? `${model.providerID}/${model.id}` : null,
       modeId: this.info.agent ?? null,
       thinkingOptionId: model?.variant ?? null,
+      fast: false,
       ...(this.info.model ? {} : { extra: { modelIsDefault: true } }),
     }
   }

@@ -23,6 +23,11 @@
       "name": "slash-commands",
       "ok": true,
       "note": "188 commands"
+    },
+    {
+      "name": "fast-mode",
+      "ok": true,
+      "note": "opus: fast turn 5780ms incl. toggle, no warnings"
     }
   ]
 }

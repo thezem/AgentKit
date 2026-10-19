@@ -75,6 +75,29 @@ for (const provider of providers) {
     return `${commands.length} commands`
   })
 
+  await check('fast-mode', async () => {
+    if (!session.capabilities.fastMode) throw Object.assign(new Error('no native fast tier'), { code: 'UNSUPPORTED_CAPABILITY' })
+    const model = (await kit.catalog(provider, { cwd })).models.find((m) => m.supportsFastMode)
+    if (!model) throw new Error('capability on but no model supports fast mode')
+    const fast = await kit.session({ provider, cwd, access: 'full-access', model: model.id, fast: true, ...(provider === 'codex' ? { thinking: 'low' } : {}) })
+    try {
+      const warnings: string[] = []
+      fast.on((e) => e.type === 'timeline' && e.item.type === 'notice' && warnings.push(e.item.message))
+      const t0 = Date.now()
+      const a = await fast.run('Reply with exactly: fast')
+      if (a.status !== 'completed') throw new Error(`fast turn: ${a.status} ${a.error ?? ''}`)
+      if (!(await fast.info()).fast) throw new Error('info().fast is false after opening with fast: true')
+      await fast.setFast(false)
+      if ((await fast.info()).fast || fast.transcript.fast) throw new Error('setFast(false) not reflected')
+      const b = await fast.run('Reply with exactly: standard')
+      if (b.status !== 'completed') throw new Error(`standard turn: ${b.status}`)
+      if (warnings.length) throw new Error(warnings.join('; '))
+      return `${model.id}: fast turn ${Date.now() - t0}ms incl. toggle, no warnings`
+    } finally {
+      await fast.close()
+    }
+  })
+
   await session.close()
   out[provider] = checks
 }

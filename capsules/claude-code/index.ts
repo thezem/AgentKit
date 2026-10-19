@@ -75,6 +75,8 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
             description: model.description,
             isDefault: model.value === 'default' || index === 0,
             thinkingOptions: (model.supportedEffortLevels ?? []).map((level: string) => ({ id: level, label: level })),
+            supportsFastMode: model.supportsFastMode === true,
+            ...(model.supportsFastMode ? { fastModeDescription: 'Faster output, higher cost' } : {}),
           })),
           modes: CLAUDE_MODES,
           defaultModeId: DEFAULT_CLAUDE_MODE,
@@ -89,12 +91,13 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
     },
 
     async resumeSession(handle: PersistenceHandle, overrides: Partial<SessionConfig> = {}) {
-      const meta = (handle.metadata ?? {}) as { modeId?: string; model?: string; effort?: string }
+      const meta = (handle.metadata ?? {}) as { modeId?: string; model?: string; effort?: string; fast?: boolean }
       const session: SessionConfig = {
         cwd: handle.cwd,
         modeId: meta.modeId,
         model: meta.model ?? undefined,
         thinkingOptionId: meta.effort ?? undefined,
+        fast: meta.fast,
         ...overrides,
       }
       return track(new ClaudeSession(session, await runtime(), { sessionId: handle.sessionId }))
