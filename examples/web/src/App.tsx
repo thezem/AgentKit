@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/composer'
 import { Inbox } from '@/components/inbox'
+import { SkillText } from '@/components/skill-chip'
 import { ConversationDrawer } from '@/components/conversation-drawer'
 import { FastToggle, ModelPicker, ModePicker, ProviderPicker, ThinkingPicker } from '@/components/pickers'
 import { PROVIDER_LABEL, ProviderLogo } from '@/components/provider-logo'
 import { Thread } from '@/components/thread'
-import { api, type ConversationSummary, type ProviderCatalog, type ProviderStatus } from '@/lib/api'
+import { api, type ConversationSummary, type ProviderCatalog, type ProviderStatus, type SkillSummary } from '@/lib/api'
 import { useConversation } from '@/lib/use-conversation'
 
 function useHashRoute(): [string | null, (id: string | null) => void] {
@@ -115,6 +116,15 @@ export default function App() {
     }
   }
 
+  // Installed skills for this folder: chips in the composer and in sent messages.
+  const skillCwd = detail?.cwd ?? draft.cwd
+  const [skills, setSkills] = useState<SkillSummary[]>([])
+  useEffect(() => {
+    if (!skillCwd) return
+    api.skills(skillCwd).then(setSkills, () => setSkills([]))
+  }, [skillCwd])
+  const skillMap = useMemo(() => new Map(skills.map((s) => [s.name, s])), [skills])
+
   const [compacting, setCompacting] = useState(false)
   const fork = async (beforeMessageId?: string) => {
     if (!activeId) return
@@ -176,7 +186,9 @@ export default function App() {
           {detail && (
             <div className="flex min-w-0 items-center gap-2">
               <ProviderLogo provider={detail.provider} />
-              <span className="truncate text-sm font-medium">{detail.title}</span>
+              <span className="truncate text-sm font-medium">
+                <SkillText text={detail.title} skills={skillMap} />
+              </span>
               <span className="hidden max-w-64 truncate text-xs text-muted-foreground md:inline">{detail.cwd.replace(/^\/home\/[^/]+/, '~')}</span>
             </div>
           )}
@@ -231,6 +243,7 @@ export default function App() {
                   setError((e as Error).message)
                 }
               }}
+              skills={skillMap}
               canFork={Boolean(capabilities?.fork)}
               onFork={(messageId) => fork(messageId)}
               onRespond={async (request, response) => {
@@ -240,7 +253,7 @@ export default function App() {
             <div className="mx-auto w-full max-w-[46rem] shrink-0 px-5 pb-5">
               {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
               <Inbox inbox={transcript.inbox ?? []} onWithdraw={(id) => api.withdraw(activeId, id).catch((e) => setError(e.message))} />
-              <Composer running={running || compacting} canSteer={Boolean(capabilities?.steer)} onSend={send} onStop={() => api.interrupt(activeId)} footer={footer} autoFocus />
+              <Composer running={running || compacting} canSteer={Boolean(capabilities?.steer)} onSend={send} onStop={() => api.interrupt(activeId)} footer={footer} autoFocus skills={skills} cwd={skillCwd} />
             </div>
           </>
         ) : (
@@ -248,7 +261,7 @@ export default function App() {
             <div className="w-full max-w-[42rem]">
               <h1 className="mb-1 text-[26px] font-semibold tracking-tight">What should {PROVIDER_LABEL[draft.provider] ?? draft.provider} work on?</h1>
               <p className="mb-6 text-sm text-muted-foreground">Runs on your local sign-in. Same controls for every agent.</p>
-              <Composer running={false} canSteer={false} onSend={send} onStop={() => undefined} footer={footer} autoFocus placeholder="Describe a task, ask about the code…" />
+              <Composer running={false} canSteer={false} onSend={send} onStop={() => undefined} footer={footer} autoFocus placeholder="Describe a task, or / for a skill" skills={skills} cwd={skillCwd} />
               <div className="mt-3 flex items-center gap-2 text-muted-foreground">
                 <FolderOpen className="size-4 shrink-0" />
                 <Input value={draft.cwd} onChange={(e) => setDraft((d: typeof draft) => ({ ...d, cwd: e.target.value }))} className="h-8 border-0 bg-transparent px-1 text-[13px] shadow-none dark:bg-transparent" placeholder="/path/to/project" />

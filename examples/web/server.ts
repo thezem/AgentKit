@@ -117,6 +117,17 @@ type Handler = (body: any, params: string[], req: http.IncomingMessage, res: htt
 const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/api\/providers$/, async () => kit.providers()],
   ['GET', /^\/api\/catalog\/([\w-]+)$/, async (_b, [provider], req) => kit.catalog(provider, { cwd: new URL(req.url!, 'http://x').searchParams.get('cwd') ?? undefined })],
+  [
+    'GET',
+    /^\/api\/skills$/,
+    async (_b, _p, req) => {
+      const params = new URL(req.url!, 'http://x').searchParams
+      const cwd = params.get('cwd') || process.env.AGENTKIT_CWD || process.cwd()
+      const q = params.get('q') ?? ''
+      const list = q ? await kit.searchSkills(q, { cwd, limit: 8 }) : await kit.skills({ cwd })
+      return list.map(({ name, description, scope, visibleTo }) => ({ name, description, scope, visibleTo }))
+    },
+  ],
   ['GET', /^\/api\/defaults$/, async () => ({ cwd: process.env.AGENTKIT_CWD ?? process.cwd(), home: os.homedir() })],
   ['GET', /^\/api\/conversations$/, async () => store.listSessions().map((s) => summary(s.key))],
   [

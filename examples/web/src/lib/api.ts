@@ -4,6 +4,7 @@ import type { Transcript } from '../../../../src/transcript.ts'
 export type { AgentEvent, Capabilities, ProviderCatalog, Transcript }
 export type { PermissionRequest, TimelineItem, ToolCallItem, ToolDetail } from '../../../../capsules/shared/contract.ts'
 
+export type SkillSummary = { name: string; description: string; scope: string; visibleTo: string[] }
 export type ProviderStatus = { provider: string; label: string; available: boolean; capabilities: Capabilities }
 export type ConversationSummary = {
   id: string
@@ -33,6 +34,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
+  skills: (cwd: string, q = '') => call<SkillSummary[]>('GET', `/skills?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(q)}`),
   providers: () => call<ProviderStatus[]>('GET', '/providers'),
   defaults: () => call<{ cwd: string; home: string }>('GET', '/defaults'),
   catalog: (provider: string, cwd?: string) => call<ProviderCatalog>('GET', `/catalog/${provider}${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ''}`),

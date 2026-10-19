@@ -6,7 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Markdown } from '@/components/markdown'
 import { PermissionCard } from '@/components/permission-card'
 import { ToolCall } from '@/components/tool-call'
-import type { PermissionRequest, TimelineItem, Transcript } from '@/lib/api'
+import { SkillText } from '@/components/skill-chip'
+import type { PermissionRequest, SkillSummary, TimelineItem, Transcript } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 type Block = { kind: 'item'; item: TimelineItem; index: number } | { kind: 'tools'; items: Extract<TimelineItem, { type: 'tool_call' }>[]; index: number }
@@ -40,7 +41,7 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
   )
 }
 
-function UserMessage({ text, canRewind, onRewind, canFork, onFork }: { text: string; canRewind: boolean; onRewind?: () => void; canFork: boolean; onFork?: () => void }) {
+function UserMessage({ text, skills, canRewind, onRewind, canFork, onFork }: { text: string; skills: Map<string, SkillSummary>; canRewind: boolean; onRewind?: () => void; canFork: boolean; onFork?: () => void }) {
   return (
     <div className="group/user flex items-start justify-end gap-1">
       {canFork && onFork && (
@@ -63,7 +64,9 @@ function UserMessage({ text, canRewind, onRewind, canFork, onFork }: { text: str
           <TooltipContent>Rewind to before this message</TooltipContent>
         </Tooltip>
       )}
-      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">{text}</div>
+      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">
+        <SkillText text={text} skills={skills} />
+      </div>
     </div>
   )
 }
@@ -75,7 +78,9 @@ export function Thread({
   canFork,
   onFork,
   onRespond,
+  skills,
 }: {
+  skills: Map<string, SkillSummary>
   transcript: Transcript
   canRewind: boolean
   onRewind: (messageId: string, text: string) => void
@@ -123,7 +128,7 @@ export function Thread({
           const key = `i${block.index}`
           switch (item.type) {
             case 'user_message':
-              return <UserMessage key={key} text={item.text} canRewind={canRewind && !running && Boolean(item.messageId)} onRewind={() => item.messageId && onRewind(item.messageId, item.text)} canFork={canFork && !running && Boolean(item.messageId) && block.index !== firstUser} onFork={() => item.messageId && onFork(item.messageId)} />
+              return <UserMessage key={key} text={item.text} skills={skills} canRewind={canRewind && !running && Boolean(item.messageId)} onRewind={() => item.messageId && onRewind(item.messageId, item.text)} canFork={canFork && !running && Boolean(item.messageId) && block.index !== firstUser} onFork={() => item.messageId && onFork(item.messageId)} />
             case 'assistant_message':
               return <Markdown key={key} text={item.text} />
             case 'reasoning':

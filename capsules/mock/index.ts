@@ -143,7 +143,7 @@ class MockSession implements ProviderSession {
         end({ type: 'turn_failed', provider: 'mock', turnId: turn.id, error: 'mock failure requested' })
         return
       }
-      const reply = options?.outputSchema !== undefined ? JSON.stringify({ ok: true }) : `echo: ${text.replace(/\[(tool|ask|slow)\]/g, '').trim()}`
+      const reply = options?.outputSchema !== undefined ? JSON.stringify({ ok: true }) : `echo: ${text.replace(/<skill-invoked name="([^"]*)"[^>]*>[\s\S]*?<\/skill-invoked>/g, '$$$1').replace(/\[(tool|ask|slow)\]/g, '').trim()}`
       const wait = text.includes('[slow]') ? 250 : this.fast ? Math.max(1, this.delayMs / 3) : this.delayMs
       for (const word of reply.split(/(?<= )/)) {
         await delay(wait, undefined, { signal })
