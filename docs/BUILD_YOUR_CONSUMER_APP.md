@@ -70,6 +70,14 @@ const catalog = await kit.catalog('codex', { cwd })   // cached 5 min
 | Access | `'plan' \| 'supervised' \| 'auto-edit' \| 'full-access'` | – (mapped per provider) |
 | Folder | your input; pass as `cwd` | – |
 
+**OpenCode lists every model of every connected backend** (hundreds with a gateway like Vercel). Each OpenCode model has `source` = its connection (`'opencode-go'` = the Go subscription, `'opencode'` = Zen, `'vercel'`, …). Narrow the picker with:
+
+```ts
+await kit.catalog('opencode', { cwd, sources: ['opencode-go'] })   // only the Go plan's models
+```
+
+OpenCode exposes no plan entitlements, so this filters by connection, not by what the account may call. If nothing matches it returns the full list. If you filter, also pass the filtered default as `model` when opening the session; otherwise OpenCode uses its own default, which may be outside your filter.
+
 **Prefer `access` over native modes** in your UI. AgentKit maps it per provider (`ACCESS_MODE_MAP`); where a provider has no native unattended mode (OpenCode), full-access is enforced with an allow-all policy. Offer native `mode` only as an advanced option.
 
 ---
@@ -323,4 +331,5 @@ When you add or change a primitive, in the same change:
 - **0.2** — sessions, events, transcript, permissions/policies, access levels, modes/model/thinking/fast, steer/queue, resume, history, rewind, slash commands.
 - **0.2 + durable** — `store`, `submit({ whenBusy, requestId })`, inbox + withdraw, `kit.restore`, `kit.submission`, crash recovery, `fork`, `compact`.
 - **0.2 + context** — `contextWindow()`, `contextWindowMaxTokens` in usage and catalogs.
+- **0.2 + catalog sources** — `AgentModel.source`, `kit.catalog(p, { sources })` (OpenCode: filter to `opencode-go`).
 - **0.2 + skills** — `kit.skills()`, `kit.searchSkills()`, `$name` expansion, `splitSkillTags`, example `/` menu.

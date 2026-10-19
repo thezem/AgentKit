@@ -96,6 +96,15 @@ function get(id: string) {
   return saved
 }
 
+/**
+ * OpenCode: show only the OpenCode Go plan's models for now. OpenCode exposes no plan
+ * entitlements, so this filters by connection. Return {} here to list every connected
+ * model (Zen, Vercel, ...), or swap in a real entitlement check later.
+ */
+function catalogFilter(provider: string): { sources?: string[] } {
+  return provider === 'opencode' ? { sources: ['opencode-go'] } : {}
+}
+
 function titleFrom(text: string) {
   const line = text.trim().split('\n')[0]
   return line.length > 60 ? `${line.slice(0, 57)}...` : line
@@ -116,7 +125,15 @@ function migrateLegacyJson() {
 type Handler = (body: any, params: string[], req: http.IncomingMessage, res: http.ServerResponse) => Promise<unknown>
 const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/api\/providers$/, async () => kit.providers()],
-  ['GET', /^\/api\/catalog\/([\w-]+)$/, async (_b, [provider], req) => kit.catalog(provider, { cwd: new URL(req.url!, 'http://x').searchParams.get('cwd') ?? undefined })],
+  [
+    'GET',
+    /^\/api\/catalog\/([\w-]+)$/,
+    async (_b, [provider], req) =>
+      kit.catalog(provider, {
+        cwd: new URL(req.url!, 'http://x').searchParams.get('cwd') ?? undefined,
+        ...catalogFilter(provider),
+      }),
+  ],
   [
     'GET',
     /^\/api\/skills$/,
@@ -135,6 +152,10 @@ const routes: Array<[string, RegExp, Handler]> = [
     /^\/api\/conversations$/,
     async (body) => {
       const id = randomUUID()
+      // No model picked: use the default of the list the picker showed (filtered), not the provider's own.
+      if (!body.model && catalogFilter(body.provider).sources) {
+        body.model = (await kit.catalog(body.provider, { cwd: body.cwd, ...catalogFilter(body.provider) }).catch(() => null))?.models.find((x) => x.isDefault)?.id
+      }
       const m: Meta = { cwd: body.cwd || process.cwd(), title: 'New conversation', model: body.model || undefined, mode: body.mode || undefined, thinking: body.thinking || undefined, fast: body.fast === true || undefined }
       store.putSession(id, { provider: body.provider, handle: null, meta: m })
       return summary(id)

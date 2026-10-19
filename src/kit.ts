@@ -113,14 +113,28 @@ export class AgentKit {
   }
 
   /** Models + modes for a provider (cached). Use it to render model / mode / thinking pickers. */
-  catalog(provider: ProviderId, options: { cwd?: string; force?: boolean } = {}): Promise<ProviderCatalog> {
+  /**
+   * `sources` keeps only models whose `source` is listed (OpenCode: `['opencode-go']` = your Go plan).
+   * OpenCode has no plan-entitlement API, so this filters by connection, not by what the account may call.
+   */
+  async catalog(provider: ProviderId, options: { cwd?: string; force?: boolean; sources?: string[] } = {}): Promise<ProviderCatalog> {
     const key = `${provider}:${options.cwd ?? ''}`
     const hit = this.catalogs.get(key)
-    if (hit && !options.force && Date.now() - hit.at < this.ttl) return hit.value
-    const value = this.client(provider).fetchCatalog({ cwd: options.cwd })
-    this.catalogs.set(key, { at: Date.now(), value })
-    value.catch(() => this.catalogs.delete(key))
-    return value
+    let value: Promise<ProviderCatalog>
+    if (hit && !options.force && Date.now() - hit.at < this.ttl) value = hit.value
+    else {
+      value = this.client(provider).fetchCatalog({ cwd: options.cwd })
+      this.catalogs.set(key, { at: Date.now(), value })
+      value.catch(() => this.catalogs.delete(key))
+    }
+    const catalog = await value
+    if (!options.sources?.length) return catalog
+    const keep = new Set(options.sources)
+    const models = catalog.models.filter((m) => m.source !== undefined && keep.has(m.source))
+    // Nothing matched (e.g. no Go connection): fall back to everything rather than an empty picker.
+    if (!models.length) return catalog
+    if (!models.some((m) => m.isDefault)) models[0] = { ...models[0], isDefault: true }
+    return { ...catalog, models }
   }
 
   /** Open a new session on any provider with one shape of options. */

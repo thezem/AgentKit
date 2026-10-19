@@ -138,6 +138,7 @@ export function createOpenCodeClient(config: OpenCodeCapsuleConfig = {}): Provid
               label: model.name ?? model.id,
               isDefault: `${model.providerID}/${model.id}` === defaultId,
               contextWindowMaxTokens: model.limit?.context,
+              source: model.providerID,
               thinkingOptions: (model.variants ?? []).map((variant: any) => ({ id: variant.id, label: variant.id })),
             })),
           modes: (agents.data ?? [])

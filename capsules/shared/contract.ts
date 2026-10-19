@@ -44,6 +44,11 @@ export interface AgentModel {
   description?: string
   isDefault?: boolean
   contextWindowMaxTokens?: number
+  /**
+   * Where the model comes from inside a multi-backend provider. OpenCode: the
+   * connection's provider id, e.g. 'opencode-go' (Go subscription), 'opencode' (Zen), 'vercel'.
+   */
+  source?: string
   thinkingOptions?: ThinkingOption[]
   defaultThinkingOptionId?: string
   /** Model has a faster (usually pricier) serving tier: Claude fast mode, Codex priority tier. */
