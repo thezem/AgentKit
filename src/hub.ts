@@ -26,6 +26,11 @@ export type HubTransport =
   | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string>; cwd?: string }
   | { type: 'http'; url: string; headers?: Record<string, string> }
 
+/**
+ * Loading hint. Today only Claude Code acts on it: 'always' → `alwaysLoad` (tool schemas in context
+ * up front); 'on-demand' leaves them to Claude's tool search. Codex and OpenCode load every tool
+ * up front regardless. Reserved for hub-side on-demand loading on those providers later.
+ */
 export type HubLoad = 'on-demand' | 'always'
 export type HubStatus = 'off' | 'starting' | 'connected' | 'failed' | 'needs_auth'
 

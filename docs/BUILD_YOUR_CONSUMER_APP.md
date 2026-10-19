@@ -296,7 +296,7 @@ kit.hub!.on((e) => /* status | removed | call */)
 - The hub connects to each upstream once and serves each one on a loopback URL (`127.0.0.1:<port>/<secret>/<name>`). Every new session, on any provider, gets exactly the enabled servers.
 - **Exclusive by default**: the CLI's own MCP config is switched off for that thread (Claude `strictMcpConfig`, Codex `config.toml` servers disabled, OpenCode other servers disconnected), so the hub list is the truth. Codex's built-in `codex_apps`/`cua_repl` can't be disabled. `hub: { exclusive: false }` merges instead.
 - Toggles and adds apply to **new** threads. Say so in the UI.
-- `load: 'always'` → Claude `alwaysLoad` (schemas up front); others ignore it.
+- `load` is a Claude-only hint today: `'always'` → `alwaysLoad` (schemas up front), `'on-demand'` → Claude's tool search. Codex and OpenCode load every tool up front either way; label the control accordingly.
 - Status per server: `connected | starting | failed | needs_auth | off`, with `error` and `tools`. Show a badge + tool count; a failed server never blocks the others.
 - Never send env/header values to the browser. Mask them (see [`server.ts`](../examples/web/server.ts) `publicServer`).
 - Settings UI reference: [`mcp-settings.tsx`](../examples/web/src/components/mcp-settings.tsx): list with badge, tool count, On demand/Always, delete, enable switch; Add dialog with Command (stdio) / Remote (HTTP) tabs; Import; live updates over SSE.
