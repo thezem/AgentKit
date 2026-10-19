@@ -75,6 +75,19 @@ for (const provider of providers) {
     return `${commands.length} commands`
   })
 
+  await check('context-window', async () => {
+    const before = await session.contextWindow()
+    await session.run('Reply with exactly: ok')
+    const after = await session.contextWindow()
+    const live = session.transcript.usage
+    if (!after.maxTokens || after.maxTokens < 8_000) throw new Error(`max=${after.maxTokens}`)
+    if (!after.usedTokens || after.usedTokens <= 0 || after.usedTokens >= after.maxTokens) throw new Error(`used=${after.usedTokens} max=${after.maxTokens}`)
+    if (live?.contextWindowMaxTokens !== after.maxTokens) throw new Error(`usage event max=${live?.contextWindowMaxTokens} vs contextWindow() max=${after.maxTokens}`)
+    const model = (await session.info()).model
+    const listed = (await kit.catalog(provider, { cwd, force: true })).models.find((m) => m.id === model)?.contextWindowMaxTokens
+    return `${model}: ${after.usedTokens}/${after.maxTokens} used; before first turn max=${before.maxTokens ?? 'unknown'}; catalog=${listed ?? 'n/a'}`
+  })
+
   await check('fast-mode', async () => {
     if (!session.capabilities.fastMode) throw Object.assign(new Error('no native fast tier'), { code: 'UNSUPPORTED_CAPABILITY' })
     const model = (await kit.catalog(provider, { cwd })).models.find((m) => m.supportsFastMode)

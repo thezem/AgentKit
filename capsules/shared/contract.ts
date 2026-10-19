@@ -179,6 +179,12 @@ export type AgentEvent =
   /** A turn that was running when the process died. Never auto-resent. */
   | { type: 'turn_interrupted'; provider: ProviderId; turnId: string | null; submissionId: string | null; reason: string }
 
+/** How full the model's context is. Either side can be null when the provider hasn't said yet. */
+export interface ContextWindow {
+  usedTokens: number | null
+  maxTokens: number | null
+}
+
 export interface InboxEntry {
   /** Submission id (your requestId if you passed one). */
   id: string
@@ -343,6 +349,8 @@ export interface ProviderSession {
   fork?(input: { beforeMessageId?: string }): Promise<PersistenceHandle>
   /** Native compaction. Resolves when the provider reports it done. */
   compact?(input: { instructions?: string }): Promise<void>
+  /** Exact window for the session's current model, as reported by the provider (not a lookup table). */
+  contextWindow?(): Promise<ContextWindow>
 }
 
 export interface ProviderClient {

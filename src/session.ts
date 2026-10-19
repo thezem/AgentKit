@@ -15,6 +15,7 @@ import type {
   TimelineItem,
   TurnOptions,
   InboxEntry,
+  ContextWindow,
 } from '../capsules/shared/contract.ts'
 import { isTerminalEvent } from '../capsules/shared/contract.ts'
 import { deferred, Emitter } from '../capsules/shared/runtime.ts'
@@ -501,6 +502,18 @@ export class AgentSession {
     }
     forked.hydrate({ ...emptyTranscript(), items, modeId: this.state.modeId, model: this.state.model, thinkingOptionId: this.state.thinkingOptionId, fast: this.state.fast })
     return forked
+  }
+
+  /**
+   * How full the context is, straight from the provider. Falls back to the last
+   * usage event when the capsule has no direct call.
+   */
+  async contextWindow(): Promise<ContextWindow> {
+    if (this.closed) throw new AgentKitError('SESSION_CLOSED', 'session is closed', { provider: this.provider })
+    const fromUsage: ContextWindow = { usedTokens: this.state.usage?.contextWindowUsedTokens ?? null, maxTokens: this.state.usage?.contextWindowMaxTokens ?? null }
+    if (!this.inner.contextWindow) return fromUsage
+    const live = await this.inner.contextWindow()
+    return { usedTokens: live.usedTokens ?? fromUsage.usedTokens, maxTokens: live.maxTokens ?? fromUsage.maxTokens }
   }
 
   /** Native compaction: summarize older context. Waits for any running turn; counts as busy while it runs. */

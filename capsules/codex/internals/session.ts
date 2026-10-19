@@ -1,6 +1,7 @@
 import type {
   AgentEvent,
   AgentMode,
+  ContextWindow,
   Capabilities,
   PermissionRequest,
   PermissionResponse,
@@ -85,6 +86,12 @@ export function threadParams(config: SessionConfig, modeId: string): Record<stri
     ...(Object.keys(inner).length ? { config: inner } : {}),
     ...(config.persist === false ? { ephemeral: true } : {}),
   }
+}
+
+/** Codex reports `modelContextWindow` only with token usage, so remember it per model for the catalog. */
+const knownWindows = new Map<string, number>()
+export function knownContextWindow(model: string): number | undefined {
+  return knownWindows.get(model)
 }
 
 export class CodexSession implements ProviderSession {
@@ -271,6 +278,7 @@ export class CodexSession implements ProviderSession {
         return
       case 'thread/tokenUsage/updated':
         this.lastUsage = usageFromCodex(params.tokenUsage)
+        if (this.model && this.lastUsage.contextWindowMaxTokens) knownWindows.set(this.model, this.lastUsage.contextWindowMaxTokens)
         this.events.emit({ type: 'usage', provider: 'codex', usage: this.lastUsage, turnId })
         return
       case 'thread/compacted':
@@ -505,6 +513,14 @@ export class CodexSession implements ProviderSession {
     const event = await Promise.race([ended, new Promise<null>((r) => setTimeout(() => r(null), 300_000))])
     if (!event) throw new Error('codex compaction did not finish within 5 minutes')
     if (event.type !== 'turn_completed') throw new Error(`codex compact ${event.type}`)
+  }
+
+  /** Exact once a turn has reported usage; before that, whatever an earlier session learned for this model. */
+  async contextWindow(): Promise<ContextWindow> {
+    return {
+      usedTokens: this.lastUsage?.contextWindowUsedTokens ?? null,
+      maxTokens: this.lastUsage?.contextWindowMaxTokens ?? (this.model ? (knownWindows.get(this.model) ?? null) : null),
+    }
   }
 
   async close(): Promise<void> {

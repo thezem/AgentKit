@@ -11,7 +11,7 @@
 import { listSessions, query, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { PersistenceHandle, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary } from '../shared/contract.ts'
 import { findBinary, runCapture } from '../shared/runtime.ts'
-import { CLAUDE_CAPABILITIES, CLAUDE_MODES, ClaudeSession, DEFAULT_CLAUDE_MODE } from './internals/session.ts'
+import { CLAUDE_CAPABILITIES, CLAUDE_MODES, ClaudeSession, DEFAULT_CLAUDE_MODE, knownContextWindow } from './internals/session.ts'
 
 export interface ClaudeCodeCapsuleConfig {
   /**
@@ -76,6 +76,7 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
             isDefault: model.value === 'default' || index === 0,
             thinkingOptions: (model.supportedEffortLevels ?? []).map((level: string) => ({ id: level, label: level })),
             supportsFastMode: model.supportsFastMode === true,
+            contextWindowMaxTokens: knownContextWindow(model.value),
             ...(model.supportsFastMode ? { fastModeDescription: 'Faster output, higher cost' } : {}),
           })),
           modes: CLAUDE_MODES,

@@ -1,9 +1,9 @@
 {
-  "at": "2026-10-19T11:10:23.233Z",
+  "at": "2026-10-19T11:20:45.900Z",
   "leakedChildren": 0,
   "results": [
     {
-      "provider": "codex",
+      "provider": "mock",
       "passed": 11,
       "total": 11,
       "failed": []

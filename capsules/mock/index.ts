@@ -66,6 +66,7 @@ export interface MockCapsuleConfig {
   tokenDelayMs?: number
 }
 
+const MOCK_WINDOW = 200_000
 const store = new Map<string, { cwd: string; title: string | null; updatedAt: Date; timeline: TimelineItem[] }>()
 
 class MockSession implements ProviderSession {
@@ -149,7 +150,8 @@ class MockSession implements ProviderSession {
         this.emitItem({ type: 'assistant_message', text: word, messageId: turn.id }, turn.id)
       }
       store.get(this.id)!.updatedAt = new Date()
-      end({ type: 'turn_completed', provider: 'mock', turnId: turn.id, usage: { inputTokens: text.length, outputTokens: reply.length, totalCostUsd: 0 } })
+      this.used += text.length + reply.length
+      end({ type: 'turn_completed', provider: 'mock', turnId: turn.id, usage: { inputTokens: text.length, outputTokens: reply.length, totalCostUsd: 0, contextWindowUsedTokens: this.used, contextWindowMaxTokens: MOCK_WINDOW } })
     } catch {
       end({ type: 'turn_canceled', provider: 'mock', turnId: turn.id, reason: 'interrupted' })
     }
@@ -233,6 +235,10 @@ class MockSession implements ProviderSession {
     if (index < 0) throw new Error('message not found')
     entry.timeline.splice(index)
   }
+  private used = 0
+  async contextWindow() {
+    return { usedTokens: this.used, maxTokens: MOCK_WINDOW }
+  }
   async fork(input: { beforeMessageId?: string }) {
     const entry = store.get(this.id)!
     let timeline = entry.timeline.slice()
@@ -271,7 +277,7 @@ export function createMockClient(config: MockCapsuleConfig = {}): ProviderClient
     async fetchCatalog() {
       return {
         models: [
-          { provider: 'mock', id: 'mock-1', label: 'Mock 1', isDefault: true, supportsFastMode: true, fastModeDescription: '3x faster streaming', thinkingOptions: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] },
+          { provider: 'mock', id: 'mock-1', label: 'Mock 1', isDefault: true, contextWindowMaxTokens: MOCK_WINDOW, supportsFastMode: true, fastModeDescription: '3x faster streaming', thinkingOptions: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] },
           { provider: 'mock', id: 'mock-2', label: 'Mock 2' },
         ],
         modes: MODES,

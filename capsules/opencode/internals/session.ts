@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import type {
   AgentEvent,
   AgentMode,
+  ContextWindow,
   Capabilities,
   PermissionRequest,
   PermissionResponse,
@@ -366,6 +367,27 @@ export class OpenCodeSession implements ProviderSession {
     return result
   }
 
+  private lastUsed: number | null = null
+  private limits: Promise<Map<string, number>> | null = null
+
+  /** The model's `limit.context` from OpenCode's own model registry. */
+  private async maxContext(): Promise<number | null> {
+    this.limits ??= this.client.model
+      .list({ location: this.location })
+      .then((r: any) => new Map<string, number>((r.data ?? []).filter((m: any) => m.limit?.context).map((m: any) => [`${m.providerID}/${m.id}`, m.limit.context])))
+      .catch(() => {
+        this.limits = null
+        return new Map<string, number>()
+      })
+    let model = this.info?.model
+    if (!model) model = (await this.client.model.default({ location: this.location }).catch(() => ({ data: null }))).data
+    return model ? ((await this.limits!).get(`${model.providerID}/${model.id}`) ?? null) : null
+  }
+
+  async contextWindow(): Promise<ContextWindow> {
+    return { usedTokens: this.lastUsed, maxTokens: await this.maxContext() }
+  }
+
   private async usage(stepTokens?: any): Promise<Usage> {
     this.info = await this.client.session.get({ sessionID: this.id }).catch(() => this.info)
     const tokens = this.info?.tokens ?? {}
@@ -374,8 +396,9 @@ export class OpenCodeSession implements ProviderSession {
       outputTokens: tokens.output,
       cachedInputTokens: tokens.cache?.read,
       totalCostUsd: this.info?.cost,
+      ...(await this.maxContext().then((max) => (max ? { contextWindowMaxTokens: max } : {}))),
       ...(stepTokens
-        ? { contextWindowUsedTokens: (stepTokens.input ?? 0) + (stepTokens.output ?? 0) + (stepTokens.reasoning ?? 0) + (stepTokens.cache?.read ?? 0) + (stepTokens.cache?.write ?? 0) }
+        ? { contextWindowUsedTokens: (this.lastUsed = (stepTokens.input ?? 0) + (stepTokens.output ?? 0) + (stepTokens.reasoning ?? 0) + (stepTokens.cache?.read ?? 0) + (stepTokens.cache?.write ?? 0)) }
         : {}),
     }
   }

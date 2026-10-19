@@ -12,6 +12,7 @@ import {
 import type {
   AgentEvent,
   AgentMode,
+  ContextWindow,
   Capabilities,
   PermissionRequest,
   PermissionResponse,
@@ -338,8 +339,13 @@ export class ClaudeSession implements ProviderSession {
         if (m.subtype === 'success' && m.structured_output !== undefined) {
           this.timeline({ type: 'assistant_message', text: safeJson(m.structured_output), messageId: `${turn.id}:structured` })
         }
-        const usage = usageFromResult(m)
+        const usage = { ...usageFromResult(m), ...windowFromModelUsage(m.modelUsage, this.model) }
         this.events.emit({ type: 'usage', provider: 'claude', usage, turnId: turn.id })
+        // Exact fill level after this turn (cheap: 'summary' reuses the last response's usage).
+        void this.contextWindow().then(
+          (w) => w.maxTokens && this.events.emit({ type: 'usage', provider: 'claude', usage: { contextWindowUsedTokens: w.usedTokens ?? undefined, contextWindowMaxTokens: w.maxTokens }, turnId: turn.id }),
+          () => undefined,
+        )
         if (turn.interrupted) this.endTurn({ type: 'turn_canceled', provider: 'claude', turnId: turn.id, reason: 'interrupted' })
         else if (m.subtype === 'success' && !m.is_error) this.endTurn({ type: 'turn_completed', provider: 'claude', turnId: turn.id, usage })
         else this.endTurn({ type: 'turn_failed', provider: 'claude', turnId: turn.id, error: (m.errors ?? []).join('; ') || m.result || m.subtype })
@@ -520,6 +526,14 @@ export class ClaudeSession implements ProviderSession {
     if (result.status !== 'completed') throw new Error(`claude compact ${result.status}: ${result.error ?? ''}`)
   }
 
+  /** Claude's own accounting (same numbers as `/context`), so 1M-context variants report 1M. */
+  async contextWindow(): Promise<ContextWindow> {
+    await this.ensureQuery(undefined)
+    const usage: any = await this.q!.getContextUsage({ detail: 'summary' })
+    if (this.model && usage?.maxTokens) knownWindows.set(this.model, usage.maxTokens)
+    return { usedTokens: usage?.totalTokens ?? null, maxTokens: usage?.maxTokens ?? null }
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     await this.interrupt().catch(() => undefined)
@@ -545,4 +559,19 @@ function toSdkMessage(prompt: PromptInput, uuid: string): SDKUserMessage {
           block.type === 'text' ? { type: 'text' as const, text: block.text } : { type: 'image' as const, source: { type: 'base64' as const, media_type: block.mimeType as any, data: block.data } },
         )
   return { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid: uuid as any }
+}
+
+/** Result messages carry `modelUsage[model].contextWindow`. Prefer the session's model, else the largest entry. */
+function windowFromModelUsage(modelUsage: Record<string, any> | undefined, model: string | null): { contextWindowMaxTokens?: number } {
+  const entries = Object.entries(modelUsage ?? {}).filter(([, u]) => typeof u?.contextWindow === 'number')
+  if (!entries.length) return {}
+  const own = model ? entries.find(([id]) => id === model || id.includes(model)) : undefined
+  const pick = own ?? entries.sort((a, b) => (b[1].outputTokens ?? 0) - (a[1].outputTokens ?? 0))[0]
+  return { contextWindowMaxTokens: pick[1].contextWindow }
+}
+
+/** Learned per model from live sessions so the catalog can show it (Claude's model list has no window field). */
+const knownWindows = new Map<string, number>()
+export function knownContextWindow(model: string): number | undefined {
+  return knownWindows.get(model)
 }

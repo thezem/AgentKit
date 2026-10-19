@@ -18,7 +18,7 @@ import type {
 } from '../shared/contract.ts'
 import { findBinary, runCapture } from '../shared/runtime.ts'
 import { CodexRpc } from './internals/rpc.ts'
-import { CODEX_CAPABILITIES, CODEX_MODES, CodexSession, DEFAULT_CODEX_MODE, threadParams } from './internals/session.ts'
+import { CODEX_CAPABILITIES, CODEX_MODES, CodexSession, DEFAULT_CODEX_MODE, knownContextWindow, threadParams } from './internals/session.ts'
 
 export interface CodexCapsuleConfig {
   /** Path to the codex binary. Default: `codex` on PATH. */
@@ -89,6 +89,7 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
             id: model.model ?? model.id,
             label: model.displayName ?? model.id,
             description: model.description,
+            contextWindowMaxTokens: knownContextWindow(model.model ?? model.id),
             isDefault: model.isDefault,
             defaultThinkingOptionId: model.defaultReasoningEffort ?? undefined,
             ...fastInfo(model.serviceTiers),

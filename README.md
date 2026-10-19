@@ -77,6 +77,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | rewind files | ✓ | – | ✓ (with conversation) | – |
 | slash commands / skills | ✓ | – | ✓ | ✓ |
 | archive | – | ✓ | – | ✓ |
+| exact context window (`session.contextWindow()`) | ✓ (`/context` accounting) | ✓ (after first turn) | ✓ (model registry) | ✓ |
 | fork (new branch, original untouched) | ✓ | ✓ | ✓ | ✓ |
 | compact context | ✓ (`/compact`) | ✓ (`thread/compact`) | ✓ | ✓ |
 | durable store, idempotent submit, inbox | ✓ | ✓ | ✓ | ✓ (AgentKit-level, every provider) |

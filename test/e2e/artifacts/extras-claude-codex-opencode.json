@@ -1,0 +1,110 @@
+{
+  "claude": [
+    {
+      "name": "system-prompt",
+      "ok": true
+    },
+    {
+      "name": "structured-output",
+      "ok": true,
+      "note": "{\"city\":\"Paris\",\"country\":\"France\"}"
+    },
+    {
+      "name": "steer",
+      "ok": true,
+      "note": "KIWI in same turn"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "182 commands"
+    },
+    {
+      "name": "context-window",
+      "ok": true,
+      "note": "haiku: 39290/1000000 used; before first turn max=1000000; catalog=n/a"
+    },
+    {
+      "name": "fast-mode",
+      "ok": true,
+      "note": "opus: fast turn 12296ms incl. toggle, no warnings"
+    }
+  ],
+  "codex": [
+    {
+      "name": "system-prompt",
+      "ok": true
+    },
+    {
+      "name": "structured-output",
+      "ok": true,
+      "note": "{\"city\":\"Paris\",\"country\":\"France\"}"
+    },
+    {
+      "name": "steer",
+      "ok": true,
+      "note": "KIWI in same turn"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "0 commands"
+    },
+    {
+      "name": "context-window",
+      "ok": true,
+      "note": "gpt-6.1-sol: 26195/475000 used; before first turn max=475000; catalog=475000"
+    },
+    {
+      "name": "fast-mode",
+      "ok": true,
+      "note": "gpt-6.1-sol: fast turn 7637ms incl. toggle, no warnings"
+    }
+  ],
+  "opencode": [
+    {
+      "name": "system-prompt",
+      "ok": true
+    },
+    {
+      "name": "structured-output",
+      "ok": "skipped",
+      "note": "opencode does not support structuredOutput"
+    },
+    {
+      "name": "steer",
+      "ok": true,
+      "note": "KIWI in same turn"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "187 commands"
+    },
+    {
+      "name": "context-window",
+      "ok": true,
+      "note": "vercel/deepseek/deepseek-v4.1-flash-1017-fast: 27507/1048576 used; before first turn max=1048576; catalog=1048576"
+    },
+    {
+      "name": "fast-mode",
+      "ok": "skipped",
+      "note": "no native fast tier"
+    }
+  ]
+}

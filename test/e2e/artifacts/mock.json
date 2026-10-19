@@ -1,24 +1,24 @@
 {
   "provider": "mock",
-  "cwd": "/tmp/agentkit-mock-uQuvGC",
+  "cwd": "/tmp/agentkit-mock-2cvEvh",
   "passed": 11,
   "total": 11,
   "checks": [
     {
       "name": "available",
       "ok": true,
-      "ms": 463
+      "ms": 443
     },
     {
       "name": "catalog",
       "ok": true,
-      "ms": 2,
+      "ms": 1,
       "note": "2 models, modes=ask/auto"
     },
     {
       "name": "basic-turn",
       "ok": true,
-      "ms": 61,
+      "ms": 60,
       "note": "\"echo: Reply with exactly the single word: marmalade\" in=45 out=51"
     },
     {
@@ -29,7 +29,7 @@
     {
       "name": "permission",
       "ok": true,
-      "ms": 24,
+      "ms": 28,
       "note": "asked=[tool:shell] tool=shell:shell"
     },
     {
@@ -47,14 +47,14 @@
     {
       "name": "rewind",
       "ok": true,
-      "ms": 29,
+      "ms": 31,
       "note": "history 7→3"
     },
     {
       "name": "interrupt",
       "ok": true,
-      "ms": 1784,
-      "note": "stopped in 30ms, next turn ok"
+      "ms": 1783,
+      "note": "stopped in 29ms, next turn ok"
     },
     {
       "name": "resume",
@@ -85,7 +85,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277"
     },
     {
       "type": "timeline",
@@ -93,10 +93,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly the single word: marmalade",
-        "messageId": "33510730-fd28-4d10-8b86-1f31a6e8d432"
+        "messageId": "60005545-7978-44ca-8fce-bffdc1afbeff"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.558Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.454Z"
     },
     {
       "type": "timeline",
@@ -105,8 +105,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly the single word: marm\""
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.558Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.455Z"
     },
     {
       "type": "timeline",
@@ -114,10 +114,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.565Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.462Z"
     },
     {
       "type": "timeline",
@@ -125,10 +125,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.572Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.468Z"
     },
     {
       "type": "timeline",
@@ -136,10 +136,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.578Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.474Z"
     },
     {
       "type": "timeline",
@@ -147,10 +147,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.584Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.480Z"
     },
     {
       "type": "timeline",
@@ -158,10 +158,10 @@
       "item": {
         "type": "assistant_message",
         "text": "the ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.590Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.486Z"
     },
     {
       "type": "timeline",
@@ -169,10 +169,10 @@
       "item": {
         "type": "assistant_message",
         "text": "single ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.596Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.492Z"
     },
     {
       "type": "timeline",
@@ -180,10 +180,10 @@
       "item": {
         "type": "assistant_message",
         "text": "word: ",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.602Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.498Z"
     },
     {
       "type": "timeline",
@@ -191,25 +191,27 @@
       "item": {
         "type": "assistant_message",
         "text": "marmalade",
-        "messageId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312"
+        "messageId": "54c606ae-8906-4483-8a16-d76e71491277"
       },
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
-      "timestamp": "2026-10-19T11:04:10.608Z"
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
+      "timestamp": "2026-10-19T11:20:42.504Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "2b5259fd-1804-4f1a-ac05-3f3f92fe2312",
+      "turnId": "54c606ae-8906-4483-8a16-d76e71491277",
       "usage": {
         "inputTokens": 45,
         "outputTokens": 51,
-        "totalCostUsd": 0
+        "totalCostUsd": 0,
+        "contextWindowUsedTokens": 96,
+        "contextWindowMaxTokens": 200000
       }
     },
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6"
     },
     {
       "type": "timeline",
@@ -217,10 +219,10 @@
       "item": {
         "type": "user_message",
         "text": "make the file [tool]",
-        "messageId": "67b4859f-f87c-4766-ab79-2aef7dfe7a4a"
+        "messageId": "97ae9a1a-2061-42b9-be28-a8017df7c95b"
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.612Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.508Z"
     },
     {
       "type": "timeline",
@@ -229,31 +231,31 @@
         "type": "reasoning",
         "text": "Thinking about \"make the file [tool]\""
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.612Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.508Z"
     },
     {
       "type": "timeline",
       "provider": "mock",
       "item": {
         "type": "tool_call",
-        "callId": "88ec4c4c-bef7-4ceb-b0ec-53ef553a1b7f",
+        "callId": "4cc90ff2-aa36-4667-b1d5-7f983070e310",
         "name": "shell",
         "status": "running",
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uQuvGC"
+          "cwd": "/tmp/agentkit-mock-2cvEvh"
         }
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.612Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.508Z"
     },
     {
       "type": "permission_requested",
       "provider": "mock",
       "request": {
-        "id": "88ec4c4c-bef7-4ceb-b0ec-53ef553a1b7f",
+        "id": "4cc90ff2-aa36-4667-b1d5-7f983070e310",
         "provider": "mock",
         "kind": "tool",
         "name": "shell",
@@ -261,7 +263,7 @@
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uQuvGC"
+          "cwd": "/tmp/agentkit-mock-2cvEvh"
         },
         "actions": [
           {
@@ -276,12 +278,12 @@
           }
         ]
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6"
     },
     {
       "type": "permission_resolved",
       "provider": "mock",
-      "requestId": "88ec4c4c-bef7-4ceb-b0ec-53ef553a1b7f",
+      "requestId": "4cc90ff2-aa36-4667-b1d5-7f983070e310",
       "response": {
         "behavior": "allow",
         "actionId": "once"
@@ -292,19 +294,19 @@
       "provider": "mock",
       "item": {
         "type": "tool_call",
-        "callId": "88ec4c4c-bef7-4ceb-b0ec-53ef553a1b7f",
+        "callId": "4cc90ff2-aa36-4667-b1d5-7f983070e310",
         "name": "shell",
         "status": "completed",
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uQuvGC",
+          "cwd": "/tmp/agentkit-mock-2cvEvh",
           "output": "hello\n",
           "exitCode": 0
         }
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.613Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.509Z"
     },
     {
       "type": "timeline",
@@ -312,10 +314,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+        "messageId": "f6a273b1-a163-416b-b421-57918cc784b6"
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.619Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.515Z"
     },
     {
       "type": "timeline",
@@ -323,10 +325,10 @@
       "item": {
         "type": "assistant_message",
         "text": "make ",
-        "messageId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+        "messageId": "f6a273b1-a163-416b-b421-57918cc784b6"
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.625Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.521Z"
     },
     {
       "type": "timeline",
@@ -334,10 +336,10 @@
       "item": {
         "type": "assistant_message",
         "text": "the ",
-        "messageId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+        "messageId": "f6a273b1-a163-416b-b421-57918cc784b6"
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.629Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.527Z"
     },
     {
       "type": "timeline",
@@ -345,19 +347,21 @@
       "item": {
         "type": "assistant_message",
         "text": "file",
-        "messageId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f"
+        "messageId": "f6a273b1-a163-416b-b421-57918cc784b6"
       },
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
-      "timestamp": "2026-10-19T11:04:10.634Z"
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
+      "timestamp": "2026-10-19T11:20:42.533Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "4f2b27db-1a58-4b4d-a8d5-0d3eba81f04f",
+      "turnId": "f6a273b1-a163-416b-b421-57918cc784b6",
       "usage": {
         "inputTokens": 20,
         "outputTokens": 19,
-        "totalCostUsd": 0
+        "totalCostUsd": 0,
+        "contextWindowUsedTokens": 135,
+        "contextWindowMaxTokens": 200000
       }
     },
     {
@@ -368,7 +372,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
     },
     {
       "type": "timeline",
@@ -376,10 +380,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "8e34a7a5-6d46-46db-b03b-f152c6d91cad"
+        "messageId": "93d4d454-2ff8-4ce7-b085-a83c2b933e46"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.639Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.538Z"
     },
     {
       "type": "timeline",
@@ -388,8 +392,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly: ok\""
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.639Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.538Z"
     },
     {
       "type": "timeline",
@@ -397,10 +401,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+        "messageId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.645Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.544Z"
     },
     {
       "type": "timeline",
@@ -408,10 +412,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+        "messageId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.651Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.550Z"
     },
     {
       "type": "timeline",
@@ -419,10 +423,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+        "messageId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.656Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.555Z"
     },
     {
       "type": "timeline",
@@ -430,10 +434,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly: ",
-        "messageId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+        "messageId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.662Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.561Z"
     },
     {
       "type": "timeline",
@@ -441,25 +445,27 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "8d3b4a84-12e8-4c24-b075-37e21f000d61"
+        "messageId": "39c852d2-934d-4c5b-b730-d4edac0ffc07"
       },
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
-      "timestamp": "2026-10-19T11:04:10.667Z"
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
+      "timestamp": "2026-10-19T11:20:42.567Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "8d3b4a84-12e8-4c24-b075-37e21f000d61",
+      "turnId": "39c852d2-934d-4c5b-b730-d4edac0ffc07",
       "usage": {
         "inputTokens": 22,
         "outputTokens": 28,
-        "totalCostUsd": 0
+        "totalCostUsd": 0,
+        "contextWindowUsedTokens": 185,
+        "contextWindowMaxTokens": 200000
       }
     },
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1"
     },
     {
       "type": "timeline",
@@ -467,10 +473,10 @@
       "item": {
         "type": "user_message",
         "text": "a b c d e f g h i j k l m n o p q r s t u v w x y z [slow]",
-        "messageId": "78ca46c4-d1dd-4985-889b-23d6a42d8bcc"
+        "messageId": "8a72aa0d-d212-46bc-bff8-0df2c5ca90e0"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:10.669Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:42.569Z"
     },
     {
       "type": "timeline",
@@ -479,8 +485,8 @@
         "type": "reasoning",
         "text": "Thinking about \"a b c d e f g h i j k l m n o p q r s t \""
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:10.669Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:42.569Z"
     },
     {
       "type": "timeline",
@@ -488,10 +494,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:10.920Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:42.820Z"
     },
     {
       "type": "timeline",
@@ -499,10 +505,10 @@
       "item": {
         "type": "assistant_message",
         "text": "a ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:11.170Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:43.071Z"
     },
     {
       "type": "timeline",
@@ -510,10 +516,10 @@
       "item": {
         "type": "assistant_message",
         "text": "b ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:11.421Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:43.322Z"
     },
     {
       "type": "timeline",
@@ -521,10 +527,10 @@
       "item": {
         "type": "assistant_message",
         "text": "c ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:11.672Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:43.573Z"
     },
     {
       "type": "timeline",
@@ -532,10 +538,10 @@
       "item": {
         "type": "assistant_message",
         "text": "d ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:11.923Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:43.824Z"
     },
     {
       "type": "timeline",
@@ -543,21 +549,21 @@
       "item": {
         "type": "assistant_message",
         "text": "e ",
-        "messageId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d"
+        "messageId": "8a422578-d402-495d-a634-536d1d747ce1"
       },
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
-      "timestamp": "2026-10-19T11:04:12.174Z"
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
+      "timestamp": "2026-10-19T11:20:44.075Z"
     },
     {
       "type": "turn_canceled",
       "provider": "mock",
-      "turnId": "8ad7874e-30b3-48a3-98c2-d8a14d5ab54d",
+      "turnId": "8a422578-d402-495d-a634-536d1d747ce1",
       "reason": "interrupted"
     },
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
     },
     {
       "type": "timeline",
@@ -565,10 +571,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "6a0ea04f-553f-4938-beef-19741035b399"
+        "messageId": "49609d32-ce97-45b7-8fe2-c252a0ea47e9"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.423Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.324Z"
     },
     {
       "type": "timeline",
@@ -577,8 +583,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly: ok\""
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.423Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.324Z"
     },
     {
       "type": "timeline",
@@ -586,10 +592,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+        "messageId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.429Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.330Z"
     },
     {
       "type": "timeline",
@@ -597,10 +603,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+        "messageId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.435Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.336Z"
     },
     {
       "type": "timeline",
@@ -608,10 +614,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+        "messageId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.440Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.340Z"
     },
     {
       "type": "timeline",
@@ -619,10 +625,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly: ",
-        "messageId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+        "messageId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.445Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.345Z"
     },
     {
       "type": "timeline",
@@ -630,19 +636,21 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "256affe8-58c1-4a35-93f5-94c9a4942d14"
+        "messageId": "54fbaf16-16ef-429d-b1c1-5298348bb325"
       },
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
-      "timestamp": "2026-10-19T11:04:12.451Z"
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
+      "timestamp": "2026-10-19T11:20:44.350Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "256affe8-58c1-4a35-93f5-94c9a4942d14",
+      "turnId": "54fbaf16-16ef-429d-b1c1-5298348bb325",
       "usage": {
         "inputTokens": 22,
         "outputTokens": 28,
-        "totalCostUsd": 0
+        "totalCostUsd": 0,
+        "contextWindowUsedTokens": 50,
+        "contextWindowMaxTokens": 200000
       }
     }
   ]

@@ -22,12 +22,17 @@
     {
       "name": "slash-commands",
       "ok": true,
-      "note": "188 commands"
+      "note": "182 commands"
+    },
+    {
+      "name": "context-window",
+      "ok": true,
+      "note": "haiku: 39413/1000000 used; before first turn max=1000000; catalog=1000000"
     },
     {
       "name": "fast-mode",
       "ok": true,
-      "note": "opus: fast turn 5780ms incl. toggle, no warnings"
+      "note": "opus: fast turn 9270ms incl. toggle, no warnings"
     }
   ]
 }

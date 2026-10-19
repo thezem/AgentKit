@@ -26,9 +26,14 @@
       "note": "1 commands"
     },
     {
+      "name": "context-window",
+      "ok": true,
+      "note": "mock-1: 479/200000 used; before first turn max=200000; catalog=200000"
+    },
+    {
       "name": "fast-mode",
       "ok": true,
-      "note": "mock-1: fast turn 109ms incl. toggle, no warnings"
+      "note": "mock-1: fast turn 107ms incl. toggle, no warnings"
     }
   ]
 }
