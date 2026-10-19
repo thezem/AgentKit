@@ -1,5 +1,5 @@
 import type { AgentEvent, PermissionRequest, TimelineItem, Usage } from '../capsules/shared/contract.ts'
-import { appendTimeline } from '../capsules/shared/runtime.ts'
+import { appendTimeline } from '../capsules/shared/timeline.ts'
 
 /**
  * A UI-ready projection of a session: the thing a chat view renders.

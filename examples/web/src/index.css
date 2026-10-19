@@ -1,0 +1,134 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/geist';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Ground/ink are neutral so agent output carries the color.
+  One accent (amber) means "the agent is waiting on you": permission + question cards only.
+*/
+:root {
+  --background: #fafaf9;
+  --foreground: #1c1c1c;
+  --card: #ffffff;
+  --card-foreground: #1c1c1c;
+  --popover: #ffffff;
+  --popover-foreground: #1c1c1c;
+  --primary: #1c1c1c;
+  --primary-foreground: #fafaf9;
+  --secondary: #f0efed;
+  --secondary-foreground: #1c1c1c;
+  --muted: #f0efed;
+  --muted-foreground: #6b6a68;
+  --accent: #ecebe8;
+  --accent-foreground: #1c1c1c;
+  --destructive: #c2410c;
+  --border: #e4e3e0;
+  --input: #e4e3e0;
+  --ring: transparent;
+  --waiting: #b45309;
+  --waiting-soft: #fef3e2;
+  --code: #f3f2ef;
+  --radius: 0.6rem;
+}
+
+.dark {
+  --background: #151515;
+  --foreground: #e8e6e3;
+  --card: #1b1b1b;
+  --card-foreground: #e8e6e3;
+  --popover: #1d1d1d;
+  --popover-foreground: #e8e6e3;
+  --primary: #e8e6e3;
+  --primary-foreground: #151515;
+  --secondary: #222222;
+  --secondary-foreground: #e8e6e3;
+  --muted: #202020;
+  --muted-foreground: #8d8a86;
+  --accent: #262626;
+  --accent-foreground: #e8e6e3;
+  --destructive: #f97316;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: transparent;
+  --waiting: #f2b155;
+  --waiting-soft: #2a2117;
+  --code: #1c1c1c;
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-waiting: var(--waiting);
+  --color-waiting-soft: var(--waiting-soft);
+  --color-code: var(--code);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'ss01';
+  }
+  /* No focus rings anywhere (Hazem rule). */
+  *:focus,
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  textarea {
+    resize: none;
+  }
+  /* Subtle scrollbars that match the ground. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--foreground) 14%, transparent);
+    border-radius: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

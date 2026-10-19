@@ -68,7 +68,9 @@
     "doctor": "node examples/doctor.ts",
     "example": "node examples/quickstart.ts",
     "harness": "node examples/harness-server.ts",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "ui:api": "node examples/web/server.ts",
+    "ui": "npm --prefix examples/web run dev"
   },
   "engines": {
     "node": ">=22.6"
