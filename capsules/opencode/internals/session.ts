@@ -44,6 +44,8 @@ export const OPENCODE_CAPABILITIES: Capabilities = {
   /** Files revert only together with the conversation (scope 'both'). */
   rewindFiles: true,
   archive: false,
+  fork: true,
+  compact: true,
   systemPrompt: true,
 }
 
@@ -532,6 +534,22 @@ export class OpenCodeSession implements ProviderSession {
     await this.interrupt()
     await this.client.session.revert.stage({ sessionID: this.id, messageID: input.messageId, files: input.scope === 'both' })
     await this.client.session.revert.commit({ sessionID: this.id })
+  }
+
+  async fork(input: { beforeMessageId?: string }): Promise<PersistenceHandle> {
+    if (input.beforeMessageId) {
+      const messages: any[] = await this.allMessages()
+      const index = messages.findIndex((message) => (message.info?.id ?? message.id) === input.beforeMessageId)
+      if (index < 0) throw new Error(`opencode message ${input.beforeMessageId} not found`)
+      if (index === 0) throw new Error('nothing before the first message to fork; open a new session instead')
+    }
+    const info: any = await this.client.session.fork({ sessionID: this.id, ...(input.beforeMessageId ? { before: input.beforeMessageId } : {}) })
+    return { provider: 'opencode', sessionId: info.id ?? info.data?.id, cwd: this.config.cwd }
+  }
+
+  async compact(_input: { instructions?: string }): Promise<void> {
+    const result = await this.run('/compact')
+    if (result.status !== 'completed') throw new Error(`opencode compact ${result.status}: ${result.error ?? ''}`)
   }
 
   async close(): Promise<void> {

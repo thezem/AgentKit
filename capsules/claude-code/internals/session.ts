@@ -59,6 +59,8 @@ export const CLAUDE_CAPABILITIES: Capabilities = {
   rewindConversation: true,
   rewindFiles: true,
   archive: false,
+  fork: true,
+  compact: true,
   systemPrompt: true,
 }
 
@@ -496,6 +498,26 @@ export class ClaudeSession implements ProviderSession {
       this.materialized = true
     }
     this.events.emit({ type: 'session_started', provider: 'claude', sessionId: this.sessionId })
+  }
+
+  async fork(input: { beforeMessageId?: string }): Promise<PersistenceHandle> {
+    if (!this.materialized) throw new Error('claude session has no messages to fork yet')
+    let upToMessageId: string | undefined
+    if (input.beforeMessageId) {
+      const messages = await getSessionMessages(this.sessionId, { dir: this.config.cwd })
+      const index = messages.findIndex((message) => message.uuid === input.beforeMessageId)
+      if (index < 0) throw new Error(`claude message ${input.beforeMessageId} not found in transcript`)
+      if (index === 0) throw new Error('nothing before the first message to fork; open a new session instead')
+      upToMessageId = messages[index - 1].uuid
+    }
+    const forked = await forkSession(this.sessionId, { dir: this.config.cwd, ...(upToMessageId ? { upToMessageId } : {}) })
+    return { ...this.describePersistence(), sessionId: forked.sessionId }
+  }
+
+  /** Claude compacts through its built-in `/compact [instructions]` command. */
+  async compact(input: { instructions?: string }): Promise<void> {
+    const result = await this.run(`/compact${input.instructions ? ` ${input.instructions}` : ''}`)
+    if (result.status !== 'completed') throw new Error(`claude compact ${result.status}: ${result.error ?? ''}`)
   }
 
   async close(): Promise<void> {

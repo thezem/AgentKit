@@ -62,7 +62,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "verify": "npm run typecheck && node test/e2e/conformance.ts mock",
+    "verify": "npm run typecheck && node test/e2e/conformance.ts mock && node test/e2e/durable.ts mock",
     "e2e": "node test/e2e/conformance.ts",
     "e2e:mock": "node test/e2e/conformance.ts mock",
     "doctor": "node examples/doctor.ts",
@@ -70,7 +70,8 @@
     "harness": "node examples/harness-server.ts",
     "prepack": "npm run build",
     "ui:api": "node examples/web/server.ts",
-    "ui": "npm --prefix examples/web run dev"
+    "ui": "npm --prefix examples/web run dev",
+    "e2e:durable": "node test/e2e/durable.ts"
   },
   "engines": {
     "node": ">=22.6"

@@ -108,12 +108,14 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
       const rpc = await connect(session.cwd, session.env)
       try {
         const started = await rpc.request('thread/start', threadParams(session, modeId))
-        return new CodexSession(rpc, started.thread.id, session, {
+        const created = new CodexSession(rpc, started.thread.id, session, {
           modeId,
           model: session.model ?? started.model ?? null,
           effort: session.thinkingOptionId ?? started.reasoningEffort ?? null,
           fast: session.fast,
         })
+        created.sideChannel = () => connect(session.cwd, session.env)
+        return created
       } catch (error) {
         await rpc.dispose()
         throw error
@@ -131,12 +133,14 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
           excludeTurns: true,
           ...threadParams({ ...session, model: overrides.model ?? meta.model }, modeId),
         })
-        return new CodexSession(rpc, resumed.thread.id, session, {
+        const resumedSession = new CodexSession(rpc, resumed.thread.id, session, {
           modeId,
           model: overrides.model ?? resumed.model ?? meta.model ?? null,
           effort: overrides.thinkingOptionId ?? meta.effort ?? resumed.reasoningEffort ?? null,
           fast: overrides.fast ?? meta.fast,
         })
+        resumedSession.sideChannel = () => connect(session.cwd, session.env)
+        return resumedSession
       } catch (error) {
         await rpc.dispose()
         throw error

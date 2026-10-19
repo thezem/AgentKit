@@ -16,6 +16,7 @@ import type {
   TurnOptions,
 } from '../../shared/contract.ts'
 import { collectRun, deferred, Emitter, nowIso } from '../../shared/runtime.ts'
+import { isTerminalEvent } from '../../shared/contract.ts'
 import { describeError, mapCodexItem, usageFromCodex, type CodexItem } from './items.ts'
 import type { CodexRpc } from './rpc.ts'
 
@@ -57,6 +58,8 @@ export const CODEX_CAPABILITIES: Capabilities = {
   rewindConversation: true,
   rewindFiles: false,
   archive: true,
+  fork: true,
+  compact: true,
   systemPrompt: true,
 }
 
@@ -103,6 +106,8 @@ export class CodexSession implements ProviderSession {
   private models: Promise<any[]> | null = null
 
   private readonly rpc: CodexRpc
+  /** Opens a throwaway app-server. Set by the client; used so a fork doesn't hold the new thread's writer lock. */
+  sideChannel: (() => Promise<CodexRpc>) | null = null
   private threadId: string
   private readonly config: SessionConfig
 
@@ -454,6 +459,52 @@ export class CodexSession implements ProviderSession {
       this.threadId = forked.thread.id
     }
     this.events.emit({ type: 'session_started', provider: 'codex', sessionId: this.threadId })
+  }
+
+  async fork(input: { beforeMessageId?: string }): Promise<PersistenceHandle> {
+    let lastTurnId: string | undefined
+    if (input.beforeMessageId) {
+      const { thread } = await this.rpc.request('thread/read', { threadId: this.threadId, includeTurns: true })
+      const turns: any[] = thread.turns ?? []
+      const index = turns.findIndex((turn) => (turn.items ?? []).some((item: any) => item.type === 'userMessage' && item.id === input.beforeMessageId))
+      if (index < 0) throw new Error(`codex message ${input.beforeMessageId} not found in thread`)
+      if (index === 0) throw new Error('nothing before the first message to fork; open a new session instead')
+      lastTurnId = turns[index - 1].id
+    }
+    const preset = PRESETS[this.modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
+    // The app-server that forks becomes the new thread's writer until it exits,
+    // so fork on a throwaway one; resumeSession() can then take the thread.
+    const rpc = this.sideChannel ? await this.sideChannel() : this.rpc
+    try {
+      const forked = await rpc.request('thread/fork', {
+        threadId: this.threadId,
+        ...(lastTurnId ? { lastTurnId } : {}),
+        cwd: this.config.cwd,
+        approvalPolicy: preset.approvalPolicy,
+        sandbox: preset.sandbox,
+        excludeTurns: true,
+      })
+      return { ...this.describePersistence(), sessionId: forked.thread.id }
+    } finally {
+      if (rpc !== this.rpc) await rpc.dispose()
+    }
+  }
+
+  /** `thread/compact/start` runs as a turn on the thread; resolve when that turn ends. Codex takes no instructions. */
+  async compact(_input: { instructions?: string }): Promise<void> {
+    if (this.activeTurnId) throw new Error('codex cannot compact while a turn is running')
+    const ended = new Promise<AgentEvent>((resolve) => {
+      const off = this.subscribe((event) => {
+        if (isTerminalEvent(event)) {
+          off()
+          resolve(event)
+        }
+      })
+    })
+    await this.rpc.request('thread/compact/start', { threadId: this.threadId })
+    const event = await Promise.race([ended, new Promise<null>((r) => setTimeout(() => r(null), 300_000))])
+    if (!event) throw new Error('codex compaction did not finish within 5 minutes')
+    if (event.type !== 'turn_completed') throw new Error(`codex compact ${event.type}`)
   }
 
   async close(): Promise<void> {

@@ -1,0 +1,92 @@
+{
+  "claude": {
+    "storeFile": "/tmp/agentkit-durable-claude-7LHj04/agentkit.db",
+    "checks": [
+      {
+        "name": "crash",
+        "ok": true,
+        "note": "showed 65 chars before kill -9, store kept 65; status=interrupted, not re-sent, next turn ok"
+      },
+      {
+        "name": "idempotency",
+        "ok": true,
+        "note": "3 submits, 1 turn, kit.submission() reattached"
+      },
+      {
+        "name": "inbox",
+        "ok": true,
+        "note": "inbox showed 2, withdrew 1, reject threw, steer=steered into the live turn"
+      },
+      {
+        "name": "fork",
+        "ok": true,
+        "note": "branch 4 user msgs vs original 5; fork remembered \"marmalade\""
+      },
+      {
+        "name": "compact",
+        "ok": true,
+        "note": "compacted in 3053ms, still remembers \"marmalade\""
+      }
+    ]
+  },
+  "codex": {
+    "storeFile": "/tmp/agentkit-durable-codex-Ibyhy0/agentkit.db",
+    "checks": [
+      {
+        "name": "crash",
+        "ok": true,
+        "note": "showed 63 chars before kill -9, store kept 63; status=interrupted, not re-sent, next turn ok"
+      },
+      {
+        "name": "idempotency",
+        "ok": true,
+        "note": "3 submits, 1 turn, kit.submission() reattached"
+      },
+      {
+        "name": "inbox",
+        "ok": true,
+        "note": "inbox showed 2, withdrew 1, reject threw, steer=steered into the live turn"
+      },
+      {
+        "name": "fork",
+        "ok": true,
+        "note": "branch 4 user msgs vs original 5; fork remembered \"marmalade\""
+      },
+      {
+        "name": "compact",
+        "ok": true,
+        "note": "compacted in 10741ms, still remembers \"marmalade\""
+      }
+    ]
+  },
+  "opencode": {
+    "storeFile": "/tmp/agentkit-durable-opencode-IhprJ3/agentkit.db",
+    "checks": [
+      {
+        "name": "crash",
+        "ok": true,
+        "note": "showed 699 chars before kill -9, store kept 699; status=interrupted, not re-sent, next turn ok"
+      },
+      {
+        "name": "idempotency",
+        "ok": true,
+        "note": "3 submits, 1 turn, kit.submission() reattached"
+      },
+      {
+        "name": "inbox",
+        "ok": true,
+        "note": "inbox showed 2, withdrew 1, reject threw, steer=steered into the live turn"
+      },
+      {
+        "name": "fork",
+        "ok": true,
+        "note": "branch 4 user msgs vs original 5; fork remembered \"marmalade\""
+      },
+      {
+        "name": "compact",
+        "ok": false,
+        "note": "forgot after compact: \"second\""
+      }
+    ]
+  }
+}

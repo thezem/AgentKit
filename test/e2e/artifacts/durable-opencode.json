@@ -1,0 +1,32 @@
+{
+  "opencode": {
+    "storeFile": "/tmp/agentkit-durable-opencode-zSsh79/agentkit.db",
+    "checks": [
+      {
+        "name": "crash",
+        "ok": true,
+        "note": "showed 691 chars before kill -9, store kept 691; status=interrupted, not re-sent, next turn ok"
+      },
+      {
+        "name": "idempotency",
+        "ok": true,
+        "note": "3 submits, 1 turn, kit.submission() reattached"
+      },
+      {
+        "name": "inbox",
+        "ok": true,
+        "note": "inbox showed 2, withdrew 1, reject threw, steer=steered into the live turn"
+      },
+      {
+        "name": "fork",
+        "ok": true,
+        "note": "branch 4 user msgs vs original 5; fork remembered \"marmalade\""
+      },
+      {
+        "name": "compact",
+        "ok": true,
+        "note": "compacted in 933ms, still remembers \"marmalade\""
+      }
+    ]
+  }
+}

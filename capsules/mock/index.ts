@@ -10,6 +10,7 @@
  * Anything else is echoed back word by word.
  */
 import { randomUUID } from 'node:crypto'
+import { appendTimeline } from '../shared/timeline.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 import type {
   AgentEvent,
@@ -50,6 +51,8 @@ export const MOCK_CAPABILITIES: Capabilities = {
   rewindConversation: true,
   rewindFiles: false,
   archive: true,
+  fork: true,
+  compact: true,
   systemPrompt: true,
 }
 
@@ -218,14 +221,37 @@ class MockSession implements ProviderSession {
   describePersistence(): PersistenceHandle {
     return { provider: 'mock', sessionId: this.id, cwd: this.config.cwd }
   }
+  /** Contract: history yields whole items, so merge the stored deltas. */
   async *history() {
-    yield* store.get(this.id)?.timeline ?? []
+    const whole: TimelineItem[] = []
+    for (const item of store.get(this.id)?.timeline ?? []) appendTimeline(whole, item)
+    yield* whole
   }
   async rewind(input: { messageId: string; scope: 'conversation' | 'files' | 'both' }) {
     const entry = store.get(this.id)!
     const index = entry.timeline.findIndex((item) => item.type === 'user_message' && item.messageId === input.messageId)
     if (index < 0) throw new Error('message not found')
     entry.timeline.splice(index)
+  }
+  async fork(input: { beforeMessageId?: string }) {
+    const entry = store.get(this.id)!
+    let timeline = entry.timeline.slice()
+    if (input.beforeMessageId) {
+      const index = timeline.findIndex((item) => item.type === 'user_message' && item.messageId === input.beforeMessageId)
+      if (index < 0) throw new Error('message not found')
+      if (index === 0) throw new Error('nothing before the first message to fork; open a new session instead')
+      timeline = timeline.slice(0, index)
+    }
+    const id = randomUUID()
+    store.set(id, { ...entry, timeline: structuredClone(timeline), updatedAt: new Date() })
+    return { provider: 'mock', sessionId: id, cwd: this.config.cwd }
+  }
+  async compact(input: { instructions?: string }) {
+    const entry = store.get(this.id)!
+    // Keep the user's words (that's what a summary must preserve), drop everything else.
+    const kept = entry.timeline.filter((item) => item.type === 'user_message')
+    entry.timeline = [{ type: 'notice', level: 'info', message: `compacted${input.instructions ? `: ${input.instructions}` : ''}` }, ...kept]
+    this.events.emit({ type: 'timeline', provider: 'mock', item: { type: 'compaction', status: 'completed' }, timestamp: new Date().toISOString() })
   }
   async close() {
     await this.interrupt()
@@ -256,7 +282,7 @@ export function createMockClient(config: MockCapsuleConfig = {}): ProviderClient
       return new MockSession(randomUUID(), session, delayMs)
     },
     async resumeSession(handle: PersistenceHandle, overrides = {}) {
-      if (!store.has(handle.sessionId)) throw new Error(`unknown mock session ${handle.sessionId}`)
+      // Mock memory is per-process: a handle from a dead process resumes as an empty conversation.
       return new MockSession(handle.sessionId, { cwd: handle.cwd, ...overrides }, delayMs)
     },
     async listSessions(options = {}) {

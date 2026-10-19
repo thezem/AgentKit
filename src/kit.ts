@@ -14,7 +14,9 @@ import type {
 } from '../capsules/shared/contract.ts'
 import { AgentKitError, UnsupportedCapabilityError } from './errors.ts'
 import { modeForAccess, policies, type AccessLevel, type PermissionHandler } from './policy.ts'
-import { AgentSession, type SessionHandlers } from './session.ts'
+import { AgentSession, storedSubmission, type SessionHandlers, type Submission } from './session.ts'
+import { sqliteStore, type AgentStore, type StoredSession, type SubmissionRecord } from './store.ts'
+import { randomUUID } from 'node:crypto'
 
 export interface AgentKitOptions {
   /** Built-in capsules. `false` disables one. Mock is off unless configured. */
@@ -26,6 +28,12 @@ export interface AgentKitOptions {
   providers?: ProviderClient[]
   /** How long catalogs stay cached. Default 5 min. */
   catalogTtlMs?: number
+  /**
+   * Durable store: a sqlite file path (node:sqlite, no deps) or your own AgentStore.
+   * Events are written before they are shown; turns cut off by a crash come back
+   * as `interrupted` and are never re-sent.
+   */
+  store?: string | AgentStore
 }
 
 export interface OpenSessionOptions extends Omit<SessionConfig, 'modeId' | 'thinkingOptionId'> {
@@ -38,6 +46,10 @@ export interface OpenSessionOptions extends Omit<SessionConfig, 'modeId' | 'thin
   thinking?: string
   onPermission?: PermissionHandler
   onEvent?: SessionHandlers['onEvent']
+  /** Stable id for the store. Default: a random uuid. */
+  key?: string
+  /** Your app data saved next to the session (title, settings...). */
+  meta?: Record<string, unknown>
 }
 
 export interface ProviderStatus {
@@ -54,9 +66,16 @@ export class AgentKit {
   private readonly catalogs = new Map<string, { at: number; value: Promise<ProviderCatalog> }>()
   private readonly sessions = new Set<AgentSession>()
   private readonly ttl: number
+  private readonly submissions = new Map<string, Submission>()
+  /** The durable store, if configured. */
+  readonly store: AgentStore | null
+  /** Submissions found cut off by a previous crash when this kit opened the store. */
+  readonly recovered: SubmissionRecord[]
 
   constructor(options: AgentKitOptions = {}) {
     this.ttl = options.catalogTtlMs ?? 5 * 60_000
+    this.store = typeof options.store === 'string' ? sqliteStore(options.store) : (options.store ?? null)
+    this.recovered = this.store?.recover() ?? []
     if (options.claude !== false) this.register(createClaudeCodeClient(options.claude || {}))
     if (options.codex !== false) this.register(createCodexClient(options.codex || {}))
     if (options.opencode !== false) this.register(createOpenCodeClient(options.opencode || {}))
@@ -120,7 +139,7 @@ export class AgentKit {
       providerOptions: options.providerOptions,
       persist: options.persist,
     })
-    return this.track(inner, { onPermission, onEvent: options.onEvent })
+    return this.track(inner, { onPermission, onEvent: options.onEvent }, options.key, options.meta)
   }
 
   /** Reattach to a durable session (same or a different process) from `session.handle`. */
@@ -138,7 +157,43 @@ export class AgentKit {
       ...(options.mcpServers ? { mcpServers: options.mcpServers } : {}),
       ...(options.env ? { env: options.env } : {}),
     })
-    return this.track(inner, { onPermission, onEvent: options.onEvent })
+    return this.track(inner, { onPermission, onEvent: options.onEvent }, options.key, options.meta)
+  }
+
+  /**
+   * Reopen a stored session by key: native resume + the saved transcript
+   * (including anything shown before a crash). Needs a store.
+   */
+  async restore(key: string, options: ResumeOptions = {}): Promise<AgentSession> {
+    const store = this.requireStore()
+    const saved = store.getSession(key)
+    if (!saved) throw new AgentKitError('INVALID_INPUT', `no stored session "${key}"`)
+    if (!saved.handle) throw new AgentKitError('INVALID_INPUT', `stored session "${key}" has no resume handle yet`)
+    const transcript = store.loadTranscript(key)
+    const session = await this.resume(saved.handle, { ...options, key, meta: options.meta ?? saved.meta })
+    session.hydrate(transcript)
+    return session
+  }
+
+  /** Sessions in the store, newest first. */
+  storedSessions(): StoredSession[] {
+    return this.requireStore().listSessions()
+  }
+
+  /**
+   * Reattach to a submission by id — live in this process, or from the store
+   * (a previous run, or another process sharing the file). Null if unknown.
+   */
+  submission(id: string): Submission | null {
+    const live = this.submissions.get(id)
+    if (live) return live
+    const stored = this.store?.getSubmission(id)
+    return stored ? storedSubmission(stored, this.store!) : null
+  }
+
+  private requireStore(): AgentStore {
+    if (!this.store) throw new AgentKitError('INVALID_INPUT', 'no store configured; pass createAgentKit({ store: "path/to/agentkit.db" })')
+    return this.store
   }
 
   /** Native sessions across providers, newest first. Each summary is resumable via `resume({ provider, sessionId, cwd })`. */
@@ -163,10 +218,18 @@ export class AgentKit {
   async shutdown(): Promise<void> {
     await Promise.allSettled([...this.sessions].map((session) => session.close()))
     await Promise.allSettled([...this.clients.values()].map((client) => client.shutdown()))
+    this.store?.close()
   }
 
-  private track(inner: Awaited<ReturnType<ProviderClient['createSession']>>, handlers: SessionHandlers): AgentSession {
-    const session: AgentSession = new AgentSession(inner, handlers, () => this.sessions.delete(session))
+  private track(inner: Awaited<ReturnType<ProviderClient['createSession']>>, handlers: SessionHandlers, key: string = randomUUID(), meta?: Record<string, unknown>): AgentSession {
+    const session: AgentSession = new AgentSession(inner, handlers, {
+      key,
+      store: this.store,
+      registry: this.submissions,
+      open: (handle, forkKey) => this.resume(handle, { key: forkKey, onPermission: handlers.onPermission, onEvent: handlers.onEvent }),
+      onClose: () => this.sessions.delete(session),
+    })
+    this.store?.putSession(key, { provider: inner.provider, handle: inner.describePersistence(), ...(meta ? { meta } : {}) })
     this.sessions.add(session)
     return session
   }

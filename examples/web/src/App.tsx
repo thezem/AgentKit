@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FolderOpen, Moon, Plus, Sun } from 'lucide-react'
+import { FoldVertical, FolderOpen, GitBranch, Loader2, Moon, Plus, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/composer'
+import { Inbox } from '@/components/inbox'
 import { ConversationDrawer } from '@/components/conversation-drawer'
 import { FastToggle, ModelPicker, ModePicker, ProviderPicker, ThinkingPicker } from '@/components/pickers'
 import { PROVIDER_LABEL, ProviderLogo } from '@/components/provider-logo'
@@ -114,6 +115,30 @@ export default function App() {
     }
   }
 
+  const [compacting, setCompacting] = useState(false)
+  const fork = async (beforeMessageId?: string) => {
+    if (!activeId) return
+    try {
+      const conv = await api.fork(activeId, beforeMessageId)
+      refreshList()
+      navigate(conv.id)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const compact = async () => {
+    if (!activeId) return
+    setCompacting(true)
+    try {
+      await api.compact(activeId)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setCompacting(false)
+    }
+  }
+  const hasMessages = transcript.items.some((item) => item.type === 'user_message')
+
   const footer = (
     <>
       {!activeId && <ProviderPicker value={draft.provider} providers={providers} onChange={(p) => setDraft((d: typeof draft) => ({ ...d, provider: p, model: undefined, mode: undefined, thinking: undefined }))} />}
@@ -157,6 +182,26 @@ export default function App() {
           )}
           <div className="ml-auto flex items-center gap-1">
             {usage && <span className="mr-2 hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums lg:inline">{usage}</span>}
+            {activeId && capabilities?.compact && hasMessages && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8" disabled={running || compacting} onClick={compact}>
+                    {compacting ? <Loader2 className="size-4 animate-spin" /> : <FoldVertical className="size-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Compact context</TooltipContent>
+              </Tooltip>
+            )}
+            {activeId && capabilities?.fork && hasMessages && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8" disabled={running} onClick={() => fork()}>
+                    <GitBranch className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Fork conversation</TooltipContent>
+              </Tooltip>
+            )}
             {activeId && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -186,13 +231,16 @@ export default function App() {
                   setError((e as Error).message)
                 }
               }}
+              canFork={Boolean(capabilities?.fork)}
+              onFork={(messageId) => fork(messageId)}
               onRespond={async (request, response) => {
                 await api.respond(activeId, request.id, response).catch((e) => setError(e.message))
               }}
             />
             <div className="mx-auto w-full max-w-[46rem] shrink-0 px-5 pb-5">
               {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-              <Composer running={running} canSteer={Boolean(capabilities?.steer)} onSend={send} onStop={() => api.interrupt(activeId)} footer={footer} autoFocus />
+              <Inbox inbox={transcript.inbox ?? []} onWithdraw={(id) => api.withdraw(activeId, id).catch((e) => setError(e.message))} />
+              <Composer running={running || compacting} canSteer={Boolean(capabilities?.steer)} onSend={send} onStop={() => api.interrupt(activeId)} footer={footer} autoFocus />
             </div>
           </>
         ) : (

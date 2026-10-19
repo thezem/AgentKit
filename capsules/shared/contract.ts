@@ -88,6 +88,10 @@ export interface Capabilities {
   rewindFiles: boolean
   archive: boolean
   systemPrompt: boolean
+  /** Branch the conversation into a new native session; the original is untouched. */
+  fork: boolean
+  /** Summarize older context to free the window (native compaction). */
+  compact: boolean
 }
 
 export type CapabilityName = keyof Capabilities
@@ -169,6 +173,19 @@ export type AgentEvent =
   | { type: 'model_changed'; provider: ProviderId; model: string | null }
   | { type: 'thinking_changed'; provider: ProviderId; thinkingOptionId: string | null }
   | { type: 'fast_changed'; provider: ProviderId; enabled: boolean }
+  // Emitted by AgentKit itself, never by capsules:
+  /** Prompts waiting for the current turn, in order. Visible + withdrawable. */
+  | { type: 'inbox_changed'; provider: ProviderId; inbox: InboxEntry[] }
+  /** A turn that was running when the process died. Never auto-resent. */
+  | { type: 'turn_interrupted'; provider: ProviderId; turnId: string | null; submissionId: string | null; reason: string }
+
+export interface InboxEntry {
+  /** Submission id (your requestId if you passed one). */
+  id: string
+  text: string
+  whenBusy: 'queue' | 'steer'
+  at: string
+}
 
 export type TerminalEvent = Extract<AgentEvent, { type: 'turn_completed' | 'turn_failed' | 'turn_canceled' }>
 
@@ -319,6 +336,13 @@ export interface ProviderSession {
   /** Replay the persisted conversation as timeline items. */
   history?(): AsyncIterable<TimelineItem>
   rewind?(input: { messageId: string; scope: 'conversation' | 'files' | 'both' }): Promise<void>
+  /**
+   * New native session with this conversation up to (not including) `beforeMessageId`,
+   * or all of it when omitted. Must not change this session. Returns a resumable handle.
+   */
+  fork?(input: { beforeMessageId?: string }): Promise<PersistenceHandle>
+  /** Native compaction. Resolves when the provider reports it done. */
+  compact?(input: { instructions?: string }): Promise<void>
 }
 
 export interface ProviderClient {
@@ -359,4 +383,6 @@ export const NO_CAPABILITIES: Capabilities = {
   rewindFiles: false,
   archive: false,
   systemPrompt: false,
+  fork: false,
+  compact: false,
 }

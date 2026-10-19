@@ -1,4 +1,4 @@
-import type { AgentEvent, PermissionRequest, TimelineItem, Usage } from '../capsules/shared/contract.ts'
+import type { AgentEvent, InboxEntry, PermissionRequest, TimelineItem, Usage } from '../capsules/shared/contract.ts'
 import { appendTimeline } from '../capsules/shared/timeline.ts'
 
 /**
@@ -20,6 +20,8 @@ export interface Transcript {
   model: string | null
   thinkingOptionId: string | null
   fast: boolean
+  /** Prompts waiting behind the current turn. Withdraw with `session.withdraw(id)`. */
+  inbox: InboxEntry[]
 }
 
 export function emptyTranscript(): Transcript {
@@ -35,6 +37,7 @@ export function emptyTranscript(): Transcript {
     model: null,
     thinkingOptionId: null,
     fast: false,
+    inbox: [],
   }
 }
 
@@ -71,5 +74,12 @@ export function reduceTranscript(state: Transcript, event: AgentEvent): Transcri
       return { ...state, thinkingOptionId: event.thinkingOptionId }
     case 'fast_changed':
       return { ...state, fast: event.enabled }
+    case 'inbox_changed':
+      return { ...state, inbox: event.inbox }
+    case 'turn_interrupted': {
+      const items = state.items.slice()
+      appendTimeline(items, { type: 'notice', level: 'warning', message: 'Interrupted: the process exited mid-turn. Everything above was saved; nothing was re-sent.' })
+      return { ...state, items, status: 'idle', activeTurnId: null, pendingPermissions: [] }
+    }
   }
 }

@@ -23,6 +23,11 @@
       "name": "slash-commands",
       "ok": true,
       "note": "0 commands"
+    },
+    {
+      "name": "fast-mode",
+      "ok": true,
+      "note": "gpt-6.1-sol: fast turn 8233ms incl. toggle, no warnings"
     }
   ]
 }

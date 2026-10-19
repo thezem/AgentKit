@@ -10,7 +10,7 @@ AgentKit = one TypeScript layer over locally signed-in Claude Code, Codex and Op
   - `codex`: raw JSON-RPC to `codex app-server` (one child per session). Wire types: `codex app-server generate-ts --out <dir>`.
   - `opencode`: `opencode serve` (shared, ref-counted; dedicated when MCP) + `@opencode/client` v2. Events + snapshot diffing.
   - `mock`: deterministic, all capabilities; prompt directives `[tool] [ask] [fail] [slow]`.
-- `src/`: AgentKit proper. `kit.ts` (registry, access→mode mapping, catalog cache, resume/list), `session.ts` (guards, queue, steer fallback, policies, transcript), `transcript.ts` (pure reducer), `policy.ts`, `errors.ts`.
+- `src/`: AgentKit proper. `kit.ts` (registry, access→mode mapping, catalog cache, resume/list), `session.ts` (guards, `submit` + inbox + steer fallback, fork/compact, policies, transcript), `store.ts` (node:sqlite durable store: commit-before-show, submission intent/outcome, crash recovery), `transcript.ts` (pure reducer), `policy.ts`, `errors.ts`.
 
 ## Rules
 - Capsules import only `../shared/*` and their own SDK. Only `src/` knows about several providers.
@@ -20,9 +20,10 @@ AgentKit = one TypeScript layer over locally signed-in Claude Code, Codex and Op
 
 ## Verify
 ```bash
-npm run verify                         # typecheck + mock conformance (free)
+npm run verify                         # typecheck + mock conformance + mock durable (free)
 node test/e2e/conformance.ts claude    # real, uses your sign-in; artifact in test/e2e/artifacts/
 node test/e2e/extras.ts codex          # steer, structured output, system prompt, queue, commands
+node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency, inbox, fork, compact
 npm run doctor                         # install/sign-in status per provider
 ```
 
@@ -31,3 +32,6 @@ npm run doctor                         # install/sign-in status per provider
 - Claude rewind / Codex rewind change the native session id (fork). Always re-read `session.handle` after rewind.
 - OpenCode allows edits by default; ask-rules go through `providerOptions.permissions`.
 - Codex `read-only` mode still asks for escalation; that is how the permission path is exercised.
+- Codex: the app-server that runs `thread/fork` holds the new thread's writer lock until it exits, so `fork()` uses a throwaway app-server.
+- Store recovery never re-sends: interrupted turns are surfaced (`kit.recovered`, a transcript notice), the user decides.
+- `node:sqlite` prints an ExperimentalWarning on Node 22–24; harmless.

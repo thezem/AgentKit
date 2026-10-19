@@ -14,8 +14,12 @@ import type {
   SlashCommand,
   TimelineItem,
   TurnOptions,
+  InboxEntry,
 } from '../capsules/shared/contract.ts'
-import { Emitter } from '../capsules/shared/runtime.ts'
+import { isTerminalEvent } from '../capsules/shared/contract.ts'
+import { deferred, Emitter } from '../capsules/shared/runtime.ts'
+import { randomUUID } from 'node:crypto'
+import { TERMINAL_SUBMISSION, type AgentStore, type SubmissionRecord, type SubmissionStatus } from './store.ts'
 import { AgentKitError, UnsupportedCapabilityError } from './errors.ts'
 import { modeForAccess, normalizeDecision, type AccessLevel, type PermissionHandler } from './policy.ts'
 import { emptyTranscript, reduceTranscript, type Transcript } from './transcript.ts'
@@ -26,38 +30,85 @@ export interface SessionHandlers {
   onEvent?: (event: AgentEvent) => void
 }
 
+export interface SubmitOptions extends TurnOptions {
+  /**
+   * Idempotency key. Submitting the same id again (same process or after a restart,
+   * with a store) returns the original submission instead of running a second turn.
+   */
+  requestId?: string
+  /** What to do when a turn is already running. Default 'queue'. */
+  whenBusy?: 'queue' | 'steer' | 'reject'
+}
+
+/** One prompt's journey: queued → running/steered → outcome. */
+export interface Submission {
+  readonly id: string
+  readonly status: SubmissionStatus
+  record(): SubmissionRecord
+  /** The turn's result. Withdrawn / interrupted resolve as `canceled`. */
+  readonly result: Promise<RunResult>
+  /** Resolves with the final record once the submission is terminal. */
+  wait(): Promise<SubmissionRecord>
+  /** Pull it out of the inbox before it starts. False once running. */
+  withdraw(): boolean
+}
+
+/** Wiring the kit hands each session. */
+export interface SessionContext {
+  key: string
+  store: AgentStore | null
+  registry: Map<string, Submission>
+  open: (handle: PersistenceHandle, key?: string) => Promise<AgentSession>
+  onClose: () => void
+}
+
+interface Live {
+  record: SubmissionRecord
+  options?: TurnOptions
+  visible: boolean
+  result: ReturnType<typeof deferred<RunResult>>
+  settled: ReturnType<typeof deferred<SubmissionRecord>>
+  submission: Submission
+}
+
 /**
  * The one session type harness builders use. Wraps a capsule session with:
- * capability guards, permission policies, a prompt queue, a live transcript,
- * and an async event iterator. Same API for every provider.
+ * capability guards, permission policies, a visible prompt inbox, durable
+ * submissions, a live transcript, and an async event iterator. Same API for every provider.
  */
 export class AgentSession {
   readonly provider: ProviderId
   readonly capabilities: Capabilities
+  /** Stable id across rewinds/restarts (the native id can change). Store key. */
+  readonly key: string
   private readonly inner: ProviderSession
   private readonly events = new Emitter<AgentEvent>()
-  private readonly queue: Array<{ prompt: PromptInput; options?: TurnOptions; resolve: (r: RunResult) => void; reject: (e: unknown) => void }> = []
+  private readonly queue: Live[] = []
+  private running: Live | null = null
   private state: Transcript = emptyTranscript()
   private draining = false
+  private compacting = false
   private closed = false
+  private lastInbox = '[]'
   private handlers: SessionHandlers
-  private readonly onClose: () => void
+  private readonly ctx: SessionContext
 
-  constructor(inner: ProviderSession, handlers: SessionHandlers, onClose: () => void) {
+  constructor(inner: ProviderSession, handlers: SessionHandlers, ctx: SessionContext) {
     this.inner = inner
     this.provider = inner.provider
     this.capabilities = inner.capabilities
     this.handlers = handlers
-    this.onClose = onClose
+    this.ctx = ctx
+    this.key = ctx.key
     this.state = { ...this.state, sessionId: inner.id }
-    inner.subscribe((event) => this.onInnerEvent(event))
+    inner.subscribe((event) => this.publish(event))
   }
 
   /** Native session id (Claude session, Codex thread, OpenCode session). Can change after rewind. */
   get id(): string | null {
     return this.inner.id
   }
-  /** Live UI projection: items, status, pending permissions, usage. */
+  /** Live UI projection: items, status, inbox, pending permissions, usage. */
   get transcript(): Transcript {
     return this.state
   }
@@ -72,11 +123,26 @@ export class AgentSession {
     return this.inner
   }
 
-  private onInnerEvent(event: AgentEvent): void {
+  /** Every event goes through here: stored first (commit-before-show), then reduced, then shown. */
+  private publish(event: AgentEvent): void {
+    const store = this.ctx.store
+    if (event.type === 'turn_started' && this.running && !this.running.record.turnId) {
+      this.running.record = { ...this.running.record, turnId: event.turnId }
+      store?.putSubmission(this.running.record)
+    }
+    store?.appendEvent(this.key, event)
     this.state = reduceTranscript(this.state, event)
+    if (event.type === 'session_started') store?.updateSession(this.key, { handle: this.inner.describePersistence() })
+    if (isTerminalEvent(event) && !this.running) store?.checkpoint(this.key, this.state)
     if (event.type === 'permission_requested' && this.handlers.onPermission) void this.autoAnswer(event.request)
     this.handlers.onEvent?.(event)
     this.events.emit(event)
+  }
+
+  /** Load a saved transcript (restore from a store, or a fork's history). */
+  hydrate(transcript: Transcript): void {
+    this.state = { ...transcript, sessionId: this.inner.id, status: transcript.status === 'failed' ? 'failed' : 'idle', activeTurnId: null, pendingPermissions: [], inbox: [] }
+    this.ctx.store?.checkpoint(this.key, this.state)
   }
 
   private async autoAnswer(request: PermissionRequest): Promise<void> {
@@ -135,27 +201,80 @@ export class AgentSession {
     if (typeof prompt !== 'string' && prompt.some((block) => block.type === 'image')) this.guard('images')
   }
 
-  /** Run one turn to completion. Throws SESSION_BUSY if a turn is active; use `send` to queue. */
-  async run(prompt: PromptInput, options?: TurnOptions): Promise<RunResult> {
-    this.checkTurnOptions(prompt, options)
-    if (this.isRunning || this.draining) throw new AgentKitError('SESSION_BUSY', 'a turn is already running; use send() to queue or steer() to inject', { provider: this.provider })
-    return this.inner.run(prompt, options)
+  /** A turn is running, about to run, or compaction is in progress. */
+  get busy(): boolean {
+    return this.isRunning || this.running !== null || this.queue.length > 0 || this.compacting
   }
 
-  /** Start a turn and return immediately. Follow progress through `on()` / `stream()` / `transcript`. */
+  /**
+   * The one way to send a prompt. Idle: starts now. Busy: `whenBusy` decides —
+   * 'queue' puts it in the visible inbox, 'steer' injects into the running turn
+   * (falls back to the inbox if the provider can't), 'reject' throws SESSION_BUSY.
+   */
+  async submit(prompt: PromptInput, options: SubmitOptions = {}): Promise<Submission> {
+    const { requestId, whenBusy = 'queue', ...turnOptions } = options
+    if (requestId) {
+      const known = this.ctx.registry.get(requestId)
+      if (known) return known
+      const stored = this.ctx.store?.getSubmission(requestId)
+      if (stored) return storedSubmission(stored, this.ctx.store!)
+    }
+    this.checkTurnOptions(prompt, turnOptions)
+    const busy = this.busy
+    if (busy && whenBusy === 'reject') throw new AgentKitError('SESSION_BUSY', 'a turn is already running; submit with whenBusy "queue" or "steer"', { provider: this.provider })
+
+    const live = this.createLive(requestId ?? randomUUID(), prompt, whenBusy, turnOptions)
+    if (busy && whenBusy === 'steer') {
+      const turnId = this.activeTurnId
+      if (turnId && this.capabilities.steer && this.inner.steer && !this.compacting) {
+        const accepted = await this.inner.steer(prompt, { expectedTurnId: turnId }).then((r) => r.accepted, () => false)
+        if (accepted) {
+          this.save(live, { status: 'steered', turnId })
+          this.joinTurn(live, turnId)
+          return live.submission
+        }
+      }
+    }
+    live.visible = busy
+    this.queue.push(live)
+    this.save(live, {})
+    this.emitInbox()
+    void this.drain()
+    return live.submission
+  }
+
+  /** Run one turn to completion. Throws SESSION_BUSY if a turn is active; use `submit`/`send` to queue. */
+  async run(prompt: PromptInput, options?: TurnOptions & { requestId?: string }): Promise<RunResult> {
+    return (await this.submit(prompt, { ...options, whenBusy: 'reject' })).result
+  }
+
+  /** Start a raw turn and return immediately (not tracked as a submission). Follow it through `on()` / `transcript`. */
   async start(prompt: PromptInput, options?: TurnOptions): Promise<{ turnId: string }> {
     this.checkTurnOptions(prompt, options)
-    if (this.isRunning) throw new AgentKitError('SESSION_BUSY', 'a turn is already running', { provider: this.provider })
+    if (this.busy) throw new AgentKitError('SESSION_BUSY', 'a turn is already running', { provider: this.provider })
     return this.inner.startTurn(prompt, options)
   }
 
   /** Queue a prompt: runs now if idle, otherwise after the current/queued turns finish. */
-  send(prompt: PromptInput, options?: TurnOptions): Promise<RunResult> {
-    this.checkTurnOptions(prompt, options)
-    return new Promise((resolve, reject) => {
-      this.queue.push({ prompt, options, resolve, reject })
-      void this.drain()
-    })
+  async send(prompt: PromptInput, options?: TurnOptions & { requestId?: string }): Promise<RunResult> {
+    return (await this.submit(prompt, { ...options, whenBusy: 'queue' })).result
+  }
+
+  /** Inject input into the running turn; falls back to the inbox when the provider can't steer or nothing is running. */
+  async steer(prompt: PromptInput): Promise<{ steered: boolean; submission: Submission }> {
+    const submission = await this.submit(prompt, { whenBusy: 'steer' })
+    submission.result.catch(() => undefined)
+    return { steered: submission.status === 'steered', submission }
+  }
+
+  /** Pull a queued prompt out of the inbox. False if it already started or is unknown. */
+  withdraw(id: string): boolean {
+    const index = this.queue.findIndex((live) => live.record.id === id)
+    if (index < 0) return false
+    const [live] = this.queue.splice(index, 1)
+    this.settle(live, { status: 'withdrawn', error: 'withdrawn before it started' })
+    this.emitInbox()
+    return true
   }
 
   get queued(): number {
@@ -163,7 +282,115 @@ export class AgentSession {
   }
 
   clearQueue(): void {
-    for (const entry of this.queue.splice(0)) entry.reject(new AgentKitError('SESSION_CLOSED', 'queue cleared', { provider: this.provider }))
+    for (const live of this.queue.splice(0)) this.settle(live, { status: 'withdrawn', error: 'queue cleared' }, new AgentKitError('SESSION_CLOSED', 'queue cleared', { provider: this.provider }))
+    this.emitInbox()
+  }
+
+  private createLive(id: string, prompt: PromptInput, whenBusy: SubmitOptions['whenBusy'] & string, options?: TurnOptions): Live {
+    const result = deferred<RunResult>()
+    const settled = deferred<SubmissionRecord>()
+    result.promise.catch(() => undefined)
+    const record: SubmissionRecord = {
+      id,
+      sessionKey: this.key,
+      provider: this.provider,
+      status: 'queued',
+      prompt,
+      whenBusy,
+      turnId: null,
+      handle: this.inner.describePersistence(),
+      result: null,
+      error: null,
+      createdAt: new Date().toISOString(),
+      finishedAt: null,
+    }
+    const live = { record, options, visible: false, result, settled } as Live
+    const session = this
+    live.submission = {
+      id,
+      get status() {
+        return live.record.status
+      },
+      record: () => live.record,
+      result: result.promise,
+      wait: () => settled.promise,
+      withdraw: () => session.withdraw(id),
+    }
+    this.ctx.registry.set(id, live.submission)
+    return live
+  }
+
+  private save(live: Live, patch: Partial<SubmissionRecord>): void {
+    live.record = { ...live.record, ...patch }
+    this.ctx.store?.putSubmission(live.record)
+  }
+
+  private settle(live: Live, patch: Partial<SubmissionRecord>, error?: unknown, result?: RunResult): void {
+    if (TERMINAL_SUBMISSION.has(live.record.status)) return
+    const final: RunResult = result ?? {
+      sessionId: this.inner.id,
+      turnId: live.record.turnId ?? '',
+      status: 'canceled',
+      finalText: '',
+      error: patch.error ?? undefined,
+      timeline: [],
+    }
+    const { timeline: _timeline, ...outcome } = final
+    this.save(live, { result: outcome, finishedAt: new Date().toISOString(), ...patch })
+    this.ctx.store?.updateSession(this.key, { handle: this.inner.describePersistence() })
+    if (error) live.result.reject(error)
+    else live.result.resolve(final)
+    live.settled.resolve(live.record)
+  }
+
+  private settleFromResult(live: Live, result: RunResult): void {
+    this.settle(live, { status: result.status, turnId: result.turnId || live.record.turnId, error: result.error ?? null }, undefined, result)
+  }
+
+  /** A steered prompt finishes with the turn it joined. */
+  private joinTurn(live: Live, turnId: string): void {
+    const host = this.running
+    if (host && host.record.turnId === turnId) {
+      host.result.promise.then((result) => this.settleFromResult(live, result), (error) => this.settle(live, { status: 'failed', error: String(error) }, error))
+      return
+    }
+    const off = this.on((event) => {
+      if (!isTerminalEvent(event) || event.turnId !== turnId) return
+      off()
+      const status = event.type === 'turn_completed' ? 'completed' : event.type === 'turn_failed' ? 'failed' : 'canceled'
+      const error = event.type === 'turn_failed' ? event.error : undefined
+      this.settleFromResult(live, { sessionId: this.inner.id, turnId, status, finalText: '', error, timeline: [] })
+    })
+  }
+
+  private emitInbox(): void {
+    const inbox: InboxEntry[] = this.queue
+      .filter((live) => live.visible)
+      .map((live) => ({
+        id: live.record.id,
+        text: typeof live.record.prompt === 'string' ? live.record.prompt : live.record.prompt.map((b) => (b.type === 'text' ? b.text : '[image]')).join('\n'),
+        whenBusy: live.record.whenBusy === 'steer' ? 'steer' : 'queue',
+        at: live.record.createdAt,
+      }))
+    const json = JSON.stringify(inbox)
+    if (json === this.lastInbox) return
+    this.lastInbox = json
+    this.publish({ type: 'inbox_changed', provider: this.provider, inbox })
+  }
+
+  private waitIdle(): Promise<void> {
+    if (!this.isRunning && !this.compacting) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (!this.isRunning && !this.compacting) {
+          off()
+          clearInterval(timer)
+          resolve()
+        }
+      }
+      const off = this.on(() => queueMicrotask(check))
+      const timer = setInterval(check, 250)
+    })
   }
 
   private async drain(): Promise<void> {
@@ -171,38 +398,25 @@ export class AgentSession {
     this.draining = true
     try {
       while (this.queue.length && !this.closed) {
-        if (this.isRunning) await new Promise<void>((resolve) => {
-          const off = this.on((event) => {
-            if (event.type === 'turn_completed' || event.type === 'turn_failed' || event.type === 'turn_canceled') {
-              off()
-              resolve()
-            }
-          })
-        })
-        const next = this.queue.shift()!
+        await this.waitIdle()
+        const live = this.queue.shift()
+        if (!live) break
+        this.emitInbox()
+        this.running = live
+        // Intent: saved before the provider sees the prompt.
+        this.save(live, { status: 'running', handle: this.inner.describePersistence() })
         try {
-          next.resolve(await this.inner.run(next.prompt, next.options))
+          this.settleFromResult(live, await this.inner.run(live.record.prompt, live.options))
         } catch (error) {
-          next.reject(error)
+          this.settle(live, { status: 'failed', error: error instanceof Error ? error.message : String(error) }, error)
+        } finally {
+          this.running = null
+          this.ctx.store?.checkpoint(this.key, this.state)
         }
       }
     } finally {
       this.draining = false
     }
-  }
-
-  /**
-   * Inject input into the running turn. Falls back to queueing when the
-   * provider cannot steer or no turn is active.
-   */
-  async steer(prompt: PromptInput): Promise<{ steered: boolean }> {
-    const turnId = this.activeTurnId
-    if (turnId && this.capabilities.steer && this.inner.steer) {
-      const { accepted } = await this.inner.steer(prompt, { expectedTurnId: turnId })
-      if (accepted) return { steered: true }
-    }
-    void this.send(prompt).catch(() => undefined)
-    return { steered: false }
   }
 
   async interrupt(): Promise<void> {
@@ -267,6 +481,40 @@ export class AgentSession {
     await this.inner.rewind!({ messageId, scope })
     const index = this.state.items.findIndex((item) => item.type === 'user_message' && item.messageId === messageId)
     if (index >= 0 && scope !== 'files') this.state = { ...this.state, items: this.state.items.slice(0, index), sessionId: this.inner.id }
+    this.ctx.store?.updateSession(this.key, { handle: this.inner.describePersistence() })
+    this.ctx.store?.checkpoint(this.key, this.state)
+  }
+
+  /**
+   * Branch into a new session holding this conversation up to (not including)
+   * `beforeMessageId`, or all of it. This session is untouched.
+   */
+  async fork(options: { beforeMessageId?: string; key?: string } = {}): Promise<AgentSession> {
+    this.guard('fork')
+    const handle = await this.inner.fork!({ beforeMessageId: options.beforeMessageId })
+    const forked = await this.ctx.open(handle, options.key)
+    let items: TimelineItem[] = []
+    if (forked.capabilities.history) items = await forked.history().catch(() => [])
+    if (!items.length) {
+      const cut = options.beforeMessageId ? this.state.items.findIndex((item) => item.type === 'user_message' && item.messageId === options.beforeMessageId) : -1
+      items = cut >= 0 ? this.state.items.slice(0, cut) : this.state.items.slice()
+    }
+    forked.hydrate({ ...emptyTranscript(), items, modeId: this.state.modeId, model: this.state.model, thinkingOptionId: this.state.thinkingOptionId, fast: this.state.fast })
+    return forked
+  }
+
+  /** Native compaction: summarize older context. Waits for any running turn; counts as busy while it runs. */
+  async compact(instructions?: string): Promise<void> {
+    this.guard('compact')
+    if (this.busy) throw new AgentKitError('SESSION_BUSY', 'cannot compact while a turn is running or queued', { provider: this.provider })
+    this.compacting = true
+    try {
+      await this.inner.compact!({ instructions })
+    } finally {
+      this.compacting = false
+      this.ctx.store?.checkpoint(this.key, this.state)
+      void this.drain()
+    }
   }
 
   /** Durable, JSON-serializable handle. Pass to `kit.resume()` in another process. */
@@ -280,6 +528,39 @@ export class AgentSession {
     this.closed = true
     await this.inner.close()
     this.events.clear()
-    this.onClose()
+    this.ctx.onClose()
+  }
+}
+
+/** A read-only view of a submission from the store (another process, or before a restart). */
+export function storedSubmission(record: SubmissionRecord, store: AgentStore): Submission {
+  let current = record
+  const toResult = (r: SubmissionRecord): RunResult => ({
+    sessionId: r.result?.sessionId ?? r.handle?.sessionId ?? null,
+    turnId: r.turnId ?? '',
+    status: r.status === 'completed' || r.status === 'failed' ? r.status : 'canceled',
+    finalText: r.result?.finalText ?? '',
+    error: r.error ?? r.result?.error,
+    usage: r.result?.usage,
+    timeline: [],
+  })
+  const wait = async (): Promise<SubmissionRecord> => {
+    // Another live process may still own it: poll the shared file.
+    while (!TERMINAL_SUBMISSION.has(current.status)) {
+      await new Promise((r) => setTimeout(r, 500))
+      current = store.getSubmission(record.id) ?? current
+    }
+    return current
+  }
+  const settled = wait()
+  return {
+    id: record.id,
+    get status() {
+      return current.status
+    },
+    record: () => current,
+    result: settled.then(toResult),
+    wait: () => settled,
+    withdraw: () => false,
   }
 }

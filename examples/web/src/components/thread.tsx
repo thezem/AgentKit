@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertTriangle, Brain, ChevronRight, History, Info, Layers } from 'lucide-react'
+import { AlertTriangle, Brain, ChevronRight, GitBranch, History, Info, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -40,9 +40,19 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
   )
 }
 
-function UserMessage({ text, canRewind, onRewind }: { text: string; canRewind: boolean; onRewind?: () => void }) {
+function UserMessage({ text, canRewind, onRewind, canFork, onFork }: { text: string; canRewind: boolean; onRewind?: () => void; canFork: boolean; onFork?: () => void }) {
   return (
-    <div className="group/user flex items-start justify-end gap-2">
+    <div className="group/user flex items-start justify-end gap-1">
+      {canFork && onFork && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-7 opacity-0 transition-opacity duration-150 group-hover/user:opacity-100" onClick={onFork}>
+              <GitBranch className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Fork from before this message</TooltipContent>
+        </Tooltip>
+      )}
       {canRewind && onRewind && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -62,16 +72,21 @@ export function Thread({
   transcript,
   canRewind,
   onRewind,
+  canFork,
+  onFork,
   onRespond,
 }: {
   transcript: Transcript
   canRewind: boolean
   onRewind: (messageId: string, text: string) => void
+  canFork: boolean
+  onFork: (messageId: string) => void
   onRespond: (request: PermissionRequest, response: Parameters<React.ComponentProps<typeof PermissionCard>['onRespond']>[0]) => Promise<void>
 }) {
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const blocks = toBlocks(transcript.items)
+  const firstUser = transcript.items.findIndex((item) => item.type === 'user_message')
   const running = transcript.status === 'running' || transcript.status === 'waiting_permission'
   const last = transcript.items.at(-1)
   const latestTodo = [...transcript.items].reverse().find((item) => item.type === 'todo')
@@ -85,7 +100,11 @@ export function Thread({
   }, [])
   useLayoutEffect(() => {
     const el = scroller.current
-    if (el && pinned.current) el.scrollTop = el.scrollHeight
+    if (!el || !pinned.current) return
+    el.scrollTop = el.scrollHeight
+    // Markdown/code can grow after the first paint; settle once more on the next frame.
+    const frame = requestAnimationFrame(() => pinned.current && (el.scrollTop = el.scrollHeight))
+    return () => cancelAnimationFrame(frame)
   })
 
   return (
@@ -104,7 +123,7 @@ export function Thread({
           const key = `i${block.index}`
           switch (item.type) {
             case 'user_message':
-              return <UserMessage key={key} text={item.text} canRewind={canRewind && !running && Boolean(item.messageId)} onRewind={() => item.messageId && onRewind(item.messageId, item.text)} />
+              return <UserMessage key={key} text={item.text} canRewind={canRewind && !running && Boolean(item.messageId)} onRewind={() => item.messageId && onRewind(item.messageId, item.text)} canFork={canFork && !running && Boolean(item.messageId) && block.index !== firstUser} onFork={() => item.messageId && onFork(item.messageId)} />
             case 'assistant_message':
               return <Markdown key={key} text={item.text} />
             case 'reasoning':
@@ -124,7 +143,7 @@ export function Thread({
             case 'notice':
               return (
                 <p key={key} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <Info className="mt-0.5 size-4 shrink-0" /> {item.message}
+                  {item.level === 'info' ? <Info className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />} {item.message}
                 </p>
               )
             default:

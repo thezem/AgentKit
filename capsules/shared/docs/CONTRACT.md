@@ -13,5 +13,7 @@ Invariants every capsule must keep (checked by `test/e2e/conformance.ts`):
 6. `interrupt()` resolves only after the active turn is terminal; idle = no-op.
 7. `describePersistence()` is JSON-serializable and enough for `resumeSession()` in a new process.
 8. Capability flags are true only when implemented end to end.
+9. `fork()` never changes the current session and returns a handle `resumeSession()` accepts. `compact()` resolves only after the provider reports it done.
+10. Capsules never emit `inbox_changed` / `turn_interrupted`; AgentKit owns those (queueing and crash recovery live above the capsule, so every provider gets them for free).
 
 Write your own capsule: copy `capsules/mock/index.ts`, replace the fake turn with real calls, run the conformance script against it via `createAgentKit({ providers: [yourClient] })`.

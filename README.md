@@ -77,6 +77,9 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | rewind files | ✓ | – | ✓ (with conversation) | – |
 | slash commands / skills | ✓ | – | ✓ | ✓ |
 | archive | – | ✓ | – | ✓ |
+| fork (new branch, original untouched) | ✓ | ✓ | ✓ | ✓ |
+| compact context | ✓ (`/compact`) | ✓ (`thread/compact`) | ✓ | ✓ |
+| durable store, idempotent submit, inbox | ✓ | ✓ | ✓ | ✓ (AgentKit-level, every provider) |
 
 **Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** images, MCP injection, structured questions, file rewind, archive.
 
@@ -88,16 +91,37 @@ Unsupported calls throw `UnsupportedCapabilityError` before touching the provide
 - **`session.on(fn)` / `for await (const e of session.stream())`**: one event union for every provider.
 - **`access: 'plan' | 'supervised' | 'auto-edit' | 'full-access'`**: mapped to each provider's native mode. Use `mode` for the native id.
 - **`onPermission` + `policies`**: `readOnly()`, `acceptEdits()`, `allow('read','edit')`, `firstOf(...)`. Return `undefined` to leave a request for your UI.
-- **`send()`** queues, **`steer()`** injects mid-turn (falls back to queue), **`run()`** is one turn.
+- **`submit(prompt, { whenBusy, requestId })`** is the one way in: idle runs now; busy does `'queue'` (visible in `transcript.inbox`, `withdraw(id)`-able), `'steer'` (into the live turn, falls back to the inbox) or `'reject'` (`SESSION_BUSY`). `run()` / `send()` / `steer()` are shorthands.
+- **`session.fork({ beforeMessageId })`** → a new session; the original is untouched. **`session.compact(instructions?)`** → native compaction.
 - **`session.handle`** → `kit.resume(handle)`; **`kit.listSessions()`** merges all providers' native sessions.
 - **`session.native`**: the raw capsule session when you need something provider-specific.
+
+## Durable sessions
+
+Inspired by [pi durable](https://github.com/earendil-works/pi/tree/main/packages/durable). One option, no new deps (`node:sqlite`):
+
+```ts
+const kit = createAgentKit({ store: '~/.myapp/agentkit.db' })
+const session = await kit.session({ provider: 'codex', cwd, key: 'chat-42' })
+const sub = await session.submit('fix the failing test', { requestId: clientMsgId })
+
+// after a crash / restart / in another process:
+const again = await kit.restore('chat-42')       // native resume + saved transcript
+await kit.submission(clientMsgId)?.wait()        // { status: 'completed' | 'interrupted' | ... }
+```
+
+- **Commit before show.** Every event is written before any listener sees it. Kill -9 mid-reply and the restored transcript has at least everything the user saw.
+- **Intent / outcome.** A submission is saved as `running` before the provider gets the prompt, and its outcome after. Work cut off by a dead process comes back as `interrupted` with a notice in the transcript (`kit.recovered` lists it). **It is never re-sent automatically**: re-running a turn that may have edited files is the user's call.
+- **Idempotent.** Same `requestId` → same submission, in this process or after a restart. Retries and double-clicks run once.
+- Single writer per session: the store marks rows with the owning pid and only recovers rows whose process is gone.
 
 ## Checks
 
 ```bash
-npm run verify            # typecheck + mock conformance (free, no CLIs)
+npm run verify            # typecheck + mock conformance + durable (free, no CLIs)
 npm run e2e -- claude     # real conformance against your signed-in CLI
 npm run e2e               # claude + codex + opencode
+npm run e2e:durable -- mock   # kill -9 mid-turn, idempotency, inbox, fork, compact
 ```
 
 Artifacts land in `test/e2e/artifacts/<provider>.json`. Failure modes covered: [`test/e2e/FAILURE_MODES.md`](test/e2e/FAILURE_MODES.md).
