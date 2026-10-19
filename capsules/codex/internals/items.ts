@@ -74,8 +74,23 @@ export function mapCodexItem(item: CodexItem): TimelineItem | null {
       return tool(item, 'view_image', 'completed', { type: 'read', filePath: item.path ?? '' })
     case 'contextCompaction':
       return { type: 'compaction', status: 'completed' }
-    default:
+    case 'extension':
+    case 'Extension': {
+      // Built-in extension tools (kind "clock.sleep" etc.) arrive completed, with no status field.
+      const { type: _type, id: _id, kind, status: raw, ...input } = item
+      return tool(item, String(kind ?? 'extension'), raw ? status(raw) : 'completed', { type: 'unknown', input })
+    }
+    case 'enteredReviewMode':
+    case 'exitedReviewMode':
+    case 'hookPrompt':
+    case 'functionCallOutput':
       return null
+    default: {
+      // Unknown kinds become a generic tool row so the next new Codex item type doesn't vanish silently.
+      if (/message$|^reasoning$|^plan$/i.test(item.type)) return null
+      const { type, id: _id, status: raw, ...input } = item
+      return tool(item, String(item.kind ?? item.tool ?? item.name ?? type), raw ? status(raw) : 'completed', { type: 'unknown', input })
+    }
   }
 }
 
