@@ -1,5 +1,5 @@
 /**
- * Tool hub E2E: one MCP registry reaching every provider. Rows #36–#43 in FAILURE_MODES.md.
+ * Tool hub E2E: one MCP registry reaching every provider. Rows #36–#49 in FAILURE_MODES.md.
  * Artifact: test/e2e/artifacts/hub.json
  *
  *   node test/e2e/hub.ts                 # claude codex opencode
@@ -11,7 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { createAgentKit, readCliServers, ToolHub, type ProviderId } from '../../src/index.ts'
+import { createAgentKit, readCliServers, ToolHub, toolResult, type ProviderId, type ToolContext } from '../../src/index.ts'
 
 const providers: ProviderId[] = process.argv.slice(2).length ? process.argv.slice(2) : ['claude', 'codex', 'opencode']
 const CHEAP: Record<string, object> = { claude: { model: 'haiku' }, codex: { thinking: 'low' }, opencode: {} }
@@ -23,7 +23,7 @@ const NATIVE = `NAT-${Math.random().toString(36).slice(2, 8)}`
 const fixture = { type: 'stdio' as const, command: process.execPath, args: [path.join(import.meta.dirname, 'fixtures/nonce-mcp.ts')], env: { NONCE } }
 
 const kit = createAgentKit({ hub: { file: hubFile } })
-const hub = kit.hub!
+const hub = kit.hub
 const checks: Array<{ name: string; ok: boolean; note?: string }> = []
 async function check(name: string, fn: () => Promise<string | void>) {
   try {
@@ -96,6 +96,131 @@ for (const provider of providers) {
       return `both tokens back; CLI sees only hub servers [${seen.join(', ')}]`
     } finally {
       await session.close()
+    }
+  })
+}
+
+// ------------------------------------------------------------ native tools (#44–#49)
+const dir2 = mkdtempSync(path.join(os.tmpdir(), 'agentkit-hub-b-'))
+execSync('git init -q', { cwd: dir2 })
+const tokens = new Map<string, string[]>() // sessionKey → tokens handed out
+const bind = hub.bind.bind(hub)
+hub.bind = (context) => {
+  const token = bind(context)
+  tokens.set(context.sessionKey, [...(tokens.get(context.sessionKey) ?? []), token])
+  return token
+}
+const seenCtx: Array<Omit<ToolContext, 'signal'>> = []
+let waiting: { started: boolean; aborted: boolean; reason?: string } = { started: false, aborted: false }
+const circular: any = { a: 1 }
+circular.self = circular
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+hub.addTools('kit', [
+  { name: 'whoami', description: 'Returns an id for the current conversation. Call it when asked who you are.', run: (_a, ctx) => (seenCtx.push({ sessionKey: ctx.sessionKey, provider: ctx.provider, cwd: ctx.cwd, server: ctx.server, tool: ctx.tool }), `ID-${ctx.sessionKey}`) },
+  {
+    name: 'wait_for_signal',
+    description: 'Waits for an external signal. Call it when asked to wait.',
+    // Deliberately ignores ctx.signal for the result: the hub must still answer on interrupt.
+    run: (_a, ctx) => {
+      waiting = { started: true, aborted: false }
+      ctx.signal.addEventListener('abort', () => (waiting = { ...waiting, aborted: true, reason: String(ctx.signal.reason?.message ?? ctx.signal.reason) }))
+      return new Promise(() => {})
+    },
+  },
+  { name: 'image', description: 'test', run: () => toolResult.parts(toolResult.text('pixel:'), toolResult.image(Buffer.from(PNG, 'base64'), 'image/png')) },
+  { name: 'fails', description: 'test', run: () => toolResult.error('nope') },
+  { name: 'throws', description: 'test', run: () => { throw new Error('boom') } },
+  { name: 'nothing', description: 'test', run: () => undefined },
+  { name: 'circular', description: 'test', run: () => circular },
+  { name: 'json', description: 'test', run: () => ({ n: 1n, ok: true }) },
+])
+
+// #47 (no model needed)
+await check('native-results', async () => {
+  const c = await mcpClient(hub.url('kit'))
+  const r: Record<string, any> = {}
+  for (const name of ['image', 'fails', 'throws', 'nothing', 'circular', 'json']) r[name] = await c.callTool({ name, arguments: {} })
+  await c.close()
+  const img = r.image.content.find((p: any) => p.type === 'image')
+  if (img?.mimeType !== 'image/png' || img.data !== PNG || r.image.content[0].text !== 'pixel:') throw new Error(`image ${JSON.stringify(r.image).slice(0, 200)}`)
+  if (!r.fails.isError || r.fails.content[0].text !== 'nope') throw new Error(`error ${JSON.stringify(r.fails)}`)
+  if (!r.throws.isError || !r.throws.content[0].text.includes('boom')) throw new Error(`throws ${JSON.stringify(r.throws)}`)
+  if (r.nothing.isError || r.nothing.content[0].text !== '(no output)') throw new Error(`undefined ${JSON.stringify(r.nothing)}`)
+  if (!r.circular.isError) throw new Error(`circular ${JSON.stringify(r.circular)}`)
+  if (r.json.content[0].text !== '{"n":"1","ok":true}') throw new Error(`json ${JSON.stringify(r.json)}`)
+  return 'image+text parts, error, throw, undefined, circular, bigint → valid results'
+})
+
+// #48: a kit that never asked for a hub, with an empty hub file, leaves the CLI alone
+await check('native-default', async () => {
+  const home = process.env.HOME
+  process.env.HOME = mkdtempSync(path.join(os.tmpdir(), 'agentkit-hub-home-'))
+  const plain = createAgentKit({ codex: false, opencode: false })
+  process.env.HOME = home
+  if (plain.hub.active) throw new Error('empty hub reports active')
+  const s = await plain.session({ provider: 'claude', cwd: dir, model: 'haiku' })
+  const started = (plain.hub as any).server !== null
+  const r = await s.run('Reply with exactly: ok')
+  const servers = (await (s.native as any).q.mcpServerStatus()).map((x: any) => x.name)
+  await s.close()
+  if (r.status !== 'completed') throw new Error(r.status)
+  await plain.shutdown()
+  if (started) throw new Error('hub bound a port for an empty registry')
+  return `no port bound; CLI kept its own servers [${servers.length}]`
+})
+
+for (const provider of providers) {
+  // #44 #45 #49
+  await check(`native-ctx:${provider}`, async () => {
+    seenCtx.length = 0
+    const keyA = `A-${provider}-${Math.random().toString(36).slice(2, 6)}`
+    const keyB = `B-${provider}-${Math.random().toString(36).slice(2, 6)}`
+    const [a, b] = await Promise.all([
+      kit.session({ provider, cwd: dir, key: keyA, access: 'full-access', ...CHEAP[provider] }),
+      kit.session({ provider, cwd: dir2, key: keyB, access: 'full-access', ...CHEAP[provider] }),
+    ])
+    const ask = 'Call the `whoami` tool (kit server) once and reply with exactly its output, nothing else.'
+    try {
+      const [ra, rb] = await Promise.all([a.run(ask), b.run(ask)])
+      if (!ra.finalText.includes(`ID-${keyA}`) || !rb.finalText.includes(`ID-${keyB}`)) throw new Error(`replies ${JSON.stringify([ra.finalText, rb.finalText])}`)
+      const ctxA = seenCtx.find((c) => c.sessionKey === keyA)
+      const ctxB = seenCtx.find((c) => c.sessionKey === keyB)
+      if (ctxA?.cwd !== dir || ctxB?.cwd !== dir2 || ctxA.provider !== provider || ctxB.provider !== provider) throw new Error(`ctx ${JSON.stringify(seenCtx)}`)
+      // #49: resume gets a fresh token for the same key
+      const handle = a.handle
+      await a.close()
+      const tokA = tokens.get(keyA)!.at(-1)!
+      const gone = await fetch(hub.url('kit', tokA), { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' })
+      if (gone.status !== 404) throw new Error(`closed session token → ${gone.status}`)
+      const forged = await fetch(hub.url('kit', 'forged-token'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+      if (forged.status !== 404) throw new Error(`forged token → ${forged.status}`)
+      const again = await kit.resume(handle!, { key: keyA })
+      const fresh = tokens.get(keyA)!
+      await again.close()
+      if (fresh.length !== 2 || fresh[0] === fresh[1]) throw new Error(`resume tokens ${JSON.stringify(fresh)}`)
+      return 'each session saw its own key/cwd/provider; closed + forged token → 404; resume re-bound same key'
+    } finally {
+      await Promise.allSettled([a.close(), b.close()])
+    }
+  })
+
+  // #46
+  await check(`native-cancel:${provider}`, async () => {
+    waiting = { started: false, aborted: false }
+    const s = await kit.session({ provider, cwd: dir, access: 'full-access', ...CHEAP[provider] })
+    try {
+      const sub = await s.submit('Call the `wait_for_signal` tool (kit server) now. Then reply "done".')
+      const t0 = Date.now()
+      while (!waiting.started && Date.now() - t0 < 90_000) await new Promise((r) => setTimeout(r, 200))
+      if (!waiting.started) throw new Error('model never called the tool')
+      const t1 = Date.now()
+      await s.interrupt()
+      const abortMs = Date.now() - t1
+      if (!waiting.aborted) throw new Error('ctx.signal not aborted on interrupt')
+      const result = await Promise.race([sub.result, new Promise<never>((_, r) => setTimeout(() => r(new Error('turn still hanging 30s after interrupt')), 30_000))])
+      return `signal aborted (${waiting.reason}); turn ${result.status} ${Date.now() - t1}ms after interrupt (interrupt call ${abortMs}ms)`
+    } finally {
+      await s.close()
     }
   })
 }

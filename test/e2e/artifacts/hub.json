@@ -31,6 +31,46 @@
       "note": "both tokens back; CLI sees only hub servers [native-probe, probe]"
     },
     {
+      "name": "native-results",
+      "ok": true,
+      "note": "image+text parts, error, throw, undefined, circular, bigint → valid results"
+    },
+    {
+      "name": "native-default",
+      "ok": true,
+      "note": "no port bound; CLI kept its own servers [19]"
+    },
+    {
+      "name": "native-ctx:claude",
+      "ok": true,
+      "note": "each session saw its own key/cwd/provider; closed + forged token → 404; resume re-bound same key"
+    },
+    {
+      "name": "native-cancel:claude",
+      "ok": true,
+      "note": "signal aborted (interrupted by the user); turn canceled 64ms after interrupt (interrupt call 63ms)"
+    },
+    {
+      "name": "native-ctx:codex",
+      "ok": true,
+      "note": "each session saw its own key/cwd/provider; closed + forged token → 404; resume re-bound same key"
+    },
+    {
+      "name": "native-cancel:codex",
+      "ok": true,
+      "note": "signal aborted (interrupted by the user); turn canceled 35ms after interrupt (interrupt call 35ms)"
+    },
+    {
+      "name": "native-ctx:opencode",
+      "ok": true,
+      "note": "each session saw its own key/cwd/provider; closed + forged token → 404; resume re-bound same key"
+    },
+    {
+      "name": "native-cancel:opencode",
+      "ok": true,
+      "note": "signal aborted (interrupted by the user); turn canceled 187ms after interrupt (interrupt call 187ms)"
+    },
+    {
       "name": "toggle",
       "ok": true,
       "note": "off → not offered + 410; always → alwaysLoad"
@@ -47,6 +87,13 @@
     }
   ],
   "servers": [
+    {
+      "name": "kit",
+      "status": "connected",
+      "tools": 8,
+      "load": "on-demand",
+      "enabled": true
+    },
     {
       "name": "native-probe",
       "status": "connected",

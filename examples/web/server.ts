@@ -23,7 +23,7 @@ mkdirSync(dir, { recursive: true })
 const dbFile = path.join(dir, 'agentkit.db')
 // hub: one MCP registry for every provider (saved to ~/.agentkit-ui/mcp-servers.json).
 const kit = createAgentKit({ mock: true, store: dbFile, hub: true })
-const hub = kit.hub!
+const hub = kit.hub
 void hub.start()
 const hubStreams = new Set<http.ServerResponse>()
 hub.on((event) => {

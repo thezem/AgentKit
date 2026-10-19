@@ -285,21 +285,45 @@ Don't add MCP servers to each CLI. Turn on the hub and give the user one list:
 
 ```ts
 const kit = createAgentKit({ store, hub: true })   // saved to mcp-servers.json next to the store
-await kit.hub!.add({ name: 'github', transport: { type: 'http', url, headers } })
-await kit.hub!.add({ name: 'files', transport: { type: 'stdio', ...splitCommand('npx -y my-mcp'), env } })
-await kit.hub!.update('github', { enabled: false })      // or { load: 'always' }
-kit.hub!.importFrom()                                     // copy servers from Claude/Codex/OpenCode configs
-kit.hub!.addTools('app', [{ name, description, inputSchema, run }])   // your own in-process tools
-kit.hub!.on((e) => /* status | removed | call */)
+await kit.hub.add({ name: 'github', transport: { type: 'http', url, headers } })
+await kit.hub.add({ name: 'files', transport: { type: 'stdio', ...splitCommand('npx -y my-mcp'), env } })
+await kit.hub.update('github', { enabled: false })      // or { load: 'always' }
+kit.hub.importFrom()                                     // copy servers from Claude/Codex/OpenCode configs
+kit.hub.on((e) => /* status | removed | call */)
 ```
 
 - The hub connects to each upstream once and serves each one on a loopback URL (`127.0.0.1:<port>/<secret>/<name>`). Every new session, on any provider, gets exactly the enabled servers.
 - **Exclusive by default**: the CLI's own MCP config is switched off for that thread (Claude `strictMcpConfig`, Codex `config.toml` servers disabled, OpenCode other servers disconnected), so the hub list is the truth. Codex's built-in `codex_apps`/`cua_repl` can't be disabled. `hub: { exclusive: false }` merges instead.
+- `kit.hub` always exists. Without the `hub` option its servers are added next to each CLI's own (not exclusive); an empty hub binds nothing and passes no config. `hub: false` keeps it out of sessions.
 - Toggles and adds apply to **new** threads. Say so in the UI.
 - `load` is a Claude-only hint today: `'always'` → `alwaysLoad` (schemas up front), `'on-demand'` → Claude's tool search. Codex and OpenCode load every tool up front either way; label the control accordingly.
 - Status per server: `connected | starting | failed | needs_auth | off`, with `error` and `tools`. Show a badge + tool count; a failed server never blocks the others.
 - Never send env/header values to the browser. Mask them (see [`server.ts`](../examples/web/server.ts) `publicServer`).
 - Settings UI reference: [`mcp-settings.tsx`](../examples/web/src/components/mcp-settings.tsx): list with badge, tool count, On demand/Always, delete, enable switch; Add dialog with Command (stdio) / Remote (HTTP) tabs; Import; live updates over SSE.
+
+### Native tools
+
+Your own functions, served by the hub to every provider. No MCP server to write:
+
+```ts
+import { toolResult } from '@ouim/agentkit'
+
+kit.hub.addTools('app', [{
+  name: 'save_note',
+  description: 'Save a note to this conversation',
+  inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+  run: async ({ text }, ctx) => {
+    // ctx: { sessionKey, provider, cwd, signal, server, tool }
+    await notes.add(ctx.sessionKey, String(text), { signal: ctx.signal })
+    return 'saved'
+  },
+}])
+```
+
+- **Context.** Each session gets its own hub URLs, so `ctx.sessionKey/provider/cwd` is the session that called. Concurrent sessions never see each other's. Called from outside a session (e.g. a raw MCP client on `hub.url()`), those fields are `null`.
+- **Cancel.** `ctx.signal` aborts when the user interrupts (`session.interrupt()`, before the provider confirms), the turn is canceled, the session closes, or the CLI drops the call. Pass it to `fetch`/child processes. A tool that ignores it is still answered as `Canceled: …` immediately, so the turn never hangs on it.
+- **Results.** Return a string, any JSON value (bigint ok), or nothing (`(no output)`). For more: `toolResult.image(bytesOrBase64, 'image/png', caption?)`, `toolResult.error('message')` (model sees a failure, no throw needed), `toolResult.parts(a, b)`. Throwing also becomes an error result.
+- Tool sets live in code: register them at startup, every run. The hub file only remembers their toggles.
 
 ---
 
@@ -332,6 +356,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 - [ ] Fork/rewind/compact offered where `capabilities` allow
 - [ ] `/` skill menu writes `$name`; sent messages show chips
 - [ ] Context meter from `usage`
+- [ ] Native tools use `ctx.sessionKey` for per-conversation data and pass `ctx.signal` to slow work
 - [ ] One MCP settings page backed by `kit.hub`; secrets masked; "applies to new threads" made clear
 - [ ] `kit.shutdown()` on exit
 
@@ -359,3 +384,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + catalog sources** — `AgentModel.source`, `kit.catalog(p, { sources })` (OpenCode: filter to `opencode-go`).
 - **0.2 + skills** — `kit.skills()`, `kit.searchSkills()`, `$name` expansion, `splitSkillTags`, example `/` menu.
 - **0.2 + hub** — `createAgentKit({ hub })`, `kit.hub` (add/update/remove/refresh/importFrom/addTools/on), exclusive MCP per provider, example MCP settings page.
+- **0.2 + native tools** — `kit.hub` always present; `run(args, ctx)` with session context + abort signal; `toolResult.text/image/error/parts`.

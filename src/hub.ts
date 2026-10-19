@@ -11,7 +11,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { McpServerConfig } from '../capsules/shared/contract.ts'
+import type { McpServerConfig, ProviderId } from '../capsules/shared/contract.ts'
 
 /**
  * One MCP registry for every provider and model.
@@ -57,12 +57,58 @@ export interface HubServerState extends HubServerConfig {
   tools: HubTool[]
 }
 
+/** Who is calling a native tool. Session fields are null when called outside an AgentKit session. */
+export interface ToolContext {
+  /** The AgentKit session key (stable across restore/resume; a fork has its own). */
+  sessionKey: string | null
+  provider: ProviderId | null
+  cwd: string | null
+  /** Aborted when the user interrupts the turn, the session closes, or the CLI drops the call. */
+  signal: AbortSignal
+  server: string
+  tool: string
+}
+
 export interface NativeTool {
   name: string
   description: string
   /** JSON Schema for the arguments. Default: no arguments. */
   inputSchema?: Record<string, unknown>
-  run(args: Record<string, unknown>): Promise<unknown> | unknown
+  /**
+   * Return a string, any JSON value, nothing, or a `toolResult.*` value (image, error, several parts).
+   * Throwing is reported to the model as an error result.
+   */
+  run(args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> | unknown
+}
+
+type ContentPart = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+/** An MCP tool result. Build with `toolResult.*` or return plain values. */
+export interface ToolResult {
+  content: ContentPart[]
+  isError?: boolean
+}
+
+const asBase64 = (data: string | Uint8Array) => (typeof data === 'string' ? data : Buffer.from(data).toString('base64'))
+
+/** Helpers for native tool results beyond plain text. */
+export const toolResult = {
+  text: (text: string): ToolResult => ({ content: [{ type: 'text', text }] }),
+  /** `data`: bytes or base64. */
+  image: (data: string | Uint8Array, mimeType: string, caption?: string): ToolResult => ({
+    content: [{ type: 'image', data: asBase64(data), mimeType }, ...(caption ? [{ type: 'text' as const, text: caption }] : [])],
+  }),
+  /** A failure the model should see and react to (no throw needed). */
+  error: (message: string): ToolResult => ({ content: [{ type: 'text', text: message }], isError: true }),
+  /** Several parts in one result, e.g. `toolResult.parts(toolResult.text('chart:'), toolResult.image(png, 'image/png'))`. */
+  parts: (...results: ToolResult[]): ToolResult => ({ content: results.flatMap((r) => r.content), ...(results.some((r) => r.isError) ? { isError: true } : {}) }),
+}
+
+/** One session's view of the hub: its own URLs and context. */
+interface Binding {
+  sessionKey: string
+  provider: ProviderId
+  cwd: string | null
+  calls: Set<AbortController>
 }
 
 export type HubEvent =
@@ -184,6 +230,7 @@ export class ToolHub {
   private server: http.Server | null = null
   private starting: Promise<void> | null = null
   private port = 0
+  private readonly bindings = new Map<string, Binding>()
 
   constructor(options: { file?: string } = {}) {
     this.file = options.file ?? null
@@ -208,6 +255,7 @@ export class ToolHub {
   }
 
   async close(): Promise<void> {
+    for (const token of [...this.bindings.keys()]) this.release(token)
     await Promise.all([...this.upstreams.values()].map((u) => u.close()))
     const server = this.server
     // close() waits for idle keep-alive sockets from the CLIs; drop them.
@@ -300,20 +348,49 @@ export class ToolHub {
     this.emitState(name)
   }
 
-  /** MCP configs for a new session: every enabled server, as hub URLs. */
-  mcpServers(): Record<string, McpServerConfig> {
+  /** True when at least one enabled server would be offered to a session. */
+  get active(): boolean {
+    return [...this.configs.values()].some((c) => c.enabled && (!isPlaceholder(c) || this.natives.has(c.name)))
+  }
+
+  /**
+   * Give one session its own URLs. Native tools called through them get this context in `ctx`.
+   * Returns a token for `mcpServers(token)`, `abortCalls(token)` and `release(token)`. The kit does this for you.
+   */
+  bind(context: { sessionKey: string; provider: ProviderId; cwd?: string | null }): string {
+    const token = randomBytes(12).toString('base64url')
+    this.bindings.set(token, { sessionKey: context.sessionKey, provider: context.provider, cwd: context.cwd ?? null, calls: new Set() })
+    return token
+  }
+
+  /** Abort the native calls in flight for a session (interrupt). The session keeps its tools. */
+  abortCalls(token: string, reason = 'interrupted'): void {
+    const binding = this.bindings.get(token)
+    if (!binding) return
+    for (const call of binding.calls) call.abort(new Error(reason))
+    binding.calls.clear()
+  }
+
+  /** The session is gone: abort its calls and stop serving its URLs. */
+  release(token: string): void {
+    this.abortCalls(token, 'session closed')
+    this.bindings.delete(token)
+  }
+
+  /** MCP configs for a new session: every enabled server, as hub URLs (session-scoped with a `bind` token). */
+  mcpServers(token?: string): Record<string, McpServerConfig> {
     if (!this.server) throw new Error('hub not started; await kit.hub.start() (kit.session does it for you)')
     const out: Record<string, McpServerConfig> = {}
     for (const config of this.configs.values()) {
       if (!config.enabled || (isPlaceholder(config) && !this.natives.has(config.name))) continue
-      out[config.name] = { type: 'http', url: this.url(config.name), ...(config.load === 'always' ? { alwaysLoad: true } : {}) }
+      out[config.name] = { type: 'http', url: this.url(config.name, token), ...(config.load === 'always' ? { alwaysLoad: true } : {}) }
     }
     return out
   }
 
   /** Loopback URL of one server (includes the per-process secret). */
-  url(name: string): string {
-    return `http://127.0.0.1:${this.port}/${this.secret}/${encodeURIComponent(name)}`
+  url(name: string, token?: string): string {
+    return `http://127.0.0.1:${this.port}/${this.secret}/${encodeURIComponent(name)}${token ? `/${token}` : ''}`
   }
 
   // ---------------------------------------------------------------- import
@@ -348,10 +425,11 @@ export class ToolHub {
   // ---------------------------------------------------------------- serving
 
   private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const [, secret, raw] = (req.url ?? '').split('?')[0].split('/')
+    const [, secret, raw, token, extra] = (req.url ?? '').split('?')[0].split('/')
     const name = raw ? decodeURIComponent(raw) : ''
     const config = this.configs.get(name)
-    if (secret !== this.secret || !config) {
+    const binding = token ? this.bindings.get(token) : undefined
+    if (secret !== this.secret || !config || (token && !binding) || extra !== undefined) {
       res.writeHead(404).end()
       return
     }
@@ -369,7 +447,12 @@ export class ToolHub {
       // Stateless: one MCP server object per request, so any number of sessions can share a URL.
       const server = new Server({ name, version: '0.2.0' }, { capabilities: { tools: {} } })
       server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: await this.toolsOf(name) }))
-      server.setRequestHandler(CallToolRequestSchema, async (request) => this.callTool(name, request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>))
+      // The CLI hanging up mid-call (its own abort) cancels the native call too.
+      const dropped = new AbortController()
+      res.on('close', () => {
+        if (!res.writableFinished) dropped.abort(new Error('the caller dropped the request'))
+      })
+      server.setRequestHandler(CallToolRequestSchema, async (request) => this.callTool(name, request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>, binding, dropped.signal))
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
       res.on('close', () => {
         void transport.close()
@@ -391,7 +474,7 @@ export class ToolHub {
     return up.tools
   }
 
-  private async callTool(server: string, tool: string, args: Record<string, unknown>): Promise<any> {
+  private async callTool(server: string, tool: string, args: Record<string, unknown>, binding?: Binding, dropped?: AbortSignal): Promise<any> {
     const t0 = Date.now()
     try {
       const native = this.natives.get(server)
@@ -399,8 +482,7 @@ export class ToolHub {
       if (native) {
         const fn = native.find((t) => t.name === tool)
         if (!fn) throw new Error(`unknown tool ${tool}`)
-        const value = await fn.run(args)
-        result = isCallResult(value) ? value : { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] }
+        result = await this.runNative(fn, args, server, binding, dropped)
       } else {
         result = await this.upstream(this.configs.get(server)!).call(tool, args)
       }
@@ -409,6 +491,29 @@ export class ToolHub {
     } catch (error) {
       this.emit({ type: 'call', server, tool, ok: false, ms: Date.now() - t0, error: message(error) })
       return { content: [{ type: 'text', text: `Error: ${message(error)}` }], isError: true }
+    }
+  }
+
+  /** Run one native tool with its context; answer at once on abort even if the tool ignores the signal. */
+  private async runNative(fn: NativeTool, args: Record<string, unknown>, server: string, binding?: Binding, dropped?: AbortSignal): Promise<ToolResult> {
+    const call = new AbortController()
+    const onDrop = () => call.abort(dropped!.reason)
+    dropped?.addEventListener('abort', onDrop, { once: true })
+    binding?.calls.add(call)
+    const ctx: ToolContext = { sessionKey: binding?.sessionKey ?? null, provider: binding?.provider ?? null, cwd: binding?.cwd ?? null, signal: call.signal, server, tool: fn.name }
+    const aborted = new Promise<ToolResult>((resolve) => {
+      const done = () => resolve(toolResult.error(`Canceled: ${message(call.signal.reason)}`))
+      if (call.signal.aborted) done()
+      else call.signal.addEventListener('abort', done, { once: true })
+    })
+    try {
+      return await Promise.race([Promise.resolve().then(() => fn.run(args, ctx)).then(toCallResult), aborted])
+    } catch (error) {
+      if (call.signal.aborted) return toolResult.error(`Canceled: ${message(call.signal.reason)}`)
+      throw error
+    } finally {
+      binding?.calls.delete(call)
+      dropped?.removeEventListener('abort', onDrop)
     }
   }
 
@@ -482,8 +587,20 @@ function validateTransport(t: HubTransport): void {
   } else throw new Error('transport must be stdio or http')
 }
 
-function isCallResult(value: unknown): boolean {
+function isCallResult(value: unknown): value is ToolResult {
   return !!value && typeof value === 'object' && Array.isArray((value as any).content)
+}
+
+/** Whatever a native tool returned → a valid MCP result. */
+function toCallResult(value: unknown): ToolResult {
+  if (isCallResult(value)) return value
+  if (value === undefined || value === null) return toolResult.text('(no output)')
+  if (typeof value === 'string') return toolResult.text(value)
+  try {
+    return toolResult.text(JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)) ?? String(value))
+  } catch (error) {
+    return toolResult.error(`the tool returned a value that can't be serialised: ${message(error)}`)
+  }
 }
 
 function isAuthError(error: unknown): boolean {

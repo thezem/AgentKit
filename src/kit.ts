@@ -40,9 +40,12 @@ export interface AgentKitOptions {
    */
   store?: string | AgentStore
   /**
-   * One MCP registry for every provider and model (`kit.hub`). Servers you add there reach
-   * Claude, Codex and OpenCode alike. `exclusive` (default true): sessions use only the hub's
-   * servers, not each CLI's own MCP config, so nothing shows up twice.
+   * `kit.hub` always exists: one MCP registry (servers + native tools) for every provider and model.
+   * Sessions get its enabled servers automatically; an empty hub costs nothing (no port, no config).
+   * - unset: the hub's servers are added next to each CLI's own MCP config.
+   * - `true` / `{ exclusive: true }` (the default once you pass it): the hub is the only MCP list;
+   *   each CLI's own config is switched off for AgentKit threads so nothing shows up twice.
+   * - `false`: sessions never get hub servers (kit.hub stays usable, in memory only).
    * Default file: next to `store`, else ~/.agentkit/mcp-servers.json.
    */
   hub?: boolean | { file?: string; exclusive?: boolean }
@@ -85,23 +88,20 @@ export class AgentKit {
   readonly store: AgentStore | null
   /** Submissions found cut off by a previous crash when this kit opened the store. */
   readonly recovered: SubmissionRecord[]
-  /** The shared MCP hub, when `hub` is enabled. */
-  readonly hub: ToolHub | null
+  /** The shared MCP hub: servers and native tools for every provider. */
+  readonly hub: ToolHub
   private readonly hubExclusive: boolean
+  private readonly hubWired: boolean
 
   constructor(options: AgentKitOptions = {}) {
     this.ttl = options.catalogTtlMs ?? 5 * 60_000
     this.store = typeof options.store === 'string' ? sqliteStore(options.store) : (options.store ?? null)
     this.recovered = this.store?.recover() ?? []
-    if (options.hub) {
-      const config = options.hub === true ? {} : options.hub
-      const file = config.file ?? (typeof options.store === 'string' ? path.join(path.dirname(path.resolve(options.store)), 'mcp-servers.json') : path.join(os.homedir(), '.agentkit', 'mcp-servers.json'))
-      this.hub = new ToolHub({ file })
-      this.hubExclusive = config.exclusive ?? true
-    } else {
-      this.hub = null
-      this.hubExclusive = false
-    }
+    const hubConfig = typeof options.hub === 'object' ? options.hub : {}
+    const defaultFile = typeof options.store === 'string' ? path.join(path.dirname(path.resolve(options.store)), 'mcp-servers.json') : path.join(os.homedir(), '.agentkit', 'mcp-servers.json')
+    this.hubWired = options.hub !== false
+    this.hub = new ToolHub({ file: options.hub === false ? undefined : (hubConfig.file ?? defaultFile) })
+    this.hubExclusive = options.hub === undefined ? false : (hubConfig.exclusive ?? true)
     if (options.claude !== false) this.register(createClaudeCodeClient(options.claude || {}))
     if (options.codex !== false) this.register(createCodexClient(options.codex || {}))
     if (options.opencode !== false) this.register(createOpenCodeClient(options.opencode || {}))
@@ -166,7 +166,8 @@ export class AgentKit {
     const client = this.client(options.provider)
     this.checkConfig(client, options)
     const { modeId, onPermission } = this.resolveAccess(client.provider, options)
-    const mcp = await this.mcpFor(client, options)
+    const key = options.key ?? randomUUID()
+    const { token, ...mcp } = await this.mcpFor(client, options, { sessionKey: key, cwd: options.cwd })
     const inner = await client.createSession({
       cwd: options.cwd,
       model: options.model,
@@ -179,8 +180,11 @@ export class AgentKit {
       env: options.env,
       providerOptions: options.providerOptions,
       persist: options.persist,
+    }).catch((error) => {
+      if (token) this.hub.release(token)
+      throw error
     })
-    return this.track(inner, { onPermission, onEvent: options.onEvent }, options.key, options.meta)
+    return this.track(inner, { onPermission, onEvent: options.onEvent }, key, options.meta, token)
   }
 
   /** Reattach to a durable session (same or a different process) from `session.handle`. */
@@ -188,6 +192,8 @@ export class AgentKit {
     const client = this.client(handle.provider)
     this.checkConfig(client, options)
     const { modeId, onPermission } = this.resolveAccess(client.provider, options)
+    const key = options.key ?? randomUUID()
+    const { token, ...mcp } = await this.mcpFor(client, options, { sessionKey: key, cwd: options.cwd ?? handle.cwd ?? null })
     const inner = await client.resumeSession(handle, {
       ...(options.cwd ? { cwd: options.cwd } : {}),
       ...(options.model ? { model: options.model } : {}),
@@ -195,11 +201,14 @@ export class AgentKit {
       ...(options.thinking ? { thinkingOptionId: options.thinking } : {}),
       ...(options.fast !== undefined ? { fast: options.fast } : {}),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
-      ...(await this.mcpFor(client, options)),
+      ...mcp,
       ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       ...(options.env ? { env: options.env } : {}),
+    }).catch((error) => {
+      if (token) this.hub.release(token)
+      throw error
     })
-    return this.track(inner, { onPermission, onEvent: options.onEvent }, options.key, options.meta)
+    return this.track(inner, { onPermission, onEvent: options.onEvent }, key, options.meta, token)
   }
 
   /**
@@ -270,11 +279,18 @@ export class AgentKit {
     return expandSkillPrompt(prompt, { provider: options.provider, mode: options.mode, skills: await this.skills({ cwd: options.cwd }) })
   }
 
-  /** Session MCP config: the hub's servers (as loopback URLs) plus any you pass explicitly. */
-  private async mcpFor(client: ProviderClient, options: { mcpServers?: Record<string, McpServerConfig>; hub?: boolean }): Promise<{ mcpServers?: Record<string, McpServerConfig>; mcp?: { exclusive?: boolean; shared?: boolean } }> {
-    if (!this.hub || options.hub === false || !client.capabilities.mcpServers) return options.mcpServers ? { mcpServers: options.mcpServers } : {}
+  /** Session MCP config: the hub's servers (session-scoped loopback URLs) plus any you pass explicitly. */
+  private async mcpFor(
+    client: ProviderClient,
+    options: { mcpServers?: Record<string, McpServerConfig>; hub?: boolean },
+    context: { sessionKey: string; cwd?: string | null },
+  ): Promise<{ mcpServers?: Record<string, McpServerConfig>; mcp?: { exclusive?: boolean; shared?: boolean }; token?: string }> {
+    const plain = options.mcpServers ? { mcpServers: options.mcpServers } : {}
+    // Empty hub / opted out / provider without MCP: leave the CLI exactly as it was.
+    if (!this.hubWired || options.hub === false || !client.capabilities.mcpServers || !this.hub.active) return plain
     await this.hub.start()
-    return { mcpServers: { ...this.hub.mcpServers(), ...(options.mcpServers ?? {}) }, mcp: { exclusive: this.hubExclusive, shared: true } }
+    const token = this.hub.bind({ sessionKey: context.sessionKey, provider: client.provider, cwd: context.cwd ?? null })
+    return { mcpServers: { ...this.hub.mcpServers(token), ...(options.mcpServers ?? {}) }, mcp: { exclusive: this.hubExclusive, shared: true }, token }
   }
 
   private requireStore(): AgentStore {
@@ -304,19 +320,25 @@ export class AgentKit {
   async shutdown(): Promise<void> {
     await Promise.allSettled([...this.sessions].map((session) => session.close()))
     await Promise.allSettled([...this.clients.values()].map((client) => client.shutdown()))
-    await this.hub?.close()
+    await this.hub.close()
     this.store?.close()
   }
 
-  private track(inner: Awaited<ReturnType<ProviderClient['createSession']>>, handlers: SessionHandlers, key: string = randomUUID(), meta?: Record<string, unknown>): AgentSession {
+  private track(inner: Awaited<ReturnType<ProviderClient['createSession']>>, handlers: SessionHandlers, key: string = randomUUID(), meta?: Record<string, unknown>, hubToken?: string): AgentSession {
     const session: AgentSession = new AgentSession(inner, handlers, {
       key,
       store: this.store,
       registry: this.submissions,
       skills: (cwd) => this.skills({ cwd }),
       open: (handle, forkKey) => this.resume(handle, { key: forkKey, onPermission: handlers.onPermission, onEvent: handlers.onEvent }),
-      onClose: () => this.sessions.delete(session),
+      onClose: () => {
+        this.sessions.delete(session)
+        if (hubToken) this.hub.release(hubToken)
+      },
+      // Interrupt cancels native tool calls right away, not when the provider gets around to it.
+      onInterrupt: hubToken ? () => this.hub.abortCalls(hubToken, 'interrupted by the user') : undefined,
     })
+    if (hubToken) session.on((event) => (event.type === 'turn_canceled' || event.type === 'turn_interrupted' ? this.hub.abortCalls(hubToken, 'turn canceled') : undefined))
     this.store?.putSession(key, { provider: inner.provider, handle: inner.describePersistence(), ...(meta ? { meta } : {}) })
     this.sessions.add(session)
     return session

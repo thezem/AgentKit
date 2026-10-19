@@ -68,3 +68,16 @@ Written before `test/e2e/hub.ts`. The hub connects upstream servers once and exp
 | 41 | Anyone on the machine can call your tools through the port | `auth`: wrong secret → 404, no tool list |
 | 42 | Config lost or corrupted across restarts | `persist`: servers + toggles + load mode survive a new hub on the same file |
 | 43 | Import duplicates or drops servers | `import`: names from all CLI configs, deduped, existing entries untouched |
+
+## Native tools: context, cancel, results, always-on hub
+
+Written before the `native-*` checks in `test/e2e/hub.ts`. Each session gets its own hub URLs (`/<secret>/<name>/<token>`); the token maps to that session's context.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 44 | A tool can't tell which session called it, or sees another session's context | `native-ctx:<provider>`: two sessions (different keys/cwds) call the same tool; each `ctx` matches its own session, all three |
+| 45 | A forged or released session token still reaches the tools | `native-ctx`: unknown token → 404; after `session.close()` its token → 404 |
+| 46 | Interrupt leaves a native tool running (or the turn hanging on it) | `native-cancel:<provider>`: interrupt mid-call aborts `ctx.signal`; a tool that ignores the signal still gets answered as canceled at once |
+| 47 | Non-text results break the call (image, error, undefined, unserialisable) | `native-results`: `toolResult.image/error`, `undefined`, circular object → valid MCP results, `isError` where it should be |
+| 48 | Always-present `kit.hub` changes behaviour for apps that never use it | `native-default`: kit without `hub` option and an empty hub → no port bound, no MCP config passed, CLI's own servers untouched |
+| 49 | Fork/resume loses the tool context | `native-ctx`: a resumed session gets a fresh token carrying the same `key` |

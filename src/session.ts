@@ -70,6 +70,8 @@ export interface SessionContext {
   open: (handle: PersistenceHandle, key?: string) => Promise<AgentSession>
   skills: (cwd: string) => Promise<Skill[]>
   onClose: () => void
+  /** Called as soon as the user interrupts (before the provider confirms). */
+  onInterrupt?: () => void
 }
 
 interface Live {
@@ -445,6 +447,7 @@ export class AgentSession {
   }
 
   async interrupt(): Promise<void> {
+    this.ctx.onInterrupt?.()
     await this.inner.interrupt()
   }
 

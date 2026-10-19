@@ -147,13 +147,20 @@ await kit.submission(clientMsgId)?.wait()        // { status: 'completed' | 'int
 One list of MCP servers, exposed to every provider and model:
 
 ```ts
-const kit = createAgentKit({ hub: true })                 // ~/.agentkit/mcp-servers.json, or next to `store`
-await kit.hub!.add({ name: 'files', transport: { type: 'stdio', command: 'npx', args: ['-y', 'my-mcp'] } })
-kit.hub!.importFrom()                                       // pull in what Claude/Codex/OpenCode already have
+const kit = createAgentKit({ hub: true })                 // true = hub only; unset = added next to each CLI's own
+await kit.hub.add({ name: 'files', transport: { type: 'stdio', command: 'npx', args: ['-y', 'my-mcp'] } })
+kit.hub.importFrom()                                       // pull in what Claude/Codex/OpenCode already have
 const s = await kit.session({ provider: 'codex', cwd })     // gets exactly the hub's enabled servers
 ```
 
-The hub holds one connection per upstream and serves it on a secret loopback URL; each CLI talks to that. Their own MCP configs are switched off for AgentKit threads (`hub: { exclusive: false }` to merge). Toggles apply to new threads. `kit.hub.addTools()` exposes your own in-process tools the same way. Settings page example: [`mcp-settings.tsx`](examples/web/src/components/mcp-settings.tsx).
+The hub holds one connection per upstream and serves it on a secret loopback URL; each CLI talks to that. Their own MCP configs are switched off for AgentKit threads (`hub: { exclusive: false }` to merge). Toggles apply to new threads. Your own functions, for every provider, with the calling session's context:
+
+```ts
+kit.hub.addTools('app', [{ name: 'save_note', description: 'Save a note', inputSchema,
+  run: async ({ text }, ctx) => notes.add(ctx.sessionKey, text, { signal: ctx.signal }) }])   // ctx.signal aborts on interrupt
+```
+
+Return text/JSON, or `toolResult.image(...)` / `toolResult.error(...)`. Settings page example: [`mcp-settings.tsx`](examples/web/src/components/mcp-settings.tsx).
 
 ## Checks
 
