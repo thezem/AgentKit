@@ -16,6 +16,9 @@ import type {
   TimelineItem,
   TurnOptions,
 } from '../../shared/contract.ts'
+import { readFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { collectRun, deferred, Emitter, nowIso } from '../../shared/runtime.ts'
 import { isTerminalEvent } from '../../shared/contract.ts'
 import { describeError, mapCodexItem, usageFromCodex, type CodexItem } from './items.ts'
@@ -66,16 +69,31 @@ export const CODEX_CAPABILITIES: Capabilities = {
 
 type PendingPermission = { request: PermissionRequest; reply: (response: PermissionResponse) => unknown }
 
+/** `[mcp_servers.<name>]` tables in ~/.codex/config.toml (built-in/plugin servers aren't listed there and stay on). */
+function configuredCodexServers(): string[] {
+  try {
+    const toml = readFileSync(path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), '.codex'), 'config.toml'), 'utf8')
+    return [...new Set([...toml.matchAll(/^\[\s*mcp_servers\.("?)([^\]."]+)\1\s*\]\s*$/gm)].map((m) => m[2]))]
+  } catch {
+    return []
+  }
+}
+
 export function threadParams(config: SessionConfig, modeId: string): Record<string, unknown> {
   const preset = PRESETS[modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
   const inner: Record<string, unknown> = { ...(config.providerOptions ?? {}) }
-  if (config.mcpServers) {
-    inner.mcp_servers = Object.fromEntries(
-      Object.entries(config.mcpServers).map(([name, server]) => [
-        name,
-        server.type === 'stdio' ? { command: server.command, args: server.args, env: server.env } : { url: server.url, http_headers: server.headers },
-      ]),
-    )
+  if (config.mcpServers || config.mcp?.exclusive) {
+    // Exclusive: switch off the user's own config.toml servers for this thread (merge override).
+    const off = config.mcp?.exclusive ? Object.fromEntries(configuredCodexServers().filter((n) => !config.mcpServers?.[n]).map((n) => [n, { enabled: false }])) : {}
+    inner.mcp_servers = {
+      ...off,
+      ...Object.fromEntries(
+        Object.entries(config.mcpServers ?? {}).map(([name, server]) => [
+          name,
+          server.type === 'stdio' ? { command: server.command, args: server.args, env: server.env } : { url: server.url, http_headers: server.headers },
+        ]),
+      ),
+    }
   }
   return {
     cwd: config.cwd,

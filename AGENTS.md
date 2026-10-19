@@ -27,6 +27,7 @@ node test/e2e/conformance.ts claude    # real, uses your sign-in; artifact in te
 node test/e2e/extras.ts codex          # steer, structured output, system prompt, queue, commands
 node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency, inbox, fork, compact
 node test/e2e/skills.ts                # skill discovery/visibility vs each CLI, search, expansion, invocation
+node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
 npm run doctor                         # install/sign-in status per provider
 ```
 
@@ -40,3 +41,4 @@ npm run doctor                         # install/sign-in status per provider
 - `node:sqlite` prints an ExperimentalWarning on Node 22–24; harmless.
 - Skill visibility rules live in `src/skills.ts` roots: Claude reads only top-level `.claude/skills/<name>`; OpenCode also reads `.agents` + `.codex` (incl. `.system`) and nested skills; Codex is taken from its own `skills/list`. Re-run `test/e2e/skills.ts` after a CLI upgrade.
 - OpenCode keys a skill by folder name when it differs from frontmatter `name` (seen: `2d-game-UI`); AgentKit uses the frontmatter name.
+- MCP hub (`src/hub.ts`): exclusivity is per capsule (Claude `strictMcpConfig`, Codex disables only `config.toml` names — built-ins reject overrides, OpenCode `installMcp`). Re-run `test/e2e/hub.ts` after a CLI upgrade.

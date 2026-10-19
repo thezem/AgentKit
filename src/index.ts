@@ -3,6 +3,8 @@ export type { AgentKitOptions, OpenSessionOptions, ProviderStatus, ResumeOptions
 export { AgentSession } from './session.ts'
 export type { SessionHandlers, Submission, SubmitOptions } from './session.ts'
 export { sqliteStore, TERMINAL_SUBMISSION } from './store.ts'
+export { ToolHub, readCliServers, splitCommand } from './hub.ts'
+export type { HubEvent, HubLoad, HubServerConfig, HubServerState, HubStatus, HubTool, HubTransport, NativeTool } from './hub.ts'
 export { discoverSkills, expandSkillPrompt, parseFrontmatter, scoreSkill, searchSkills } from './skills.ts'
 export type { Skill, SkillSource } from './skills.ts'
 export { findSkillTokens, replaceSkillTokens, skillTag, splitSkillTags } from './skill-tags.ts'

@@ -150,7 +150,7 @@ export function createOpenCodeClient(config: OpenCodeCapsuleConfig = {}): Provid
     },
 
     async createSession(session: SessionConfig) {
-      const lease = await acquire(Object.keys(session.mcpServers ?? {}).length > 0)
+      const lease = await acquire(Object.keys(session.mcpServers ?? {}).length > 0 && !session.mcp?.shared)
       try {
         const info = await lease.client.session.create({
           location: { directory: session.cwd },
@@ -169,7 +169,7 @@ export function createOpenCodeClient(config: OpenCodeCapsuleConfig = {}): Provid
 
     async resumeSession(handle: PersistenceHandle, overrides: Partial<SessionConfig> = {}) {
       const session: SessionConfig = { cwd: handle.cwd, ...overrides }
-      const lease = await acquire(Object.keys(session.mcpServers ?? {}).length > 0)
+      const lease = await acquire(Object.keys(session.mcpServers ?? {}).length > 0 && !session.mcp?.shared)
       try {
         const client: any = lease.client
         const info = await client.session.get({ sessionID: handle.sessionId })

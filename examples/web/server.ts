@@ -13,7 +13,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { createAgentKit, type AgentEvent, type AgentSession, type Transcript } from '../../src/index.ts'
+import { createAgentKit, splitCommand, type AgentEvent, type AgentSession, type HubServerState, type Transcript } from '../../src/index.ts'
 
 /** App data kept in the store's `meta` next to each session. */
 type Meta = { cwd: string; title: string; model?: string; mode?: string; thinking?: string; fast?: boolean; parent?: string }
@@ -21,7 +21,42 @@ type Meta = { cwd: string; title: string; model?: string; mode?: string; thinkin
 const dir = path.join(os.homedir(), '.agentkit-ui')
 mkdirSync(dir, { recursive: true })
 const dbFile = path.join(dir, 'agentkit.db')
-const kit = createAgentKit({ mock: true, store: dbFile })
+// hub: one MCP registry for every provider (saved to ~/.agentkit-ui/mcp-servers.json).
+const kit = createAgentKit({ mock: true, store: dbFile, hub: true })
+const hub = kit.hub!
+void hub.start()
+const hubStreams = new Set<http.ServerResponse>()
+hub.on((event) => {
+  const payload = event.type === 'status' ? { type: 'server', server: publicServer(event.server) } : event
+  for (const res of hubStreams) res.write(`data: ${JSON.stringify(payload)}\n\n`)
+})
+
+/** What the UI may see: env/header values are masked (they're often tokens). */
+function publicServer(s: HubServerState) {
+  const t = s.transport
+  const mask = (o?: Record<string, string>) => (o ? Object.fromEntries(Object.keys(o).map((k) => [k, '••••'])) : undefined)
+  return {
+    name: s.name,
+    kind: s.kind,
+    status: s.status,
+    error: s.error,
+    enabled: s.enabled,
+    load: s.load,
+    source: s.source,
+    toolCount: s.tools.length,
+    tools: s.tools.map((x) => ({ name: x.name, description: x.description })),
+    transport: t.type === 'stdio' ? { type: 'stdio', command: [t.command, ...(t.args ?? [])].join(' '), env: mask(t.env) } : { type: 'http', url: t.url, headers: mask(t.headers) },
+  }
+}
+
+function parsePairs(text: string | undefined, sep: '=' | ':'): Record<string, string> | undefined {
+  const out: Record<string, string> = {}
+  for (const line of (text ?? '').split('\n')) {
+    const i = line.indexOf(sep)
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+  }
+  return Object.keys(out).length ? out : undefined
+}
 const store = kit.store!
 if (kit.recovered.length) console.log(`recovered ${kit.recovered.length} interrupted submission(s): ${kit.recovered.map((r) => `${r.id}=${r.status}`).join(', ')}`)
 migrateLegacyJson()
@@ -125,6 +160,37 @@ function migrateLegacyJson() {
 type Handler = (body: any, params: string[], req: http.IncomingMessage, res: http.ServerResponse) => Promise<unknown>
 const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/api\/providers$/, async () => kit.providers()],
+  // ---- MCP hub
+  ['GET', /^\/api\/hub\/servers$/, async () => hub.list().map(publicServer)],
+  [
+    'POST',
+    /^\/api\/hub\/servers$/,
+    async (body) => {
+      const transport =
+        body.type === 'http'
+          ? { type: 'http' as const, url: String(body.url ?? '').trim(), headers: parsePairs(body.headers, ':') }
+          : { type: 'stdio' as const, ...splitCommand(String(body.command ?? '')), env: parsePairs(body.env, '=') }
+      return publicServer(await hub.add({ name: String(body.name ?? '').trim(), transport, load: body.load }))
+    },
+  ],
+  ['PATCH', /^\/api\/hub\/servers\/([\w-]+)$/, async (body, [name]) => publicServer(await hub.update(name, { ...(body.enabled !== undefined ? { enabled: !!body.enabled } : {}), ...(body.load ? { load: body.load } : {}) }))],
+  ['DELETE', /^\/api\/hub\/servers\/([\w-]+)$/, async (_b, [name]) => (await hub.remove(name), { ok: true })],
+  ['POST', /^\/api\/hub\/refresh$/, async (body) => (await hub.refresh(body.name || undefined), hub.list().map(publicServer))],
+  ['POST', /^\/api\/hub\/import$/, async () => hub.importFrom()],
+  [
+    'GET',
+    /^\/api\/hub\/events$/,
+    async (_b, _p, req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+      hubStreams.add(res)
+      const ping = setInterval(() => res.write(': ping\n\n'), 15_000)
+      req.on('close', () => {
+        clearInterval(ping)
+        hubStreams.delete(res)
+      })
+      return new Promise(() => {})
+    },
+  ],
   [
     'GET',
     /^\/api\/catalog\/([\w-]+)$/,

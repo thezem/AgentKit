@@ -53,3 +53,26 @@ export const api = {
   rewind: (id: string, messageId: string) => call<ConversationDetail>('POST', `/conversations/${id}/rewind`, { messageId }),
   remove: (id: string) => call('DELETE', `/conversations/${id}`),
 }
+
+export type HubServer = {
+  name: string
+  kind: 'upstream' | 'native'
+  status: 'off' | 'starting' | 'connected' | 'failed' | 'needs_auth'
+  error?: string
+  enabled: boolean
+  load: 'on-demand' | 'always'
+  source?: string
+  toolCount: number
+  tools: Array<{ name: string; description?: string }>
+  transport: { type: 'stdio'; command: string; env?: Record<string, string> } | { type: 'http'; url: string; headers?: Record<string, string> }
+}
+export type NewHubServer = { name: string; type: 'stdio' | 'http'; command?: string; env?: string; url?: string; headers?: string }
+
+export const hubApi = {
+  list: () => call<HubServer[]>('GET', '/hub/servers'),
+  add: (input: NewHubServer) => call<HubServer>('POST', '/hub/servers', input),
+  update: (name: string, patch: { enabled?: boolean; load?: HubServer['load'] }) => call<HubServer>('PATCH', `/hub/servers/${name}`, patch),
+  remove: (name: string) => call<{ ok: true }>('DELETE', `/hub/servers/${name}`),
+  refresh: () => call<HubServer[]>('POST', '/hub/refresh', {}),
+  importAll: () => call<{ added: string[]; skipped: string[] }>('POST', '/hub/import', {}),
+}

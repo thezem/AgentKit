@@ -165,6 +165,8 @@ export class ClaudeSession implements ProviderSession {
       // Fast mode is a flag-tier setting; also applied live via applyFlagSettings in setFast().
       ...(this.fast ? { settings: { fastMode: true } as Options['settings'] } : {}),
       ...(this.config.mcpServers ? { mcpServers: this.config.mcpServers as Options['mcpServers'] } : {}),
+      // Only the servers we pass: no ~/.claude.json / .mcp.json / plugin servers on top (no duplicates).
+      ...(this.config.mcp?.exclusive ? { strictMcpConfig: true } : {}),
       ...(this.config.persist === false ? { persistSession: false } : {}),
       ...(outputSchema !== undefined ? { outputFormat: { type: 'json_schema', schema: outputSchema as Record<string, unknown> } } : {}),
       ...(this.materialized ? { resume: this.sessionId } : { sessionId: this.sessionId }),

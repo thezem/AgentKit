@@ -53,6 +53,9 @@ export const OPENCODE_CAPABILITIES: Capabilities = {
 type Lease = { client: OpenCodeApi; exited: Promise<Error>; release(): Promise<void> }
 type Turn = { id: string; accepted: boolean; done: ReturnType<typeof deferred<void>>; denied: boolean; interrupting: boolean }
 
+/** What each opencode server already has registered, per folder: `${dir}\0${name}` → config signature. */
+const registeredMcp = new WeakMap<object, Map<string, string>>()
+
 const EXECUTION = new Set(['session.execution.started', 'session.execution.succeeded', 'session.execution.failed', 'session.execution.interrupted'])
 
 export function modelRef(id: string, variant?: string | null): { providerID: string; id: string; variant?: string } {
@@ -103,16 +106,7 @@ export class OpenCodeSession implements ProviderSession {
   /** Mark existing history as seen, install MCP + instructions, open the event stream. */
   async initialize(): Promise<void> {
     await waitForLocation(this.client, this.location)
-    for (const [server, mcp] of Object.entries(this.config.mcpServers ?? {})) {
-      await this.client.mcp.add({
-        server,
-        location: this.location,
-        config:
-          mcp.type === 'stdio'
-            ? { type: 'local', command: [mcp.command, ...(mcp.args ?? [])], environment: mcp.env, codemode: false }
-            : { type: 'remote', url: mcp.url, headers: mcp.headers, oauth: false, codemode: false },
-      })
-    }
+    await this.installMcp()
     if (this.config.systemPrompt) {
       await this.client.session.instructions.entry.put({ sessionID: this.id, key: 'agentkit', value: this.config.systemPrompt })
     }
@@ -128,6 +122,39 @@ export class OpenCodeSession implements ProviderSession {
     void this.lease.exited.then((error) => {
       if (!this.closed && this.turn) this.finish({ type: 'turn_failed', provider: 'opencode', turnId: this.turn.id, error: error.message })
     })
+  }
+
+  /**
+   * MCP servers live per folder on an opencode server. Shared (hub) URLs are registered once
+   * per folder and reused; exclusive disconnects anything else registered there.
+   */
+  private async installMcp(): Promise<void> {
+    const wanted = this.config.mcpServers ?? {}
+    let registry = registeredMcp.get(this.client)
+    if (!registry) registeredMcp.set(this.client, (registry = new Map()))
+    const dir = this.config.cwd
+    for (const [server, mcp] of Object.entries(wanted)) {
+      const key = `${dir}\0${server}`
+      const signature = JSON.stringify(mcp)
+      if (this.config.mcp?.shared && registry.get(key) === signature) continue
+      await this.client.mcp.add({
+        server,
+        location: this.location,
+        config:
+          mcp.type === 'stdio'
+            ? { type: 'local', command: [mcp.command, ...(mcp.args ?? [])], environment: mcp.env, codemode: false }
+            : { type: 'remote', url: mcp.url, headers: mcp.headers, oauth: false, codemode: false },
+      })
+      registry.set(key, signature)
+    }
+    if (this.config.mcp?.exclusive) {
+      const listed: any[] = (await this.client.mcp.list({ location: this.location }).catch(() => ({ data: [] }))).data ?? []
+      for (const entry of listed) {
+        if (wanted[entry.name]) continue
+        await this.client.mcp.disconnect({ server: entry.name, location: this.location }).catch(() => undefined)
+        registry.delete(`${dir}\0${entry.name}`)
+      }
+    }
   }
 
   subscribe(listener: (event: AgentEvent) => void): () => void {

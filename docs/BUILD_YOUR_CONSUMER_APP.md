@@ -279,6 +279,30 @@ await session.compact('keep the API decisions')                // native compact
 
 ---
 
+## 10b. MCP servers (one hub for every provider)
+
+Don't add MCP servers to each CLI. Turn on the hub and give the user one list:
+
+```ts
+const kit = createAgentKit({ store, hub: true })   // saved to mcp-servers.json next to the store
+await kit.hub!.add({ name: 'github', transport: { type: 'http', url, headers } })
+await kit.hub!.add({ name: 'files', transport: { type: 'stdio', ...splitCommand('npx -y my-mcp'), env } })
+await kit.hub!.update('github', { enabled: false })      // or { load: 'always' }
+kit.hub!.importFrom()                                     // copy servers from Claude/Codex/OpenCode configs
+kit.hub!.addTools('app', [{ name, description, inputSchema, run }])   // your own in-process tools
+kit.hub!.on((e) => /* status | removed | call */)
+```
+
+- The hub connects to each upstream once and serves each one on a loopback URL (`127.0.0.1:<port>/<secret>/<name>`). Every new session, on any provider, gets exactly the enabled servers.
+- **Exclusive by default**: the CLI's own MCP config is switched off for that thread (Claude `strictMcpConfig`, Codex `config.toml` servers disabled, OpenCode other servers disconnected), so the hub list is the truth. Codex's built-in `codex_apps`/`cua_repl` can't be disabled. `hub: { exclusive: false }` merges instead.
+- Toggles and adds apply to **new** threads. Say so in the UI.
+- `load: 'always'` → Claude `alwaysLoad` (schemas up front); others ignore it.
+- Status per server: `connected | starting | failed | needs_auth | off`, with `error` and `tools`. Show a badge + tool count; a failed server never blocks the others.
+- Never send env/header values to the browser. Mask them (see [`server.ts`](../examples/web/server.ts) `publicServer`).
+- Settings UI reference: [`mcp-settings.tsx`](../examples/web/src/components/mcp-settings.tsx): list with badge, tool count, On demand/Always, delete, enable switch; Add dialog with Command (stdio) / Remote (HTTP) tabs; Import; live updates over SSE.
+
+---
+
 ## 11. Errors
 
 `AgentKitError.code`:
@@ -308,6 +332,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 - [ ] Fork/rewind/compact offered where `capabilities` allow
 - [ ] `/` skill menu writes `$name`; sent messages show chips
 - [ ] Context meter from `usage`
+- [ ] One MCP settings page backed by `kit.hub`; secrets masked; "applies to new threads" made clear
 - [ ] `kit.shutdown()` on exit
 
 ---
@@ -316,7 +341,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 
 - `createAgentKit({ mock: true })` gives a free, deterministic provider with every capability. Prompt directives: `[tool]` (permission + shell tool), `[ask]` (question), `[fail]`, `[slow]`.
 - Run AgentKit's own suites against your machine before blaming your app:
-  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`.
+  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`, `node test/e2e/hub.ts`.
 
 ---
 
@@ -333,3 +358,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + context** — `contextWindow()`, `contextWindowMaxTokens` in usage and catalogs.
 - **0.2 + catalog sources** — `AgentModel.source`, `kit.catalog(p, { sources })` (OpenCode: filter to `opencode-go`).
 - **0.2 + skills** — `kit.skills()`, `kit.searchSkills()`, `$name` expansion, `splitSkillTags`, example `/` menu.
+- **0.2 + hub** — `createAgentKit({ hub })`, `kit.hub` (add/update/remove/refresh/importFrom/addTools/on), exclusive MCP per provider, example MCP settings page.

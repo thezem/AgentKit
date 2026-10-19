@@ -1,0 +1,65 @@
+{
+  "providers": [
+    "claude",
+    "codex",
+    "opencode"
+  ],
+  "checks": [
+    {
+      "name": "status",
+      "ok": true,
+      "note": "broken=failed alone; killed upstream went failed, next call reconnected"
+    },
+    {
+      "name": "auth",
+      "ok": true,
+      "note": "wrong secret / unknown server → 404"
+    },
+    {
+      "name": "call:claude",
+      "ok": true,
+      "note": "both tokens back; CLI sees only hub servers [probe, native-probe]"
+    },
+    {
+      "name": "call:codex",
+      "ok": true,
+      "note": "both tokens back; CLI sees only hub servers [codex_apps, cua_repl, native-probe, probe]"
+    },
+    {
+      "name": "call:opencode",
+      "ok": true,
+      "note": "both tokens back; CLI sees only hub servers [native-probe, probe]"
+    },
+    {
+      "name": "toggle",
+      "ok": true,
+      "note": "off → not offered + 410; always → alwaysLoad"
+    },
+    {
+      "name": "persist",
+      "ok": true,
+      "note": "probe + toggles survived; native set remembered (toggles only)"
+    },
+    {
+      "name": "import",
+      "ok": true,
+      "note": "20 imported (20 unique across CLIs), re-import adds 0"
+    }
+  ],
+  "servers": [
+    {
+      "name": "native-probe",
+      "status": "connected",
+      "tools": 1,
+      "load": "on-demand",
+      "enabled": true
+    },
+    {
+      "name": "probe",
+      "status": "connected",
+      "tools": 2,
+      "load": "always",
+      "enabled": true
+    }
+  ]
+}

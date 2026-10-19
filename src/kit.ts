@@ -17,6 +17,9 @@ import { modeForAccess, policies, type AccessLevel, type PermissionHandler } fro
 import { AgentSession, storedSubmission, type SessionHandlers, type Submission } from './session.ts'
 import { sqliteStore, type AgentStore, type StoredSession, type SubmissionRecord } from './store.ts'
 import { randomUUID } from 'node:crypto'
+import { ToolHub } from './hub.ts'
+import os from 'node:os'
+import path from 'node:path'
 import { discoverSkills, expandSkillPrompt, searchSkills, type Skill } from './skills.ts'
 import type { NativeSkill, PromptInput } from '../capsules/shared/contract.ts'
 
@@ -36,6 +39,13 @@ export interface AgentKitOptions {
    * as `interrupted` and are never re-sent.
    */
   store?: string | AgentStore
+  /**
+   * One MCP registry for every provider and model (`kit.hub`). Servers you add there reach
+   * Claude, Codex and OpenCode alike. `exclusive` (default true): sessions use only the hub's
+   * servers, not each CLI's own MCP config, so nothing shows up twice.
+   * Default file: next to `store`, else ~/.agentkit/mcp-servers.json.
+   */
+  hub?: boolean | { file?: string; exclusive?: boolean }
 }
 
 export interface OpenSessionOptions extends Omit<SessionConfig, 'modeId' | 'thinkingOptionId'> {
@@ -50,6 +60,8 @@ export interface OpenSessionOptions extends Omit<SessionConfig, 'modeId' | 'thin
   onEvent?: SessionHandlers['onEvent']
   /** Stable id for the store. Default: a random uuid. */
   key?: string
+  /** Include the hub's servers (default true when the kit has a hub). */
+  hub?: boolean
   /** Your app data saved next to the session (title, settings...). */
   meta?: Record<string, unknown>
 }
@@ -73,11 +85,23 @@ export class AgentKit {
   readonly store: AgentStore | null
   /** Submissions found cut off by a previous crash when this kit opened the store. */
   readonly recovered: SubmissionRecord[]
+  /** The shared MCP hub, when `hub` is enabled. */
+  readonly hub: ToolHub | null
+  private readonly hubExclusive: boolean
 
   constructor(options: AgentKitOptions = {}) {
     this.ttl = options.catalogTtlMs ?? 5 * 60_000
     this.store = typeof options.store === 'string' ? sqliteStore(options.store) : (options.store ?? null)
     this.recovered = this.store?.recover() ?? []
+    if (options.hub) {
+      const config = options.hub === true ? {} : options.hub
+      const file = config.file ?? (typeof options.store === 'string' ? path.join(path.dirname(path.resolve(options.store)), 'mcp-servers.json') : path.join(os.homedir(), '.agentkit', 'mcp-servers.json'))
+      this.hub = new ToolHub({ file })
+      this.hubExclusive = config.exclusive ?? true
+    } else {
+      this.hub = null
+      this.hubExclusive = false
+    }
     if (options.claude !== false) this.register(createClaudeCodeClient(options.claude || {}))
     if (options.codex !== false) this.register(createCodexClient(options.codex || {}))
     if (options.opencode !== false) this.register(createOpenCodeClient(options.opencode || {}))
@@ -142,6 +166,7 @@ export class AgentKit {
     const client = this.client(options.provider)
     this.checkConfig(client, options)
     const { modeId, onPermission } = this.resolveAccess(client.provider, options)
+    const mcp = await this.mcpFor(client, options)
     const inner = await client.createSession({
       cwd: options.cwd,
       model: options.model,
@@ -149,7 +174,7 @@ export class AgentKit {
       thinkingOptionId: options.thinking,
       fast: options.fast,
       systemPrompt: options.systemPrompt,
-      mcpServers: options.mcpServers,
+      ...mcp,
       title: options.title,
       env: options.env,
       providerOptions: options.providerOptions,
@@ -170,7 +195,8 @@ export class AgentKit {
       ...(options.thinking ? { thinkingOptionId: options.thinking } : {}),
       ...(options.fast !== undefined ? { fast: options.fast } : {}),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
-      ...(options.mcpServers ? { mcpServers: options.mcpServers } : {}),
+      ...(await this.mcpFor(client, options)),
+      ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       ...(options.env ? { env: options.env } : {}),
     })
     return this.track(inner, { onPermission, onEvent: options.onEvent }, options.key, options.meta)
@@ -244,6 +270,13 @@ export class AgentKit {
     return expandSkillPrompt(prompt, { provider: options.provider, mode: options.mode, skills: await this.skills({ cwd: options.cwd }) })
   }
 
+  /** Session MCP config: the hub's servers (as loopback URLs) plus any you pass explicitly. */
+  private async mcpFor(client: ProviderClient, options: { mcpServers?: Record<string, McpServerConfig>; hub?: boolean }): Promise<{ mcpServers?: Record<string, McpServerConfig>; mcp?: { exclusive?: boolean; shared?: boolean } }> {
+    if (!this.hub || options.hub === false || !client.capabilities.mcpServers) return options.mcpServers ? { mcpServers: options.mcpServers } : {}
+    await this.hub.start()
+    return { mcpServers: { ...this.hub.mcpServers(), ...(options.mcpServers ?? {}) }, mcp: { exclusive: this.hubExclusive, shared: true } }
+  }
+
   private requireStore(): AgentStore {
     if (!this.store) throw new AgentKitError('INVALID_INPUT', 'no store configured; pass createAgentKit({ store: "path/to/agentkit.db" })')
     return this.store
@@ -271,6 +304,7 @@ export class AgentKit {
   async shutdown(): Promise<void> {
     await Promise.allSettled([...this.sessions].map((session) => session.close()))
     await Promise.allSettled([...this.clients.values()].map((client) => client.shutdown()))
+    await this.hub?.close()
     this.store?.close()
   }
 

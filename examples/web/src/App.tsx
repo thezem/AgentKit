@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FoldVertical, FolderOpen, GitBranch, Loader2, Moon, Plus, Sun } from 'lucide-react'
+import { FoldVertical, FolderOpen, GitBranch, Loader2, Moon, Plug, Plus, Sun } from 'lucide-react'
+import { McpSettings } from '@/components/mcp-settings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -158,6 +159,7 @@ export default function App() {
       <ModePicker value={settings.mode} catalog={catalog} onChange={(mode) => change({ mode })} disabled={activeId ? !capabilities?.modeSwitch : false} />
     </>
   )
+  const [mcpOpen, setMcpOpen] = useState(false)
   const usage = useMemo(() => formatUsage(transcript.usage), [transcript.usage])
 
   return (
@@ -224,6 +226,15 @@ export default function App() {
                 <TooltipContent>New conversation</TooltipContent>
               </Tooltip>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-8" onClick={() => setMcpOpen(true)}>
+                  <Plug className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>MCP servers</TooltipContent>
+            </Tooltip>
+            <McpSettings open={mcpOpen} onOpenChange={setMcpOpen} />
             <Button variant="ghost" size="icon" className="size-8" onClick={toggleTheme}>
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>

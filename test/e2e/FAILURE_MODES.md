@@ -53,3 +53,18 @@ Written before `test/e2e/skills.ts`. Ground truth from this machine: 278 SKILL.m
 | 33 | Expansion moves or alters surrounding text | `expand`: text outside the token is byte-identical |
 | 34 | The model ignores the tag (never reads the skill) | `invoke`: temp skill demands a nonce reply, every provider returns it |
 | 35 | Codex gets the tag instead of its native skill item, or both | `invoke` (codex): text keeps `$name`, input carries `{type:'skill'}` |
+
+## Tool hub (one MCP registry for every provider)
+
+Written before `test/e2e/hub.ts`. The hub connects upstream servers once and exposes each on `127.0.0.1:<port>/<secret>/<name>`; every session gets those URLs.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 36 | A provider can't call a hub server's tool (transport mismatch) | `call:<provider>`: stdio fixture tool returns a nonce through the hub, all three |
+| 37 | Native (in-process) tools unreachable from a provider | `native:<provider>`: hub-registered function returns a nonce |
+| 38 | Hub servers duplicated by the CLI's own MCP config | `exclusive`: Claude strict config; Codex config.toml servers report `disabled`; OpenCode lists only hub names |
+| 39 | A disabled server still reaches new threads | `toggle`: disabled server absent from the next session's MCP config |
+| 40 | Upstream crash wedges the hub or every session | `status`: killed upstream goes `failed`, others stay `connected`; refresh reconnects |
+| 41 | Anyone on the machine can call your tools through the port | `auth`: wrong secret → 404, no tool list |
+| 42 | Config lost or corrupted across restarts | `persist`: servers + toggles + load mode survive a new hub on the same file |
+| 43 | Import duplicates or drops servers | `import`: names from all CLI configs, deduped, existing entries untouched |

@@ -15,10 +15,11 @@ export type Metadata = Record<string, unknown>
 
 // ---------------------------------------------------------------- MCP
 
+/** `alwaysLoad`: keep the server's tools in context instead of behind tool search (Claude; others always load). */
 export type McpServerConfig =
-  | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
-  | { type: 'http'; url: string; headers?: Record<string, string> }
-  | { type: 'sse'; url: string; headers?: Record<string, string> }
+  | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string>; alwaysLoad?: boolean }
+  | { type: 'http'; url: string; headers?: Record<string, string>; alwaysLoad?: boolean }
+  | { type: 'sse'; url: string; headers?: Record<string, string>; alwaysLoad?: boolean }
 
 // ---------------------------------------------------------------- catalog
 
@@ -272,6 +273,12 @@ export interface SessionConfig {
   /** Appended to the provider's own system prompt. */
   systemPrompt?: string
   mcpServers?: Record<string, McpServerConfig>
+  /**
+   * `exclusive`: use only `mcpServers`, ignore the CLI's own MCP config (no duplicates).
+   * `shared`: the URLs are stable across sessions (AgentKit's hub), so a capsule may register
+   * them once instead of isolating per session.
+   */
+  mcp?: { exclusive?: boolean; shared?: boolean }
   title?: string
   env?: Record<string, string>
   /** Raw provider-native options merged last. The escape hatch. */

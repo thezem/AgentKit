@@ -83,6 +83,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | skills: discover + search + `$skill` invoke | ✓ | ✓ (native skill item) | ✓ | – |
 | fork (new branch, original untouched) | ✓ | ✓ | ✓ | ✓ |
 | compact context | ✓ (`/compact`) | ✓ (`thread/compact`) | ✓ | ✓ |
+| MCP hub: one server list for every provider (`kit.hub`) | ✓ (`strictMcpConfig`) | ✓ (config.toml servers off) | ✓ | – |
 | durable store, idempotent submit, inbox | ✓ | ✓ | ✓ | ✓ (AgentKit-level, every provider) |
 
 **Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** images, MCP injection, structured questions, file rewind, archive.
@@ -140,6 +141,19 @@ await kit.submission(clientMsgId)?.wait()        // { status: 'completed' | 'int
 - **Intent / outcome.** A submission is saved as `running` before the provider gets the prompt, and its outcome after. Work cut off by a dead process comes back as `interrupted` with a notice in the transcript (`kit.recovered` lists it). **It is never re-sent automatically**: re-running a turn that may have edited files is the user's call.
 - **Idempotent.** Same `requestId` → same submission, in this process or after a restart. Retries and double-clicks run once.
 - Single writer per session: the store marks rows with the owning pid and only recovers rows whose process is gone.
+
+## MCP hub
+
+One list of MCP servers, exposed to every provider and model:
+
+```ts
+const kit = createAgentKit({ hub: true })                 // ~/.agentkit/mcp-servers.json, or next to `store`
+await kit.hub!.add({ name: 'files', transport: { type: 'stdio', command: 'npx', args: ['-y', 'my-mcp'] } })
+kit.hub!.importFrom()                                       // pull in what Claude/Codex/OpenCode already have
+const s = await kit.session({ provider: 'codex', cwd })     // gets exactly the hub's enabled servers
+```
+
+The hub holds one connection per upstream and serves it on a secret loopback URL; each CLI talks to that. Their own MCP configs are switched off for AgentKit threads (`hub: { exclusive: false }` to merge). Toggles apply to new threads. `kit.hub.addTools()` exposes your own in-process tools the same way. Settings page example: [`mcp-settings.tsx`](examples/web/src/components/mcp-settings.tsx).
 
 ## Checks
 
