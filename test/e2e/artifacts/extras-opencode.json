@@ -1,0 +1,28 @@
+{
+  "opencode": [
+    {
+      "name": "system-prompt",
+      "ok": true
+    },
+    {
+      "name": "structured-output",
+      "ok": "skipped",
+      "note": "opencode does not support structuredOutput"
+    },
+    {
+      "name": "steer",
+      "ok": true,
+      "note": "KIWI in same turn"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "187 commands"
+    }
+  ]
+}

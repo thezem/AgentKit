@@ -1,0 +1,19 @@
+{
+  "name": "claude-code",
+  "kind": "repo-capsule",
+  "runtime": "node>=22.6",
+  "language": "typescript",
+  "publicEntrypoint": "./index.ts",
+  "implements": "../shared/contract.ts#ProviderClient",
+  "source": { "repo": "https://github.com/getpaseo/paseo", "license": "Apache-2.0", "paths": ["packages/server/src/server/agent/providers/claude/"] },
+  "hostRequirements": {
+    "binaries": ["claude (tested 2.1.302), signed in via `claude` /login (optional: SDK bundles its own CLI)"],
+    "env": [],
+    "dependencies": ["@anthropic-ai/claude-agent-sdk@^0.3.303", "@anthropic-ai/sdk (peer)"],
+    "scripts": {}
+  },
+  "verification": {
+    "commands": ["node test/e2e/conformance.ts claude"],
+    "expectedSignals": ["claude 10/10", "test/e2e/artifacts/claude.json"]
+  }
+}

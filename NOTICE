@@ -1,0 +1,8 @@
+AgentKit
+Copyright (c) thezem
+
+The provider capsules in capsules/claude-code, capsules/codex, capsules/opencode
+and the contract in capsules/shared are clean-room rewrites informed by Paseo
+(https://github.com/getpaseo/paseo), Copyright (c) 2025-present Mohamed Boudra,
+licensed under the Apache License, Version 2.0. No Paseo source files are
+copied verbatim; the contract shape and protocol handling follow Paseo's design.

@@ -1,0 +1,538 @@
+{
+  "provider": "opencode",
+  "cwd": "/tmp/agentkit-opencode-296s1X",
+  "passed": 11,
+  "total": 11,
+  "checks": [
+    {
+      "name": "available",
+      "ok": true,
+      "ms": 587
+    },
+    {
+      "name": "catalog",
+      "ok": true,
+      "ms": 8060,
+      "note": "383 models, modes=build/plan"
+    },
+    {
+      "name": "basic-turn",
+      "ok": true,
+      "ms": 7807,
+      "note": "\"marmalade\" in=290 out=6"
+    },
+    {
+      "name": "transcript",
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "name": "permission",
+      "ok": true,
+      "ms": 2758,
+      "note": "asked=[tool:edit] tool=write:write"
+    },
+    {
+      "name": "mode-switch",
+      "ok": true,
+      "ms": 61,
+      "note": "modeId=build"
+    },
+    {
+      "name": "history",
+      "ok": true,
+      "ms": 60,
+      "note": "6 items, 2 user messages"
+    },
+    {
+      "name": "rewind",
+      "ok": true,
+      "ms": 1371,
+      "note": "history 6→2"
+    },
+    {
+      "name": "interrupt",
+      "ok": true,
+      "ms": 11364,
+      "note": "stopped in 1439ms, next turn ok"
+    },
+    {
+      "name": "resume",
+      "ok": true,
+      "ms": 10265,
+      "note": "remembered \"marmalade\""
+    },
+    {
+      "name": "list-sessions",
+      "ok": true,
+      "ms": 1756,
+      "note": "2 sessions in cwd"
+    }
+  ],
+  "eventCounts": {
+    "turn_started": 6,
+    "timeline:user_message": 6,
+    "timeline:assistant_message": 7,
+    "usage": 6,
+    "turn_completed": 5,
+    "timeline:tool_call": 4,
+    "permission_requested": 1,
+    "permission_resolved": 1,
+    "mode_changed": 1,
+    "turn_canceled": 1
+  },
+  "events": [
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "9a1112e2-170e-4624-9a60-8279dd1bec02"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "Reply with exactly the single word: marmalade",
+        "messageId": "msg_1538a09c7001E8mFXeJS15skrU"
+      },
+      "turnId": "9a1112e2-170e-4624-9a60-8279dd1bec02",
+      "timestamp": "2026-10-19T09:41:58.461Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "marmalade",
+        "messageId": "msg_1538a0b31001xIPbNDToXtbdOq"
+      },
+      "turnId": "9a1112e2-170e-4624-9a60-8279dd1bec02",
+      "timestamp": "2026-10-19T09:41:59.287Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 290,
+        "outputTokens": 6,
+        "cachedInputTokens": 26624,
+        "totalCostUsd": 0.000561136,
+        "contextWindowUsedTokens": 26920
+      },
+      "turnId": "9a1112e2-170e-4624-9a60-8279dd1bec02"
+    },
+    {
+      "type": "turn_completed",
+      "provider": "opencode",
+      "turnId": "9a1112e2-170e-4624-9a60-8279dd1bec02",
+      "usage": {
+        "inputTokens": 290,
+        "outputTokens": 6,
+        "cachedInputTokens": 26624,
+        "totalCostUsd": 0.000561136
+      }
+    },
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "Create a file named hello.txt in the current directory containing exactly the text: hi. Use your file-writing tool, then reply \"done\".",
+        "messageId": "msg_1538a10a6001O3K4KEB5RDT9v4"
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "timestamp": "2026-10-19T09:41:59.940Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "\n\n",
+        "messageId": "msg_1538a111f001Wl3WmUOr4mridA"
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "timestamp": "2026-10-19T09:42:00.717Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "chatcmpl-tool-8d459f2214ea4657a4221e99476e0925",
+        "name": "write",
+        "status": "running",
+        "detail": {
+          "type": "write",
+          "filePath": "/tmp/agentkit-opencode-296s1X/hello.txt",
+          "content": "hi"
+        },
+        "metadata": {}
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "timestamp": "2026-10-19T09:42:00.782Z"
+    },
+    {
+      "type": "permission_requested",
+      "provider": "opencode",
+      "request": {
+        "id": "per_1538a1540001wQFyu47Xb6nqqY",
+        "provider": "opencode",
+        "kind": "tool",
+        "name": "edit",
+        "title": "edit",
+        "description": "hello.txt",
+        "input": {
+          "id": "per_1538a1540001wQFyu47Xb6nqqY",
+          "sessionID": "ses_eac7607efffezlR3RVef18lgsL",
+          "action": "edit",
+          "resources": [
+            "hello.txt"
+          ],
+          "save": [
+            "*"
+          ],
+          "metadata": {
+            "files": [
+              {
+                "file": "hello.txt",
+                "patch": "Index: hello.txt\n===================================================================\n--- hello.txt\n+++ hello.txt\n@@ -0,0 +1,1 @@\n+hi\n\\ No newline at end of file\n",
+                "status": "added",
+                "additions": 1,
+                "deletions": 0
+              }
+            ]
+          },
+          "source": {
+            "type": "tool",
+            "messageID": "msg_1538a111f001Wl3WmUOr4mridA",
+            "id": "chatcmpl-tool-8d459f2214ea4657a4221e99476e0925"
+          }
+        },
+        "actions": [
+          {
+            "id": "once",
+            "label": "Allow once",
+            "behavior": "allow"
+          },
+          {
+            "id": "always",
+            "label": "Always allow",
+            "behavior": "allow"
+          },
+          {
+            "id": "deny",
+            "label": "Deny",
+            "behavior": "deny"
+          }
+        ]
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b"
+    },
+    {
+      "type": "permission_resolved",
+      "provider": "opencode",
+      "requestId": "per_1538a1540001wQFyu47Xb6nqqY",
+      "response": {
+        "behavior": "allow",
+        "actionId": "once"
+      }
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "chatcmpl-tool-8d459f2214ea4657a4221e99476e0925",
+        "name": "write",
+        "status": "completed",
+        "detail": {
+          "type": "write",
+          "filePath": "/tmp/agentkit-opencode-296s1X/hello.txt",
+          "content": "hi"
+        },
+        "metadata": {
+          "truncated": false
+        }
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "timestamp": "2026-10-19T09:42:01.090Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 884,
+        "outputTokens": 81,
+        "cachedInputTokens": 53504,
+        "totalCostUsd": 0.001199056,
+        "contextWindowUsedTokens": 27019
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "done",
+        "messageId": "msg_1538a1729001Hya3wuNS91ri7l"
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "timestamp": "2026-10-19T09:42:02.102Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 1040,
+        "outputTokens": 84,
+        "cachedInputTokens": 80384,
+        "totalCostUsd": 0.001676176,
+        "contextWindowUsedTokens": 27039
+      },
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b"
+    },
+    {
+      "type": "turn_completed",
+      "provider": "opencode",
+      "turnId": "5495b8d3-6ad8-4391-b195-f953fb00014b",
+      "usage": {
+        "inputTokens": 1040,
+        "outputTokens": 84,
+        "cachedInputTokens": 80384,
+        "totalCostUsd": 0.001676176
+      }
+    },
+    {
+      "type": "mode_changed",
+      "provider": "opencode",
+      "modeId": "build"
+    },
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "b7c0283b-5ea1-44cd-9cd7-bbdad700def1"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "Reply with exactly: ok",
+        "messageId": "msg_1538a1c9c001Xv24pI8RdWGbKI"
+      },
+      "turnId": "b7c0283b-5ea1-44cd-9cd7-bbdad700def1",
+      "timestamp": "2026-10-19T09:42:02.948Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "ok",
+        "messageId": "msg_1538a1d02001M78dJfnjYShvOr"
+      },
+      "turnId": "b7c0283b-5ea1-44cd-9cd7-bbdad700def1",
+      "timestamp": "2026-10-19T09:42:03.547Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 1088,
+        "outputTokens": 87,
+        "cachedInputTokens": 107264,
+        "totalCostUsd": 0.002088496,
+        "contextWindowUsedTokens": 26931
+      },
+      "turnId": "b7c0283b-5ea1-44cd-9cd7-bbdad700def1"
+    },
+    {
+      "type": "turn_completed",
+      "provider": "opencode",
+      "turnId": "b7c0283b-5ea1-44cd-9cd7-bbdad700def1",
+      "usage": {
+        "inputTokens": 1088,
+        "outputTokens": 87,
+        "cachedInputTokens": 107264,
+        "totalCostUsd": 0.002088496
+      }
+    },
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "Run the shell command `sleep 60` and then reply \"finished\".",
+        "messageId": "msg_1538a21e4001IRVL2Lux6z62JG"
+      },
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d",
+      "timestamp": "2026-10-19T09:42:04.391Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "\n\n",
+        "messageId": "msg_1538a22c10015xkF1OlJ081bMn"
+      },
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d",
+      "timestamp": "2026-10-19T09:42:12.043Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "chatcmpl-tool-bc23b38a834c42e0a2e5cc3c7163adf4",
+        "name": "shell",
+        "status": "running",
+        "detail": {
+          "type": "shell",
+          "command": "sleep 60"
+        },
+        "metadata": {}
+      },
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d",
+      "timestamp": "2026-10-19T09:42:12.215Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "chatcmpl-tool-bc23b38a834c42e0a2e5cc3c7163adf4",
+        "name": "shell",
+        "status": "failed",
+        "detail": {
+          "type": "shell",
+          "command": "sleep 60"
+        },
+        "error": "Tool execution interrupted",
+        "metadata": {
+          "shellID": "sh_1538a42d50011AbrMcZPT76Qf0"
+        }
+      },
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d",
+      "timestamp": "2026-10-19T09:42:13.706Z"
+    },
+    {
+      "type": "turn_canceled",
+      "provider": "opencode",
+      "turnId": "26bbe4b6-6b34-4f2c-99f7-3434bc5a486d",
+      "reason": "user"
+    },
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "129ee29a-7842-4695-ad71-2821db49d9f4"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "Reply with exactly: ok",
+        "messageId": "msg_1538a489c001l1cVmeg0qlNX3v"
+      },
+      "turnId": "129ee29a-7842-4695-ad71-2821db49d9f4",
+      "timestamp": "2026-10-19T09:42:14.495Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "ok",
+        "messageId": "msg_1538a48fe0011y1JW0D04CoQ2V"
+      },
+      "turnId": "129ee29a-7842-4695-ad71-2821db49d9f4",
+      "timestamp": "2026-10-19T09:42:14.700Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 699,
+        "outputTokens": 69,
+        "cachedInputTokens": 53760,
+        "totalCostUsd": 0.0010579399999999998,
+        "contextWindowUsedTokens": 27014
+      },
+      "turnId": "129ee29a-7842-4695-ad71-2821db49d9f4"
+    },
+    {
+      "type": "turn_completed",
+      "provider": "opencode",
+      "turnId": "129ee29a-7842-4695-ad71-2821db49d9f4",
+      "usage": {
+        "inputTokens": 699,
+        "outputTokens": 69,
+        "cachedInputTokens": 53760,
+        "totalCostUsd": 0.0010579399999999998
+      }
+    },
+    {
+      "type": "turn_started",
+      "provider": "opencode",
+      "turnId": "930b541d-94c2-4e91-9c96-5c17ccd47944"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "user_message",
+        "text": "In my very first message of this conversation I asked you to reply with one specific word. What was that word? Reply with just that word.",
+        "messageId": "msg_1538a6bc6001yWsccmtHAdPEUX"
+      },
+      "turnId": "930b541d-94c2-4e91-9c96-5c17ccd47944",
+      "timestamp": "2026-10-19T09:42:23.439Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "assistant_message",
+        "text": "marmalade",
+        "messageId": "msg_1538a6cdc001pmLdkS3PSRe9Wf"
+      },
+      "turnId": "930b541d-94c2-4e91-9c96-5c17ccd47944",
+      "timestamp": "2026-10-19T09:42:24.620Z"
+    },
+    {
+      "type": "usage",
+      "provider": "opencode",
+      "usage": {
+        "inputTokens": 1171,
+        "outputTokens": 93,
+        "cachedInputTokens": 134144,
+        "totalCostUsd": 0.002529016,
+        "contextWindowUsedTokens": 26969
+      },
+      "turnId": "930b541d-94c2-4e91-9c96-5c17ccd47944"
+    },
+    {
+      "type": "turn_completed",
+      "provider": "opencode",
+      "turnId": "930b541d-94c2-4e91-9c96-5c17ccd47944",
+      "usage": {
+        "inputTokens": 1171,
+        "outputTokens": 93,
+        "cachedInputTokens": 134144,
+        "totalCostUsd": 0.002529016
+      }
+    }
+  ]
+}

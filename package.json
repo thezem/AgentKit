@@ -1,8 +1,8 @@
 {
   "name": "@ouim/agentkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "One TypeScript API for building on top of local Codex and Claude agent runtimes.",
+  "description": "One layer over your locally signed-in Claude Code, Codex and OpenCode. Build agent harnesses (paseo / t3code style) without provider glue.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,64 +15,71 @@
   "keywords": [
     "ai",
     "agents",
+    "claude-code",
     "codex",
-    "claude",
+    "opencode",
+    "agent-harness",
     "sdk",
-    "typescript",
-    "cli",
-    "runtime"
+    "typescript"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
     },
-    "./compat/codex": {
-      "types": "./dist/compat/codex.d.ts",
-      "import": "./dist/compat/codex.js"
+    "./capsules/claude-code": {
+      "types": "./dist/capsules/claude-code/index.d.ts",
+      "import": "./dist/capsules/claude-code/index.js"
+    },
+    "./capsules/codex": {
+      "types": "./dist/capsules/codex/index.d.ts",
+      "import": "./dist/capsules/codex/index.js"
+    },
+    "./capsules/opencode": {
+      "types": "./dist/capsules/opencode/index.d.ts",
+      "import": "./dist/capsules/opencode/index.js"
+    },
+    "./capsules/mock": {
+      "types": "./dist/capsules/mock/index.d.ts",
+      "import": "./dist/capsules/mock/index.js"
+    },
+    "./contract": {
+      "types": "./dist/capsules/shared/contract.d.ts",
+      "import": "./dist/capsules/shared/contract.js"
     }
   },
   "files": [
     "dist",
+    "capsules/**/docs",
+    "capsules/**/capsule.json",
     "LICENSE",
+    "NOTICE",
     "README.md",
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "CODE_OF_CONDUCT.md",
-    "SECURITY.md"
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "dev": "node --watch --experimental-strip-types src/index.ts",
     "build": "tsc -p tsconfig.build.json",
-    "example": "node --experimental-strip-types examples/basic.ts",
-    "smoke": "node --experimental-strip-types examples/basic.ts",
-    "example:agent:codex": "node --experimental-strip-types examples/agent-codex.ts",
-    "example:agent:claude": "node --experimental-strip-types examples/agent-claude.ts",
-    "example:agent:t3code": "node --experimental-strip-types examples/agent-t3code.ts",
-    "example:agent:t3code:ask": "node --experimental-strip-types examples/agent-t3code-ask.ts",
-    "example:lifecycle": "node --experimental-strip-types examples/agent-lifecycle.ts",
-    "example:handlers": "node --experimental-strip-types examples/handlers.ts",
-    "example:safe-session": "node --experimental-strip-types examples/safe-session.ts",
-    "example:models": "node --experimental-strip-types examples/models.ts",
-    "example:skills": "node --experimental-strip-types examples/skills.ts",
-    "example:inventory": "node --experimental-strip-types examples/provider-inventory.ts",
-    "example:ci": "node --experimental-strip-types examples/ci.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --experimental-strip-types --test test/**/*.test.ts",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm run build",
-    "prepare": "npm run build"
+    "verify": "npm run typecheck && node test/e2e/conformance.ts mock",
+    "e2e": "node test/e2e/conformance.ts",
+    "e2e:mock": "node test/e2e/conformance.ts mock",
+    "doctor": "node examples/doctor.ts",
+    "example": "node examples/quickstart.ts",
+    "harness": "node examples/harness-server.ts",
+    "prepack": "npm run build"
   },
   "engines": {
     "node": ">=22.6"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.92"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.303",
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@opencode/client": "^2.0.26"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
-    "typescript": "^5.9.3"
+    "@types/node": "^25.9.9",
+    "typescript": "^7.0.2"
   }
 }

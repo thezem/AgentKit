@@ -1,0 +1,19 @@
+{
+  "name": "codex",
+  "kind": "repo-capsule",
+  "runtime": "node>=22.6",
+  "language": "typescript",
+  "publicEntrypoint": "./index.ts",
+  "implements": "../shared/contract.ts#ProviderClient",
+  "source": { "repo": "https://github.com/getpaseo/paseo", "license": "Apache-2.0", "paths": ["packages/server/src/server/agent/providers/codex-app-server-agent.ts", "packages/server/src/server/agent/providers/codex/"] },
+  "hostRequirements": {
+    "binaries": ["codex (tested 0.162.1), signed in via `codex login`"],
+    "env": [],
+    "dependencies": [],
+    "scripts": {}
+  },
+  "verification": {
+    "commands": ["node test/e2e/conformance.ts codex"],
+    "expectedSignals": ["codex 10/10", "test/e2e/artifacts/codex.json"]
+  }
+}

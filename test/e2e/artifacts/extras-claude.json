@@ -1,0 +1,28 @@
+{
+  "claude": [
+    {
+      "name": "system-prompt",
+      "ok": true
+    },
+    {
+      "name": "structured-output",
+      "ok": true,
+      "note": "{\"city\":\"Paris\",\"country\":\"France\"}"
+    },
+    {
+      "name": "steer",
+      "ok": true,
+      "note": "KIWI in same turn"
+    },
+    {
+      "name": "queue",
+      "ok": true,
+      "note": "two queued turns ran in order"
+    },
+    {
+      "name": "slash-commands",
+      "ok": true,
+      "note": "188 commands"
+    }
+  ]
+}

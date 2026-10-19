@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-19T09:46:45.377Z",
+  "leakedChildren": 0,
+  "results": [
+    {
+      "provider": "mock",
+      "passed": 11,
+      "total": 11,
+      "failed": []
+    }
+  ]
+}

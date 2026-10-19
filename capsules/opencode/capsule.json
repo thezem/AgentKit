@@ -1,0 +1,19 @@
+{
+  "name": "opencode",
+  "kind": "repo-capsule",
+  "runtime": "node>=22.6",
+  "language": "typescript",
+  "publicEntrypoint": "./index.ts",
+  "implements": "../shared/contract.ts#ProviderClient",
+  "source": { "repo": "https://github.com/getpaseo/paseo", "license": "Apache-2.0", "paths": ["packages/server/src/server/agent/providers/opencode/v2/"] },
+  "hostRequirements": {
+    "binaries": ["opencode v2.x (tested 2.0.26), providers connected via `opencode auth login`"],
+    "env": [],
+    "dependencies": ["@opencode/client@2.0.26 (match your opencode version)"],
+    "scripts": {}
+  },
+  "verification": {
+    "commands": ["node test/e2e/conformance.ts opencode"],
+    "expectedSignals": ["opencode 10/10", "test/e2e/artifacts/opencode.json"]
+  }
+}

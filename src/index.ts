@@ -1,73 +1,23 @@
-export {
-  createAgent,
-  createSession,
-  getAvailableProviders,
-  getProviderAvailability,
-  getProviderInventory,
-  getProviderInventoryEntry,
-  listModels,
-  listSkills,
-} from './agent-client.ts'
-export { safety } from './safety.ts'
-export {
-  AgentError,
-  ConcurrentTurnError,
-  ExpiredHandleError,
-  InputValidationError,
-  InvalidHandleError,
-  NoActiveRunError,
-  ProviderProbeTimeoutError,
-  QueueOverflowError,
-  RunInProgressError,
-  SessionClosedError,
-  TransportRequestTimeoutError,
-  UnsupportedCapabilityError,
-} from './errors.ts'
-export {
-  isAgentErrorEvent,
-  isAgentMessageCompletedEvent,
-  isAgentMessageDeltaEvent,
-  isAgentProviderNotificationEvent,
-  isAgentReasoningDeltaEvent,
-  isAgentRunCompletedEvent,
-  isAgentRunStartedEvent,
-  isAgentStatusUpdatedEvent,
-  isAgentToolApprovalEvent,
-  isAgentUserInputEvent,
-} from './type-guards.ts'
-export type {
-  AgentAccountState,
-  AgentAccessMode,
-  AgentActivityItem,
-  AgentCapabilities,
-  AgentClient,
-  AgentEvent,
-  AgentHandlers,
-  AgentInteractionMode,
-  AgentModelInfo,
-  AgentModelListOptions,
-  AgentOpenSessionOptions,
-  AgentProviderInventory,
-  AgentProviderAvailability,
-  AgentProviderId,
-  AgentResumeSessionOptions,
-  AgentRun,
-  AgentRunOptions,
-  AgentRunResult,
-  AgentSkillConfigResult,
-  AgentSkillInfo,
-  AgentSkillListOptions,
-  AgentSession,
-  AgentSessionHandle,
-  AgentSessionOptions,
-  AgentSessionSummary,
-  AgentToolApprovalRequest,
-  AgentUserInputRequest,
-  ClaudeProviderHandle,
-  CreateAgentOptions,
-  CreateSessionOptions,
-  CreateClaudeOptions,
-  ProviderInventoryOptions,
-  SafetyConfirmDangerousOptions,
-  SafetyPresets,
-} from './agent-types.ts'
+export { AgentKit, createAgentKit } from './kit.ts'
+export type { AgentKitOptions, OpenSessionOptions, ProviderStatus, ResumeOptions } from './kit.ts'
+export { AgentSession } from './session.ts'
+export type { SessionHandlers } from './session.ts'
+export { emptyTranscript, reduceTranscript } from './transcript.ts'
+export type { Transcript } from './transcript.ts'
+export { ACCESS_MODE_MAP, categorize, modeForAccess, policies } from './policy.ts'
+export type { AccessLevel, PermissionDecision, PermissionHandler, ToolCategory } from './policy.ts'
+export { AgentKitError, UnsupportedCapabilityError } from './errors.ts'
+export type { AgentKitErrorCode } from './errors.ts'
+
+// Capsules stay importable on their own.
+export { createClaudeCodeClient } from '../capsules/claude-code/index.ts'
+export type { ClaudeCodeCapsuleConfig } from '../capsules/claude-code/index.ts'
+export { createCodexClient } from '../capsules/codex/index.ts'
+export type { CodexCapsuleConfig } from '../capsules/codex/index.ts'
+export { createOpenCodeClient } from '../capsules/opencode/index.ts'
+export type { OpenCodeCapsuleConfig } from '../capsules/opencode/index.ts'
+export { createMockClient } from '../capsules/mock/index.ts'
+export type { MockCapsuleConfig } from '../capsules/mock/index.ts'
+
+export { isTerminalEvent, NO_CAPABILITIES } from '../capsules/shared/contract.ts'
+export type * from '../capsules/shared/contract.ts'

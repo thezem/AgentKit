@@ -3,13 +3,10 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "declaration": true,
-    "declarationMap": false,
-    "sourceMap": false,
-    "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["test/**/*.ts", "examples/**/*.ts"]
+  "include": ["src/**/*.ts", "capsules/**/*.ts"],
+  "exclude": ["test/**", "examples/**"]
 }
