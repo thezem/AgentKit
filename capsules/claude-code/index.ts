@@ -23,6 +23,12 @@ export interface ClaudeCodeCapsuleConfig {
   settingSources?: Options['settingSources']
   /** Raw SDK options merged into every query. The escape hatch. */
   sdkOptions?: Partial<Options>
+  /**
+   * How `steer()` delivers into a running turn. Default `'next'`: Claude finishes the current step
+   * (a running tool keeps going) and picks the message up at the next safe point.
+   * `'now'` cuts the running step short.
+   */
+  steerPriority?: 'now' | 'next'
 }
 
 export { CLAUDE_CAPABILITIES, CLAUDE_MODES }
@@ -33,7 +39,7 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
   const binary = () => (binaryPromise ??= config.binary === false ? Promise.resolve(null) : findBinary('claude', config.binary || undefined))
   const sessions = new Set<ClaudeSession>()
 
-  const runtime = async () => ({ binary: await binary(), settingSources: config.settingSources, extraOptions: config.sdkOptions })
+  const runtime = async () => ({ binary: await binary(), settingSources: config.settingSources, extraOptions: config.sdkOptions, steerPriority: config.steerPriority })
 
   const track = (session: ClaudeSession) => {
     sessions.add(session)

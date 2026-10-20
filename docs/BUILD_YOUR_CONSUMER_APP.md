@@ -129,6 +129,8 @@ await sub.wait()                // the final SubmissionRecord
 - Always send a `requestId` from the client. If the HTTP call times out and the client retries, the turn still runs once.
 - Reattach from anywhere: `kit.submission(requestId)?.wait()` works across restarts and across processes sharing the store.
 
+Steer is non-disruptive on every provider: the running step (e.g. a shell command) finishes, and the message lands at the next safe point in the same turn. Claude does this via `priority: 'next'` (AgentKit's default); pass `createAgentKit({ claude: { steerPriority: 'now' } })` to cut the current step short instead. Codex (`turn/steer`) and OpenCode (`delivery: 'steer'`) behave this way natively and have no knob.
+
 Shorthands: `run()` (= submit + reject when busy + await result), `send()` (= queue + await result), `steer()`.
 
 ---
@@ -385,3 +387,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + skills** — `kit.skills()`, `kit.searchSkills()`, `$name` expansion, `splitSkillTags`, example `/` menu.
 - **0.2 + hub** — `createAgentKit({ hub })`, `kit.hub` (add/update/remove/refresh/importFrom/addTools/on), exclusive MCP per provider, example MCP settings page.
 - **0.2 + native tools** — `kit.hub` always present; `run(args, ctx)` with session context + abort signal; `toolResult.text/image/error/parts`.
+- **0.2 + safe steer** — Claude steer defaults to `priority: 'next'` (waits for the next safe point); `claude.steerPriority: 'now'` restores the old behaviour.

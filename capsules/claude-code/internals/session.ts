@@ -69,6 +69,7 @@ export interface ClaudeRuntimeOptions {
   binary?: string | null
   settingSources?: Options['settingSources']
   extraOptions?: Partial<Options>
+  steerPriority?: 'now' | 'next'
 }
 
 /** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
@@ -242,15 +243,15 @@ export class ClaudeSession implements ProviderSession {
     })
   }
 
-  /** Steer: queue a user message with priority 'now' into the running turn. */
+  /** Steer: push a user message into the running turn ('next' by default: delivered at the next safe point). */
   async steer(prompt: PromptInput, options: { expectedTurnId: string }): Promise<{ accepted: boolean }> {
     if (!this.turn || this.turn.id !== options.expectedTurnId || !this.input) return { accepted: false }
     const messageId = randomUUID()
-    // 'now' cuts the running step short: Claude emits a result for the earlier message, then a new
-    // run whose result carries this uuid. Track it so the turn spans both.
+    // 'next' waits for the current step (tool calls finish); 'now' cuts it short. Either way Claude may
+    // emit a result for the earlier message, then a new run whose result carries this uuid. Track it so the turn spans both.
     this.turn.lastMessageId = messageId
     this.timeline({ type: 'user_message', text: promptText(prompt), messageId }, this.turn.id)
-    this.input.push({ ...toSdkMessage(prompt, messageId), priority: 'now' })
+    this.input.push({ ...toSdkMessage(prompt, messageId), priority: this.runtime.steerPriority ?? 'next' })
     return { accepted: true }
   }
 
