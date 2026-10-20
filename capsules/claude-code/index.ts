@@ -29,6 +29,11 @@ export interface ClaudeCodeCapsuleConfig {
    * `'now'` cuts the running step short.
    */
   steerPriority?: 'now' | 'next'
+  /**
+   * Claude Code flag settings, read each time a query starts (this run only; its settings files are never written).
+   * E.g. `{ modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 400000 } } }`.
+   */
+  flagSettings?: () => Record<string, unknown> | undefined
 }
 
 export { CLAUDE_CAPABILITIES, CLAUDE_MODES }
@@ -39,7 +44,7 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
   const binary = () => (binaryPromise ??= config.binary === false ? Promise.resolve(null) : findBinary('claude', config.binary || undefined))
   const sessions = new Set<ClaudeSession>()
 
-  const runtime = async () => ({ binary: await binary(), settingSources: config.settingSources, extraOptions: config.sdkOptions, steerPriority: config.steerPriority })
+  const runtime = async () => ({ binary: await binary(), settingSources: config.settingSources, extraOptions: config.sdkOptions, steerPriority: config.steerPriority, flagSettings: config.flagSettings })
 
   const track = (session: ClaudeSession) => {
     sessions.add(session)
@@ -83,6 +88,7 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
             thinkingOptions: (model.supportedEffortLevels ?? []).map((level: string) => ({ id: level, label: level })),
             supportsFastMode: model.supportsFastMode === true,
             contextWindowMaxTokens: knownContextWindow(model.value),
+            ...(model.resolvedModel ? { metadata: { resolvedModel: model.resolvedModel } } : {}),
             ...(model.supportsFastMode ? { fastModeDescription: 'Faster output, higher cost' } : {}),
           })),
           modes: CLAUDE_MODES,

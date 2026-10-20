@@ -70,6 +70,7 @@ export interface ClaudeRuntimeOptions {
   settingSources?: Options['settingSources']
   extraOptions?: Partial<Options>
   steerPriority?: 'now' | 'next'
+  flagSettings?: () => Record<string, unknown> | undefined
 }
 
 /** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
@@ -163,8 +164,8 @@ export class ClaudeSession implements ProviderSession {
       ...(this.runtime.binary ? { pathToClaudeCodeExecutable: this.runtime.binary } : {}),
       ...(this.model ? { model: this.model } : {}),
       ...(this.effort ? { effort: this.effort as Options['effort'] } : {}),
-      // Fast mode is a flag-tier setting; also applied live via applyFlagSettings in setFast().
-      ...(this.fast ? { settings: { fastMode: true } as Options['settings'] } : {}),
+      // Flag-tier settings: the host's (e.g. auto-compact windows) plus fast mode (also applied live via applyFlagSettings in setFast()).
+      ...this.flagSettings(),
       ...(this.config.mcpServers ? { mcpServers: this.config.mcpServers as Options['mcpServers'] } : {}),
       // Only the servers we pass: no ~/.claude.json / .mcp.json / plugin servers on top (no duplicates).
       ...(this.config.mcp?.exclusive ? { strictMcpConfig: true } : {}),
@@ -175,6 +176,11 @@ export class ClaudeSession implements ProviderSession {
       ...(this.config.providerOptions as Partial<Options> | undefined),
     }
     return options
+  }
+
+  private flagSettings(): Pick<Options, 'settings'> | Record<string, never> {
+    const settings = { ...(this.runtime.flagSettings?.() ?? {}), ...(this.fast ? { fastMode: true } : {}) }
+    return Object.keys(settings).length ? { settings: settings as Options['settings'] } : {}
   }
 
   /** Start (or restart) the long-lived query. Restart is needed for structured output and after rewind. */
