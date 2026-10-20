@@ -9,7 +9,8 @@
  *   const result = await session.run('hello')
  */
 import { listSessions, query, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { PersistenceHandle, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary } from '../shared/contract.ts'
+import type { CompleteOptions, CompleteResult, PersistenceHandle, PlanUsage, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary, UsageWindow } from '../shared/contract.ts'
+import { usageFromResult } from './internals/mapping.ts'
 import { findBinary, runCapture } from '../shared/runtime.ts'
 import { CLAUDE_CAPABILITIES, CLAUDE_MODES, ClaudeSession, DEFAULT_CLAUDE_MODE, knownContextWindow } from './internals/session.ts'
 
@@ -99,6 +100,54 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
       }
     },
 
+    /** Plan windows from the SDK's usage call (the one behind `/usage`). Marked experimental upstream, so normalized here. */
+    async planUsage(): Promise<PlanUsage> {
+      const bin = await binary()
+      const idle: AsyncIterable<SDKUserMessage> = { [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) }
+      const q = query({ prompt: idle, options: { cwd: process.cwd(), ...(bin ? { pathToClaudeCodeExecutable: bin } : {}), settingSources: [] } })
+      try {
+        const raw: any = await (q as any).usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+        return claudePlanUsage(raw)
+      } finally {
+        q.close()
+      }
+    },
+
+    /** Tool-less one-shot: no built-in tools, no MCP, no settings files, nothing written to disk. */
+    async complete(prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+      const bin = await binary()
+      const abort = new AbortController()
+      options.signal?.addEventListener('abort', () => abort.abort(options.signal!.reason), { once: true })
+      const q = query({
+        prompt,
+        options: {
+          cwd: options.cwd ?? process.cwd(),
+          abortController: abort,
+          tools: [],
+          mcpServers: {},
+          strictMcpConfig: true,
+          settingSources: [],
+          persistSession: false,
+          maxTurns: 1,
+          ...(bin ? { pathToClaudeCodeExecutable: bin } : {}),
+          ...(options.model ? { model: options.model } : {}),
+          ...(options.thinkingOptionId ? { effort: options.thinkingOptionId as Options['effort'] } : {}),
+          ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+        },
+      })
+      try {
+        for await (const message of q) {
+          if (message.type !== 'result') continue
+          const m: any = message
+          if (m.subtype !== 'success') throw new Error(`claude complete failed: ${m.subtype}${m.errors ? ` ${JSON.stringify(m.errors).slice(0, 300)}` : ''}`)
+          return { text: m.result ?? '', usage: usageFromResult(m), model: Object.keys(m.modelUsage ?? {})[0] }
+        }
+        throw new Error('claude complete ended without a result')
+      } finally {
+        q.close()
+      }
+    },
+
     async createSession(session: SessionConfig) {
       return track(new ClaudeSession(session, await runtime()))
     },
@@ -134,4 +183,33 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
       await Promise.all([...sessions].map((session) => session.close()))
     },
   }
+}
+
+const WINDOW_LABELS: Record<string, string> = {
+  five_hour: '5-hour',
+  seven_day: 'Weekly',
+  seven_day_opus: 'Weekly (Opus)',
+  seven_day_sonnet: 'Weekly (Sonnet)',
+  seven_day_oauth_apps: 'Weekly (apps)',
+}
+const WINDOW_MINUTES: Record<string, number> = { five_hour: 300 }
+
+export function claudePlanUsage(raw: any): PlanUsage {
+  const limits = (raw?.rate_limits ?? {}) as Record<string, any>
+  // Only real windows: plain objects carrying utilization + resets_at. The payload also has spend,
+  // credits, breakdowns and opaque keys; those stay in `raw`.
+  const windows: UsageWindow[] = Object.entries(limits)
+    .filter(([, w]) => w && typeof w === 'object' && !Array.isArray(w) && 'utilization' in w && 'resets_at' in w)
+    .map(([id, w]) => ({
+      id,
+      label: WINDOW_LABELS[id] ?? id,
+      usedPercent: typeof w.utilization === 'number' ? w.utilization : null,
+      resetsAt: w.resets_at ?? null,
+      windowMinutes: WINDOW_MINUTES[id] ?? (id.startsWith('seven_day') ? 7 * 24 * 60 : null),
+    }))
+  for (const m of Array.isArray(limits.model_scoped) ? limits.model_scoped : []) {
+    if (!m?.display_name) continue
+    windows.push({ id: `model:${m.display_name}`, label: `Weekly (${m.display_name})`, usedPercent: typeof m.utilization === 'number' ? m.utilization : null, resetsAt: m.resets_at ?? null, windowMinutes: 7 * 24 * 60 })
+  }
+  return { provider: 'claude', plan: raw?.subscription_type ?? null, available: raw?.rate_limits_available === true, windows, raw }
 }

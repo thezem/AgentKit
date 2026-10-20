@@ -16,16 +16,21 @@ import type {
   TurnOptions,
   InboxEntry,
   ContextWindow,
+  AttachmentRef,
+  PromptBlock,
 } from '../capsules/shared/contract.ts'
 import { isTerminalEvent } from '../capsules/shared/contract.ts'
 import { deferred, Emitter } from '../capsules/shared/runtime.ts'
 import { randomUUID } from 'node:crypto'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { attachmentsTag } from './attachment-tags.ts'
 import { expandSkillPrompt, type Skill } from './skills.ts'
 import { modeForAccess as planModeFor } from './policy.ts'
 import { TERMINAL_SUBMISSION, type AgentStore, type SubmissionRecord, type SubmissionStatus } from './store.ts'
 import { AgentKitError, UnsupportedCapabilityError } from './errors.ts'
 import { modeForAccess, normalizeDecision, type AccessLevel, type PermissionHandler } from './policy.ts'
-import { emptyTranscript, reduceTranscript, type Transcript } from './transcript.ts'
+import { emptyTranscript, reduceTranscript, withAttachments as parseItemAttachments, type Transcript } from './transcript.ts'
 
 export interface SessionHandlers {
   /** Auto-answer permission requests. Return undefined to leave one pending for your UI. */
@@ -47,6 +52,28 @@ export interface SubmitOptions extends TurnOptions {
    * `false` sends the text untouched.
    */
   skills?: boolean | 'reference' | 'inline'
+  /**
+   * Files sent with the prompt. AgentKit saves each under the kit's attachments folder, lists them
+   * in a trailing `<attachments>` tag (the agent may read that folder without asking), and also sends
+   * images as image blocks where the provider supports images. The typed text stays as written.
+   */
+  attachments?: AttachmentInput[]
+}
+
+/** `data`: base64 string or bytes. Or `path`: a file to copy in. */
+export interface AttachmentInput {
+  name: string
+  mimeType?: string
+  data?: string | Uint8Array
+  path?: string
+}
+
+const INLINE_IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+const INLINE_IMAGE_MAX = 5 * 1024 * 1024
+const MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf', '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json', '.csv': 'text/csv',
+  '.html': 'text/html', '.ts': 'text/plain', '.js': 'text/javascript', '.zip': 'application/zip',
 }
 
 /** One prompt's journey: queued → running/steered → outcome. */
@@ -69,6 +96,8 @@ export interface SessionContext {
   registry: Map<string, Submission>
   open: (handle: PersistenceHandle, key?: string) => Promise<AgentSession>
   skills: (cwd: string) => Promise<Skill[]>
+  /** Root folder for attachments (readable by the agent without asking). */
+  attachmentsDir: string
   onClose: () => void
   /** Called as soon as the user interrupts (before the provider confirms). */
   onInterrupt?: () => void
@@ -155,7 +184,7 @@ export class AgentSession {
 
   /** Load a saved transcript (restore from a store, or a fork's history). */
   hydrate(transcript: Transcript): void {
-    this.state = { ...transcript, sessionId: this.inner.id, status: transcript.status === 'failed' ? 'failed' : 'idle', activeTurnId: null, pendingPermissions: [], inbox: [] }
+    this.state = { ...emptyTranscript(), ...transcript, items: transcript.items.map(parseItemAttachments), sessionId: this.inner.id, status: transcript.status === 'failed' ? 'failed' : 'idle', activeTurnId: null, pendingPermissions: [], inbox: [] }
     this.ctx.store?.checkpoint(this.key, this.state)
   }
 
@@ -226,7 +255,7 @@ export class AgentSession {
    * (falls back to the inbox if the provider can't), 'reject' throws SESSION_BUSY.
    */
   async submit(prompt: PromptInput, options: SubmitOptions = {}): Promise<Submission> {
-    const { requestId, whenBusy = 'queue', skills = true, ...turnOptions } = options
+    const { requestId, whenBusy = 'queue', skills = true, attachments = [], ...turnOptions } = options
     if (requestId) {
       const known = this.ctx.registry.get(requestId)
       if (known) return known
@@ -237,8 +266,14 @@ export class AgentSession {
     const busy = this.busy
     if (busy && whenBusy === 'reject') throw new AgentKitError('SESSION_BUSY', 'a turn is already running; submit with whenBusy "queue" or "steer"', { provider: this.provider })
 
-    const live = this.createLive(requestId ?? randomUUID(), prompt, whenBusy, turnOptions)
+    const id = requestId ?? randomUUID()
+    const saved = attachments.length ? await this.saveAttachments(id, attachments) : null
+    const live = this.createLive(id, prompt, whenBusy, turnOptions)
     live.wire = await this.expand(prompt, skills)
+    if (saved) {
+      live.wire = withAttachments(live.wire, saved.refs, saved.images)
+      this.save(live, { attachments: saved.refs })
+    }
     if (busy && whenBusy === 'steer') {
       const turnId = this.activeTurnId
       if (turnId && this.capabilities.steer && this.inner.steer && !this.compacting) {
@@ -259,7 +294,7 @@ export class AgentSession {
   }
 
   /** Run one turn to completion. Throws SESSION_BUSY if a turn is active; use `submit`/`send` to queue. */
-  async run(prompt: PromptInput, options?: TurnOptions & { requestId?: string }): Promise<RunResult> {
+  async run(prompt: PromptInput, options?: Omit<SubmitOptions, 'whenBusy'>): Promise<RunResult> {
     return (await this.submit(prompt, { ...options, whenBusy: 'reject' })).result
   }
 
@@ -271,7 +306,7 @@ export class AgentSession {
   }
 
   /** Queue a prompt: runs now if idle, otherwise after the current/queued turns finish. */
-  async send(prompt: PromptInput, options?: TurnOptions & { requestId?: string }): Promise<RunResult> {
+  async send(prompt: PromptInput, options?: Omit<SubmitOptions, 'whenBusy'>): Promise<RunResult> {
     return (await this.submit(prompt, { ...options, whenBusy: 'queue' })).result
   }
 
@@ -345,6 +380,28 @@ export class AgentSession {
     const resolved = mode === 'inline' || mode === 'reference' ? mode : inPlan ? 'inline' : 'reference'
     const skills = await this.ctx.skills(cwd).catch(() => [] as Skill[])
     return expandSkillPrompt(prompt, { provider: this.provider, skills, mode: resolved }).prompt
+  }
+
+  /** Write each attachment to `<attachmentsDir>/<session>/<submission>/<name>`. Images become inline blocks too when supported. */
+  private async saveAttachments(submissionId: string, inputs: AttachmentInput[]): Promise<{ refs: AttachmentRef[]; images: PromptBlock[] }> {
+    const dir = path.join(this.ctx.attachmentsDir, safeSegment(this.key), safeSegment(submissionId))
+    await mkdir(dir, { recursive: true })
+    const refs: AttachmentRef[] = []
+    const images: PromptBlock[] = []
+    const used = new Set<string>()
+    for (const input of inputs) {
+      if (!input?.name || (input.data === undefined && !input.path)) throw new AgentKitError('INVALID_INPUT', 'an attachment needs a name and either data or path', { provider: this.provider })
+      const bytes = input.path ? await readFile(input.path) : typeof input.data === 'string' ? Buffer.from(input.data, 'base64') : Buffer.from(input.data!)
+      let name = safeSegment(path.basename(input.name)) || 'file'
+      for (let n = 2; used.has(name); n++) name = name.replace(/(\.[^.]*)?$/, (ext) => `-${n}${ext}`)
+      used.add(name)
+      const file = path.join(dir, name)
+      await writeFile(file, bytes)
+      const mimeType = input.mimeType || MIME_BY_EXT[path.extname(name).toLowerCase()] || 'application/octet-stream'
+      refs.push({ name, path: file, mimeType, size: bytes.length })
+      if (this.capabilities.images && INLINE_IMAGES.has(mimeType) && bytes.length <= INLINE_IMAGE_MAX) images.push({ type: 'image', data: bytes.toString('base64'), mimeType })
+    }
+    return { refs, images }
   }
 
   private save(live: Live, patch: Partial<SubmissionRecord>): void {
@@ -603,4 +660,19 @@ export function storedSubmission(record: SubmissionRecord, store: AgentStore): S
     wait: () => settled,
     withdraw: () => false,
   }
+}
+
+/** One path segment, no traversal. */
+function safeSegment(value: string): string {
+  return value.replace(/[\/\\\0]/g, '_').replace(/^\.+/, '_').slice(0, 120)
+}
+
+/** Text gets the `<attachments>` tag at the end; inline images go after it. */
+function withAttachments(prompt: PromptInput, refs: AttachmentRef[], images: PromptBlock[]): PromptInput {
+  const tag = attachmentsTag(refs)
+  const blocks: PromptBlock[] = typeof prompt === 'string' ? [{ type: 'text', text: prompt }] : prompt.slice()
+  const last = blocks.map((b) => b.type).lastIndexOf('text')
+  if (last >= 0) blocks[last] = { type: 'text', text: (blocks[last] as { text: string }).text + tag }
+  else blocks.push({ type: 'text', text: tag.trimStart() })
+  return [...blocks, ...images]
 }

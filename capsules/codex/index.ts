@@ -9,6 +9,9 @@
  */
 import type {
   NativeSkill,
+  CompleteOptions,
+  CompleteResult,
+  PlanUsage,
   AgentModel,
   PersistenceHandle,
   ProviderCatalog,
@@ -17,7 +20,8 @@ import type {
   SessionConfig,
   SessionSummary,
 } from '../shared/contract.ts'
-import { findBinary, runCapture } from '../shared/runtime.ts'
+import { completeViaSession, findBinary, runCapture } from '../shared/runtime.ts'
+import { codexPlanUsage } from './internals/items.ts'
 import { CodexRpc } from './internals/rpc.ts'
 import { CODEX_CAPABILITIES, CODEX_MODES, CodexSession, DEFAULT_CODEX_MODE, knownContextWindow, threadParams } from './internals/session.ts'
 
@@ -103,6 +107,15 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
           }))
         return { models, modes: CODEX_MODES, defaultModeId: DEFAULT_CODEX_MODE }
       })
+    },
+
+    async planUsage(): Promise<PlanUsage> {
+      return withRpc(process.cwd(), async (rpc) => codexPlanUsage(await rpc.request('account/rateLimits/read', {})))
+    },
+
+    /** Ephemeral read-only thread on its own app-server; any escalation is denied. Codex can't switch its tools off, so it may still run read-only commands. */
+    async complete(prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+      return completeViaSession((session) => this.createSession(session), prompt, options, { modeId: 'read-only' })
     },
 
     async createSession(session: SessionConfig): Promise<ProviderSession> {

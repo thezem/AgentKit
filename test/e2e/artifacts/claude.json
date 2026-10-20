@@ -1,25 +1,25 @@
 {
   "provider": "claude",
-  "cwd": "/tmp/agentkit-claude-yT8BIh",
+  "cwd": "/tmp/agentkit-claude-ZFSk1P",
   "passed": 11,
   "total": 11,
   "checks": [
     {
       "name": "available",
       "ok": true,
-      "ms": 423
+      "ms": 273
     },
     {
       "name": "catalog",
       "ok": true,
-      "ms": 3849,
+      "ms": 2462,
       "note": "13 models, modes=default/acceptEdits/plan/auto/bypassPermissions"
     },
     {
       "name": "basic-turn",
       "ok": true,
-      "ms": 7234,
-      "note": "\"marmalade\" in=31781 out=6"
+      "ms": 4706,
+      "note": "\"marmalade\" in=29424 out=6"
     },
     {
       "name": "transcript",
@@ -29,53 +29,53 @@
     {
       "name": "permission",
       "ok": true,
-      "ms": 2597,
+      "ms": 4148,
       "note": "asked=[tool:Write] tool=Write:write"
     },
     {
       "name": "mode-switch",
       "ok": true,
-      "ms": 11,
+      "ms": 57,
       "note": "modeId=acceptEdits"
     },
     {
       "name": "history",
       "ok": true,
-      "ms": 85,
+      "ms": 31,
       "note": "6 items, 2 user messages"
     },
     {
       "name": "rewind",
       "ok": true,
-      "ms": 8562,
+      "ms": 5594,
       "note": "history 6→2, new native id"
     },
     {
       "name": "interrupt",
       "ok": true,
-      "ms": 12286,
-      "note": "stopped in 1673ms, next turn ok"
+      "ms": 9302,
+      "note": "stopped in 1622ms, next turn ok"
     },
     {
       "name": "resume",
       "ok": true,
-      "ms": 9419,
+      "ms": 7473,
       "note": "remembered \"marmalade\""
     },
     {
       "name": "list-sessions",
       "ok": true,
-      "ms": 55,
+      "ms": 40,
       "note": "3 sessions in cwd"
     }
   ],
   "eventCounts": {
     "turn_started": 6,
     "timeline:user_message": 6,
-    "timeline:assistant_message": 12,
-    "usage": 6,
+    "timeline:assistant_message": 5,
+    "usage": 10,
     "turn_completed": 5,
-    "timeline:reasoning": 6,
+    "timeline:reasoning": 3,
     "timeline:tool_call": 4,
     "permission_requested": 1,
     "permission_resolved": 1,
@@ -87,7 +87,7 @@
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "0797f13f-0fd0-4319-9b00-4379b4db8176"
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a"
     },
     {
       "type": "timeline",
@@ -95,10 +95,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly the single word: marmalade",
-        "messageId": "cdef6f9d-346d-49be-8866-674a198eb7ee"
+        "messageId": "0821ecca-6c23-4884-bce5-8b884435b40b"
       },
-      "turnId": "0797f13f-0fd0-4319-9b00-4379b4db8176",
-      "timestamp": "2026-10-19T11:00:47.580Z"
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a",
+      "timestamp": "2026-10-20T08:47:14.265Z"
     },
     {
       "type": "timeline",
@@ -107,35 +107,37 @@
         "type": "assistant_message",
         "text": "marmalade"
       },
-      "turnId": "0797f13f-0fd0-4319-9b00-4379b4db8176",
-      "timestamp": "2026-10-19T11:00:54.638Z"
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a",
+      "timestamp": "2026-10-20T08:47:18.866Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 31781,
-        "cachedInputTokens": 10332,
+        "inputTokens": 29424,
+        "cachedInputTokens": 0,
         "outputTokens": 6,
-        "totalCostUsd": 0.00452082
+        "totalCostUsd": 0.0060125000000000005,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "0797f13f-0fd0-4319-9b00-4379b4db8176"
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a"
     },
     {
       "type": "turn_completed",
       "provider": "claude",
-      "turnId": "0797f13f-0fd0-4319-9b00-4379b4db8176",
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a",
       "usage": {
-        "inputTokens": 31781,
-        "cachedInputTokens": 10332,
+        "inputTokens": 29424,
+        "cachedInputTokens": 0,
         "outputTokens": 6,
-        "totalCostUsd": 0.00452082
+        "totalCostUsd": 0.0060125000000000005,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea"
     },
     {
       "type": "timeline",
@@ -143,10 +145,19 @@
       "item": {
         "type": "user_message",
         "text": "Create a file named hello.txt in the current directory containing exactly the text: hi. Use your file-writing tool, then reply \"done\".",
-        "messageId": "f1b949f6-4e27-4c31-8931-7e1113b515be"
+        "messageId": "42f4a12f-7b2f-455a-a16d-b675b1439683"
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:54.774Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:18.953Z"
+    },
+    {
+      "type": "usage",
+      "provider": "claude",
+      "usage": {
+        "contextWindowUsedTokens": 29424,
+        "contextWindowMaxTokens": 1000000
+      },
+      "turnId": "4979987e-e34f-464b-900c-f753f16c9d2a"
     },
     {
       "type": "timeline",
@@ -155,8 +166,8 @@
         "type": "reasoning",
         "text": ""
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:55.866Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:20.795Z"
     },
     {
       "type": "timeline",
@@ -165,42 +176,42 @@
         "type": "reasoning",
         "text": ""
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:56.224Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:21.378Z"
     },
     {
       "type": "timeline",
       "provider": "claude",
       "item": {
         "type": "tool_call",
-        "callId": "toolu_01RVZAgbkAsKiSz6QYdSxUTL",
+        "callId": "toolu_01TFjyd3FCa5q63odcm4wscw",
         "name": "Write",
         "status": "running",
         "detail": {
           "type": "write",
-          "filePath": "/tmp/agentkit-claude-yT8BIh/hello.txt",
+          "filePath": "/tmp/agentkit-claude-ZFSk1P/hello.txt",
           "content": "hi"
         }
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:56.452Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:21.613Z"
     },
     {
       "type": "permission_requested",
       "provider": "claude",
       "request": {
-        "id": "toolu_01RVZAgbkAsKiSz6QYdSxUTL",
+        "id": "toolu_01TFjyd3FCa5q63odcm4wscw",
         "provider": "claude",
         "kind": "tool",
         "name": "Write",
         "title": "Write",
         "input": {
-          "file_path": "/tmp/agentkit-claude-yT8BIh/hello.txt",
+          "file_path": "/tmp/agentkit-claude-ZFSk1P/hello.txt",
           "content": "hi"
         },
         "detail": {
           "type": "write",
-          "filePath": "/tmp/agentkit-claude-yT8BIh/hello.txt",
+          "filePath": "/tmp/agentkit-claude-ZFSk1P/hello.txt",
           "content": "hi"
         },
         "actions": [
@@ -221,12 +232,12 @@
           }
         ]
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea"
     },
     {
       "type": "permission_resolved",
       "provider": "claude",
-      "requestId": "toolu_01RVZAgbkAsKiSz6QYdSxUTL",
+      "requestId": "toolu_01TFjyd3FCa5q63odcm4wscw",
       "response": {
         "behavior": "allow",
         "actionId": "once"
@@ -237,17 +248,17 @@
       "provider": "claude",
       "item": {
         "type": "tool_call",
-        "callId": "toolu_01RVZAgbkAsKiSz6QYdSxUTL",
+        "callId": "toolu_01TFjyd3FCa5q63odcm4wscw",
         "name": "Write",
         "status": "completed",
         "detail": {
           "type": "write",
-          "filePath": "/tmp/agentkit-claude-yT8BIh/hello.txt",
+          "filePath": "/tmp/agentkit-claude-ZFSk1P/hello.txt",
           "content": "hi"
         }
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:56.626Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:21.683Z"
     },
     {
       "type": "timeline",
@@ -256,30 +267,41 @@
         "type": "assistant_message",
         "text": "done"
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
-      "timestamp": "2026-10-19T11:00:57.317Z"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
+      "timestamp": "2026-10-20T08:47:23.066Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 75578,
-        "cachedInputTokens": 54522,
-        "outputTokens": 215,
-        "totalCostUsd": 0.00938434
+        "inputTokens": 76973,
+        "cachedInputTokens": 54529,
+        "outputTokens": 267,
+        "totalCostUsd": 0.01117969,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5"
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea"
     },
     {
       "type": "turn_completed",
       "provider": "claude",
-      "turnId": "1c369dde-b5cc-4ca8-9761-fcd1db64cab5",
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea",
       "usage": {
-        "inputTokens": 75578,
-        "cachedInputTokens": 54522,
-        "outputTokens": 215,
-        "totalCostUsd": 0.00938434
+        "inputTokens": 76973,
+        "cachedInputTokens": 54529,
+        "outputTokens": 267,
+        "totalCostUsd": 0.01117969,
+        "contextWindowMaxTokens": 1000000
       }
+    },
+    {
+      "type": "usage",
+      "provider": "claude",
+      "usage": {
+        "contextWindowUsedTokens": 39336,
+        "contextWindowMaxTokens": 1000000
+      },
+      "turnId": "9ac38d9b-b40b-4b8c-80f3-e40065e909ea"
     },
     {
       "type": "mode_changed",
@@ -289,12 +311,12 @@
     {
       "type": "session_started",
       "provider": "claude",
-      "sessionId": "16bb5129-e2f7-4a37-b240-bf57c5e53d81"
+      "sessionId": "328c3310-7fc4-420c-be05-555aac093a83"
     },
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "ca39822c-af0c-409d-a8b3-6a82f63f2995"
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f"
     },
     {
       "type": "timeline",
@@ -302,10 +324,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "c7984ab0-d965-48b3-8a15-02a12f76c2d9"
+        "messageId": "81387017-956e-473f-b039-f62886403460"
       },
-      "turnId": "ca39822c-af0c-409d-a8b3-6a82f63f2995",
-      "timestamp": "2026-10-19T11:00:58.827Z"
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f",
+      "timestamp": "2026-10-20T08:47:24.108Z"
     },
     {
       "type": "timeline",
@@ -314,35 +336,37 @@
         "type": "assistant_message",
         "text": "ok"
       },
-      "turnId": "ca39822c-af0c-409d-a8b3-6a82f63f2995",
-      "timestamp": "2026-10-19T11:01:05.852Z"
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f",
+      "timestamp": "2026-10-20T08:47:28.689Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 33035,
-        "cachedInputTokens": 16893,
+        "inputTokens": 29492,
+        "cachedInputTokens": 16894,
         "outputTokens": 4,
-        "totalCostUsd": 0.00339913
+        "totalCostUsd": 0.0026903400000000003,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "ca39822c-af0c-409d-a8b3-6a82f63f2995"
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f"
     },
     {
       "type": "turn_completed",
       "provider": "claude",
-      "turnId": "ca39822c-af0c-409d-a8b3-6a82f63f2995",
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f",
       "usage": {
-        "inputTokens": 33035,
-        "cachedInputTokens": 16893,
+        "inputTokens": 29492,
+        "cachedInputTokens": 16894,
         "outputTokens": 4,
-        "totalCostUsd": 0.00339913
+        "totalCostUsd": 0.0026903400000000003,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8"
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd"
     },
     {
       "type": "timeline",
@@ -350,107 +374,26 @@
       "item": {
         "type": "user_message",
         "text": "Run the shell command `sleep 60` and then reply \"finished\".",
-        "messageId": "4ac6c640-49a2-427b-be5b-f982bd7ea078"
+        "messageId": "2ce31e14-be6e-40f7-a186-e592c40c1c97"
       },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:06.077Z"
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd",
+      "timestamp": "2026-10-20T08:47:28.798Z"
     },
     {
-      "type": "timeline",
+      "type": "usage",
       "provider": "claude",
-      "item": {
-        "type": "reasoning",
-        "text": ""
+      "usage": {
+        "contextWindowUsedTokens": 29492,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:13.863Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "reasoning",
-        "text": ""
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.003Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": "You"
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.042Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": " want `"
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.090Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": "sleep 60` run"
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.091Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": ", then \""
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.093Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": "finished\" back"
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.094Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": ". Running it now"
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.104Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "assistant_message",
-        "text": "."
-      },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.123Z"
+      "turnId": "cfd8f98c-eb12-4dfe-91e0-dc8eba7afe3f"
     },
     {
       "type": "timeline",
       "provider": "claude",
       "item": {
         "type": "tool_call",
-        "callId": "toolu_01LJ2F8wEuYWtdRbBpeWY1bK",
+        "callId": "toolu_01BWDuNWN2xvs37AyvPCZpDF",
         "name": "Bash",
         "status": "running",
         "detail": {
@@ -458,15 +401,15 @@
           "command": "sleep 60"
         }
       },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.400Z"
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd",
+      "timestamp": "2026-10-20T08:47:33.945Z"
     },
     {
       "type": "timeline",
       "provider": "claude",
       "item": {
         "type": "tool_call",
-        "callId": "toolu_01LJ2F8wEuYWtdRbBpeWY1bK",
+        "callId": "toolu_01BWDuNWN2xvs37AyvPCZpDF",
         "name": "Bash",
         "status": "failed",
         "detail": {
@@ -476,30 +419,41 @@
         },
         "error": "<tool_use_error>Blocked: standalone sleep 60. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to work around this block.</tool_use_error>"
       },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
-      "timestamp": "2026-10-19T11:01:14.446Z"
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd",
+      "timestamp": "2026-10-20T08:47:33.959Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "claude",
+      "item": {
+        "type": "reasoning",
+        "text": ""
+      },
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd",
+      "timestamp": "2026-10-20T08:47:35.308Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 31790,
-        "cachedInputTokens": 12905,
-        "outputTokens": 185,
-        "totalCostUsd": 0.004125350000000001
+        "inputTokens": 32005,
+        "cachedInputTokens": 12906,
+        "outputTokens": 82,
+        "totalCostUsd": 0.00411666,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8"
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd"
     },
     {
       "type": "turn_canceled",
       "provider": "claude",
-      "turnId": "7f6dc520-cb56-4512-95b2-35cd56b590e8",
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd",
       "reason": "interrupted"
     },
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "37af3cad-394f-4101-af65-cd4701e7252c"
+      "turnId": "6a6b192e-f598-4d83-8b71-be74ee5c2aa2"
     },
     {
       "type": "timeline",
@@ -507,10 +461,19 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "f57be0bb-e5ac-4dae-9ac9-ac252c765c6a"
+        "messageId": "404cf045-994a-4945-bdc2-3f69f55f2fd4"
       },
-      "turnId": "37af3cad-394f-4101-af65-cd4701e7252c",
-      "timestamp": "2026-10-19T11:01:15.621Z"
+      "turnId": "6a6b192e-f598-4d83-8b71-be74ee5c2aa2",
+      "timestamp": "2026-10-20T08:47:35.478Z"
+    },
+    {
+      "type": "usage",
+      "provider": "claude",
+      "usage": {
+        "contextWindowUsedTokens": 36845,
+        "contextWindowMaxTokens": 1000000
+      },
+      "turnId": "0b203d24-c202-4ac0-87aa-ece4b03ea9dd"
     },
     {
       "type": "timeline",
@@ -519,35 +482,37 @@
         "type": "assistant_message",
         "text": "ok"
       },
-      "turnId": "37af3cad-394f-4101-af65-cd4701e7252c",
-      "timestamp": "2026-10-19T11:01:17.129Z"
+      "turnId": "6a6b192e-f598-4d83-8b71-be74ee5c2aa2",
+      "timestamp": "2026-10-20T08:47:37.008Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 37963,
-        "cachedInputTokens": 31788,
+        "inputTokens": 37863,
+        "cachedInputTokens": 32003,
         "outputTokens": 4,
-        "totalCostUsd": 0.005680030000000001
+        "totalCostUsd": 0.00561049,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "37af3cad-394f-4101-af65-cd4701e7252c"
+      "turnId": "6a6b192e-f598-4d83-8b71-be74ee5c2aa2"
     },
     {
       "type": "turn_completed",
       "provider": "claude",
-      "turnId": "37af3cad-394f-4101-af65-cd4701e7252c",
+      "turnId": "6a6b192e-f598-4d83-8b71-be74ee5c2aa2",
       "usage": {
-        "inputTokens": 37963,
-        "cachedInputTokens": 31788,
+        "inputTokens": 37863,
+        "cachedInputTokens": 32003,
         "outputTokens": 4,
-        "totalCostUsd": 0.005680030000000001
+        "totalCostUsd": 0.00561049,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "claude",
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e"
+      "turnId": "cd3c3399-6f22-4016-87a5-7b9e7bd4a237"
     },
     {
       "type": "timeline",
@@ -555,30 +520,10 @@
       "item": {
         "type": "user_message",
         "text": "In my very first message of this conversation I asked you to reply with one specific word. What was that word? Reply with just that word.",
-        "messageId": "30a26f85-98cb-4929-be12-677333b686e7"
+        "messageId": "2d861931-3920-48f9-90f8-3c1b6aa3f5a4"
       },
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e",
-      "timestamp": "2026-10-19T11:01:19.325Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "reasoning",
-        "text": ""
-      },
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e",
-      "timestamp": "2026-10-19T11:01:26.208Z"
-    },
-    {
-      "type": "timeline",
-      "provider": "claude",
-      "item": {
-        "type": "reasoning",
-        "text": ""
-      },
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e",
-      "timestamp": "2026-10-19T11:01:26.287Z"
+      "turnId": "cd3c3399-6f22-4016-87a5-7b9e7bd4a237",
+      "timestamp": "2026-10-20T08:47:39.877Z"
     },
     {
       "type": "timeline",
@@ -587,29 +532,31 @@
         "type": "assistant_message",
         "text": "marmalade"
       },
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e",
-      "timestamp": "2026-10-19T11:01:26.330Z"
+      "turnId": "cd3c3399-6f22-4016-87a5-7b9e7bd4a237",
+      "timestamp": "2026-10-20T08:47:43.966Z"
     },
     {
       "type": "usage",
       "provider": "claude",
       "usage": {
-        "inputTokens": 38065,
-        "cachedInputTokens": 31796,
-        "outputTokens": 74,
-        "totalCostUsd": 0.00500769
+        "inputTokens": 31082,
+        "cachedInputTokens": 29439,
+        "outputTokens": 6,
+        "totalCostUsd": 0.0033161300000000005,
+        "contextWindowMaxTokens": 1000000
       },
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e"
+      "turnId": "cd3c3399-6f22-4016-87a5-7b9e7bd4a237"
     },
     {
       "type": "turn_completed",
       "provider": "claude",
-      "turnId": "d181ea62-fe50-4bf3-9130-39ac235a8c8e",
+      "turnId": "cd3c3399-6f22-4016-87a5-7b9e7bd4a237",
       "usage": {
-        "inputTokens": 38065,
-        "cachedInputTokens": 31796,
-        "outputTokens": 74,
-        "totalCostUsd": 0.00500769
+        "inputTokens": 31082,
+        "cachedInputTokens": 29439,
+        "outputTokens": 6,
+        "totalCostUsd": 0.0033161300000000005,
+        "contextWindowMaxTokens": 1000000
       }
     }
   ]

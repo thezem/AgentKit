@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { isTerminalEvent, type AgentEvent, type PersistenceHandle, type PromptInput, type ProviderId, type RunResult } from '../capsules/shared/contract.ts'
+import { isTerminalEvent, type AgentEvent, type AttachmentRef, type PersistenceHandle, type PromptInput, type ProviderId, type RunResult } from '../capsules/shared/contract.ts'
 import { emptyTranscript, reduceTranscript, type Transcript } from './transcript.ts'
 
 /**
@@ -22,6 +22,8 @@ export interface SubmissionRecord {
   provider: ProviderId
   status: SubmissionStatus
   prompt: PromptInput
+  /** Files sent with it (saved copies). */
+  attachments?: AttachmentRef[]
   whenBusy: 'queue' | 'steer' | 'reject'
   /** Native turn id once the provider accepted it. */
   turnId: string | null

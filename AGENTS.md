@@ -29,6 +29,7 @@ node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency
 node test/e2e/skills.ts                # skill discovery/visibility vs each CLI, search, expansion, invocation
 node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
 node test/e2e/orphans.ts               # opencode serve dies with its host (kill -9, graceful, server-only death); no model calls
+node test/e2e/host.ts claude codex opencode  # attachments, plan usage, complete, paged snapshots (mock version runs in verify)
 npm run doctor                         # install/sign-in status per provider
 ```
 
@@ -45,3 +46,5 @@ npm run doctor                         # install/sign-in status per provider
 - MCP hub (`src/hub.ts`): exclusivity is per capsule (Claude `strictMcpConfig`, Codex disables only `config.toml` names — built-ins reject overrides, OpenCode `installMcp`). Re-run `test/e2e/hub.ts` after a CLI upgrade.
 - `opencode serve` runs under a POSIX `sh` watchdog that holds the host's stdin pipe (`LIFETIME_WATCHDOG` in `capsules/opencode/internals/server.ts`); host death closes the pipe and the group is TERMed. Background jobs in non-interactive sh get /dev/null stdin, hence the fd 3 dance.
 - Live E2E suites pin the cheapest models (Claude haiku, Codex gpt-5.6-luna low, OpenCode Go minimax-m3.1-flash-free). Keep it that way.
+- A thread never changes provider. Don't add a provider swap; a new provider means a new thread.
+- `src/attachment-tags.ts` is browser-safe like `transcript.ts` (ships as `@ouim/agentkit/attachment-tags`).

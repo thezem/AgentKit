@@ -8,8 +8,8 @@
  *   const session = await opencode.createSession({ cwd: process.cwd(), model: 'anthropic/claude-sonnet-5' })
  */
 import os from 'node:os'
-import type { PersistenceHandle, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary } from '../shared/contract.ts'
-import { findBinary, runCapture } from '../shared/runtime.ts'
+import type { CompleteOptions, CompleteResult, PersistenceHandle, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary } from '../shared/contract.ts'
+import { completeViaSession, findBinary, runCapture } from '../shared/runtime.ts'
 import { startOpenCodeServer, type OpenCodeServer } from './internals/server.ts'
 import { modelRef, OPENCODE_CAPABILITIES, OpenCodeSession, waitForLocation } from './internals/session.ts'
 
@@ -146,6 +146,16 @@ export function createOpenCodeClient(config: OpenCodeCapsuleConfig = {}): Provid
             .map((agent: any) => ({ id: agent.id, label: agent.name ?? agent.id, description: agent.description })),
           defaultModeId: config.defaultMode ?? 'build',
         }
+      })
+    },
+
+    /**
+     * Throwaway session, removed on close. Every tool asks (`*` rule) and every ask is denied. Not the
+     * `plan` agent: it answers about plan mode instead of the prompt.
+     */
+    async complete(prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+      return completeViaSession((session) => this.createSession(session), prompt, options, {
+        providerOptions: { permissions: [{ action: '*', resource: '*', effect: 'ask' }] },
       })
     },
 

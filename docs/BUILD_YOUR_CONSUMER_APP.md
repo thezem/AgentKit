@@ -101,6 +101,7 @@ const session = await kit.session({
 - `session.key` is your id. `session.id` is the native id (Claude session / Codex thread / OpenCode session) and **can change** after rewind.
 - Open lazily: create the conversation row in your app first, open the AgentKit session on the first message. The example does exactly this (`sessionFor()` in [`server.ts`](../examples/web/server.ts)).
 - After a restart: `await kit.restore(key)` gives you a live session with its saved transcript. Use it whenever there's no live session for a stored key.
+- **A thread stays on the provider it started with.** There is no "switch this conversation to Codex": each provider owns its own history, tools and context, and AgentKit doesn't fake a handoff. Model, effort, fast and access can change mid-thread (§7); the provider can't. Want another provider? Start a new thread (seed it with `kit.complete()`'s summary of the old one if you like). Hide the provider picker once a thread has messages.
 
 ---
 
@@ -134,6 +135,23 @@ Steer is non-disruptive on every provider: the running step (e.g. a shell comman
 
 Shorthands: `run()` (= submit + reject when busy + await result), `send()` (= queue + await result), `steer()`.
 
+### Attachments
+
+```ts
+await session.submit('Summarise this and fix the layout in the screenshot', {
+  attachments: [
+    { name: 'spec.pdf', data: base64 },                     // or bytes (Uint8Array)
+    { name: 'screen.png', path: '/tmp/upload-123.png' },    // or copy from a path
+  ],
+})
+```
+
+- AgentKit saves each file to `kit.attachmentsDir/<session key>/<submission id>/<name>` (default `attachments/` next to the store) and appends one `<attachments>` tag to the text the model receives. **What the user typed is not changed.**
+- Images (png/jpeg/gif/webp ≤ 5 MB) also go as real image blocks where `capabilities.images`; the model sees them directly.
+- Every session may read the attachments folder **without a permission prompt** (Claude gets it as `additionalDirectories`; Codex and OpenCode read outside the project freely, proven in `test/e2e/host.ts`).
+- In the transcript, `user_message.text` is the typed text and `user_message.attachments` is `[{ name, path, mimeType, size }]`: render file chips from it. It survives restore and forks (the tag lives in the provider's own history too). Browser: `splitAttachments(text)` from `@ouim/agentkit/attachment-tags`.
+- Names are sanitized (no `..`, no absolute paths); duplicates get `-2`, `-3`.
+
 ---
 
 ## 5. Rendering: events → transcript
@@ -154,6 +172,21 @@ onMessage((m) => (state = m.type === 'snapshot' ? m.transcript : reduceTranscrip
 
 (The example's [`use-conversation.ts`](../examples/web/src/lib/use-conversation.ts) does exactly this.)
 
+**Long threads: page the snapshot.** A long Codex thread can be ~700 KB. Send the latest items first and fetch older ones on scroll:
+
+```ts
+// backend: snapshot = latest 100 items + all current state
+const page = kit.transcriptPage(key, { limit: 100 })             // live session or the store
+const older = kit.transcriptPage(key, { limit: 100, before: page.itemsOffset })
+
+// browser
+import { prependPage, reduceTranscript } from '@ouim/agentkit/transcript'
+state = prependPage(state, older)          // when the user scrolls up; stop when itemsOffset === 0
+state = reduceTranscript(state, event)     // live events keep working on a partial transcript
+```
+
+`transcript.itemsOffset` is the absolute index of `items[0]` (0 = complete). Live events only touch the newest items, so a partial transcript keeps reducing correctly.
+
 `Transcript` gives you everything a chat view needs:
 
 | Field | Use it for |
@@ -165,12 +198,14 @@ onMessage((m) => (state = m.type === 'snapshot' ? m.transcript : reduceTranscrip
 | `usage` | tokens, cost, `contextWindowUsedTokens` / `contextWindowMaxTokens` |
 | `modeId`, `model`, `thinkingOptionId`, `fast` | keep pickers in sync with reality |
 | `lastError` | error banner |
+| `planUsage` | latest plan rate-limit numbers the provider pushed (Codex); see §7 |
+| `itemsOffset` | > 0 when you hold a page, not the whole thread |
 
 Timeline items (`items[i].type`):
 
 | Type | Render as |
 | --- | --- |
-| `user_message` | user bubble; may contain skill tags → chips (§9) |
+| `user_message` | user bubble; skill tags → chips (§9); `attachments` → file chips (§4) |
 | `assistant_message` | markdown; streams in (deltas are already merged) |
 | `reasoning` | collapsed "Thought" |
 | `tool_call` | by `detail.type`: `shell` (command + output), `edit`/`write` (diff), `read`, `search`, `fetch`, `mcp`, `sub_agent`, `plan`, `todo`, `unknown` |
@@ -220,6 +255,27 @@ await session.commands()                  // provider slash commands (native)
 **Capability guards.** Every optional primitive throws `UnsupportedCapabilityError` *before* touching the provider. Don't rely on the throw for UX: read `session.capabilities` (or `kit.providers()`) and hide/disable the control.
 
 Context meter: `transcript.usage.contextWindowUsedTokens / contextWindowMaxTokens` updates every turn. Codex only reports the max after the first turn; Claude and OpenCode know it up front via `contextWindow()`.
+
+**Plan usage meter** (how much of the subscription is left):
+
+```ts
+const usage = await kit.planUsage('claude')   // cached 60s; { force: true } re-reads
+// { plan: 'pro', available: true, windows: [{ id: 'five_hour', label: '5-hour', usedPercent: 6, resetsAt: '2026-…Z' }, { id: 'seven_day', label: 'Weekly', … }] }
+```
+
+| Provider | Source | Notes |
+| --- | --- | --- |
+| Claude | the SDK's usage call (same as `/usage`) | marked experimental upstream; AgentKit normalizes it. `available: false` on API keys / cloud providers |
+| Codex | `account/rateLimits/read` | also **pushes** updates during turns → `plan_usage` event / `transcript.planUsage` |
+| OpenCode | – | `capabilities.planUsage` false → `UNSUPPORTED_CAPABILITY` |
+
+**One-shot completions** (titles, summaries, commit messages):
+
+```ts
+const { text } = await kit.complete('claude', `Title this chat in 5 words:\n${firstMessage}`, { model: 'haiku' })
+```
+
+No session is left behind (nothing in `listSessions()` or the store). Claude runs with no tools at all; Codex runs an ephemeral read-only thread and OpenCode a throwaway `plan` session that is deleted after, with every permission ask denied (they can't switch tools off entirely, so a model may still read).
 
 ---
 
@@ -360,7 +416,10 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 - [ ] `store` configured; `restore(key)` on demand; interrupted turns shown with a retry, never auto-resent
 - [ ] Fork/rewind/compact offered where `capabilities` allow
 - [ ] `/` skill menu writes `$name`; sent messages show chips
-- [ ] Context meter from `usage`
+- [ ] Context meter from `usage`; plan meter from `kit.planUsage()` where supported
+- [ ] Attachments sent with `submit({ attachments })` and shown as chips from `user_message.attachments`
+- [ ] Long threads load a `transcriptPage` and fetch older items on scroll
+- [ ] Provider picker locked once a thread has messages (a thread never changes provider)
 - [ ] Native tools use `ctx.sessionKey` for per-conversation data and pass `ctx.signal` to slow work
 - [ ] One MCP settings page backed by `kit.hub`; secrets masked; "applies to new threads" made clear
 - [ ] `kit.shutdown()` on exit
@@ -392,3 +451,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + native tools** — `kit.hub` always present; `run(args, ctx)` with session context + abort signal; `toolResult.text/image/error/parts`.
 - **0.2 + safe steer** — Claude steer defaults to `priority: 'next'` (waits for the next safe point); `claude.steerPriority: 'now'` restores the old behaviour.
 - **0.2 + host fixes** — `kit.providers()` caches availability (60s, `{ force }`), `kit.capabilities(provider)`; Claude `flagSettings: () => ({...})` per-run flag settings merged with fast mode, catalog `metadata.resolvedModel`; hub `AGENTKIT_INHERIT_ENV`; Codex hub servers colliding with config.toml names mount as `<name>-hub`; `opencode serve` dies with its host even on SIGKILL (POSIX watchdog).
+- **0.2 + host primitives** — `submit({ attachments })` (saved, readable without prompts, images inline, `user_message.attachments`, `@ouim/agentkit/attachment-tags`), `kit.planUsage(provider)` + `plan_usage` event, `kit.complete()`, `kit.transcriptPage()` / `pageTranscript` / `prependPage` + `transcript.itemsOffset`; documented that a thread never changes provider.

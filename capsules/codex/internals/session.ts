@@ -21,7 +21,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { collectRun, deferred, Emitter, nowIso } from '../../shared/runtime.ts'
 import { isTerminalEvent } from '../../shared/contract.ts'
-import { describeError, mapCodexItem, usageFromCodex, type CodexItem } from './items.ts'
+import { codexPlanUsage, describeError, mapCodexItem, usageFromCodex, type CodexItem } from './items.ts'
 import type { CodexRpc } from './rpc.ts'
 
 export const CODEX_MODES: AgentMode[] = [
@@ -65,6 +65,8 @@ export const CODEX_CAPABILITIES: Capabilities = {
   fork: true,
   compact: true,
   systemPrompt: true,
+  planUsage: true,
+  complete: true,
 }
 
 type PendingPermission = { request: PermissionRequest; reply: (response: PermissionResponse) => unknown }
@@ -303,6 +305,9 @@ export class CodexSession implements ProviderSession {
         this.lastUsage = usageFromCodex(params.tokenUsage)
         if (this.model && this.lastUsage.contextWindowMaxTokens) knownWindows.set(this.model, this.lastUsage.contextWindowMaxTokens)
         this.events.emit({ type: 'usage', provider: 'codex', usage: this.lastUsage, turnId })
+        return
+      case 'account/rateLimits/updated':
+        this.events.emit({ type: 'plan_usage', provider: 'codex', usage: codexPlanUsage({ rateLimits: params.rateLimits }) })
         return
       case 'thread/compacted':
         this.timeline({ type: 'compaction', status: 'completed' }, turnId)

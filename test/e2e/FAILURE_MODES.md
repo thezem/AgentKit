@@ -92,3 +92,17 @@ Written before `test/e2e/orphans.ts`. `opencode serve` runs detached (own proces
 | 51 | The watchdog itself leaks (a `cat`/`sh` left behind) after a normal shutdown | `orphans`: graceful `kit.shutdown()` → no marked process left |
 | 52 | The watchdog kills a healthy server early, or swallows the "listening" line | `orphans`: session opens and answers `server.info` through the watchdog before the kill |
 | 53 | Server exits on its own → watchdog keeps the pipe-reader alive | `orphans`: kill only the `opencode` process → no marked `sh`/`cat` left |
+
+## Attachments, plan usage, one-shot complete, paged snapshots
+
+Written before `test/e2e/host.ts`. A thread never changes provider; none of these swap one.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 54 | The model can't read an attached file (path not reachable, or a permission prompt blocks it) | `attach-file:<p>`: a text file with a nonce; reply contains the nonce, **zero** permission prompts, all three |
+| 55 | An attached image never reaches the model as an image | `attach-image:<p>`: a PNG with a word drawn in it; the model names the word (vision), on providers with `images` |
+| 56 | The user's text is changed, or the transcript loses which files were attached | `attach-transcript`: `user_message.text` equals what was typed; `user_message.attachments` lists name/path/mime; survives `kit.restore` |
+| 57 | Unsafe names write outside the attachments folder (`../x`, `/etc/x`) | `attach-names`: saved path stays under the session's folder |
+| 58 | Plan usage throws, or invents numbers when the provider has none | `plan-usage:<p>`: Claude/Codex windows with 0–100 percent and an ISO reset; OpenCode → `UNSUPPORTED_CAPABILITY` |
+| 59 | `complete()` leaves a session behind (listed, saved, process running) or uses tools | `complete:<p>`: exact-answer prompt; session list unchanged; no tool_call |
+| 60 | Paged snapshot drops or duplicates items, or the cursor walks wrong | `page`: latest N + cursor, then older pages, concatenate to the full transcript exactly; live session page matches stored |

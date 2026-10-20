@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-20T08:46:19.104Z",
+  "providers": [
+    "claude",
+    "codex",
+    "opencode"
+  ],
+  "checks": [
+    {
+      "name": "attach-file:claude",
+      "ok": true,
+      "note": "nonce read, 0 prompts"
+    },
+    {
+      "name": "attach-image:claude",
+      "ok": true,
+      "note": "said red"
+    },
+    {
+      "name": "plan-usage:claude",
+      "ok": true,
+      "note": "pro: 5-hour 38%, Weekly 51%, Weekly (Fable) 0%"
+    },
+    {
+      "name": "complete:claude",
+      "ok": true,
+      "note": "claude-haiku-5-5, sessions unchanged"
+    },
+    {
+      "name": "attach-file:codex",
+      "ok": true,
+      "note": "nonce read, 0 prompts"
+    },
+    {
+      "name": "attach-image:codex",
+      "ok": true,
+      "note": "said red"
+    },
+    {
+      "name": "plan-usage:codex",
+      "ok": true,
+      "note": "prolite: Weekly 3%"
+    },
+    {
+      "name": "complete:codex",
+      "ok": true,
+      "note": "gpt-5.6-luna, sessions unchanged"
+    },
+    {
+      "name": "attach-file:opencode",
+      "ok": true,
+      "note": "nonce read, 0 prompts"
+    },
+    {
+      "name": "attach-image:opencode",
+      "ok": true,
+      "note": "said red"
+    },
+    {
+      "name": "plan-usage:opencode",
+      "ok": "skipped",
+      "note": "opencode does not support planUsage"
+    },
+    {
+      "name": "complete:opencode",
+      "ok": true,
+      "note": "opencode-go/minimax-m3.1-flash-free, sessions unchanged"
+    }
+  ]
+}

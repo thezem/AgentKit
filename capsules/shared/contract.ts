@@ -98,6 +98,10 @@ export interface Capabilities {
   fork: boolean
   /** Summarize older context to free the window (native compaction). */
   compact: boolean
+  /** Subscription / plan rate-limit windows (`ProviderClient.planUsage`). */
+  planUsage: boolean
+  /** Tool-less one-shot completion that leaves no session behind (`ProviderClient.complete`). */
+  complete: boolean
 }
 
 export type CapabilityName = keyof Capabilities
@@ -157,7 +161,8 @@ export interface TodoItem {
 // ---------------------------------------------------------------- timeline + events
 
 export type TimelineItem =
-  | { type: 'user_message'; text: string; messageId?: string; clientMessageId?: string }
+  /** `attachments`: files sent with the message (AgentKit parses them out of `text`, see attachment-tags). */
+  | { type: 'user_message'; text: string; messageId?: string; clientMessageId?: string; attachments?: AttachmentRef[] }
   /** Assistant text. Live events carry deltas; history replays carry full text. */
   | { type: 'assistant_message'; text: string; messageId?: string }
   | { type: 'reasoning'; text: string }
@@ -190,11 +195,59 @@ export type AgentEvent =
   | { type: 'model_changed'; provider: ProviderId; model: string | null }
   | { type: 'thinking_changed'; provider: ProviderId; thinkingOptionId: string | null }
   | { type: 'fast_changed'; provider: ProviderId; enabled: boolean }
+  /** The provider pushed fresh plan rate-limit numbers (Codex does after turns). */
+  | { type: 'plan_usage'; provider: ProviderId; usage: PlanUsage }
   // Emitted by AgentKit itself, never by capsules:
   /** Prompts waiting for the current turn, in order. Visible + withdrawable. */
   | { type: 'inbox_changed'; provider: ProviderId; inbox: InboxEntry[] }
   /** A turn that was running when the process died. Never auto-resent. */
   | { type: 'turn_interrupted'; provider: ProviderId; turnId: string | null; submissionId: string | null; reason: string }
+
+/** A file sent with a prompt, as saved by AgentKit. */
+export interface AttachmentRef {
+  name: string
+  /** Absolute path the agent reads. */
+  path: string
+  mimeType: string
+  size: number
+}
+
+/** One rate-limit window, normalized across providers. */
+export interface UsageWindow {
+  /** Provider's id, e.g. 'five_hour', 'seven_day', 'primary'. */
+  id: string
+  label: string
+  /** 0–100, null when the provider didn't say. */
+  usedPercent: number | null
+  /** ISO timestamp. */
+  resetsAt: string | null
+  windowMinutes?: number | null
+}
+
+export interface PlanUsage {
+  provider: ProviderId
+  /** e.g. 'pro', 'max', 'plus'. Null when unknown or not a subscription (API key). */
+  plan: string | null
+  /** False when plan limits don't apply (API key, 3P cloud); `windows` is then empty. */
+  available: boolean
+  windows: UsageWindow[]
+  /** Provider payload as received. Shapes change; don't build UI on it. */
+  raw?: unknown
+}
+
+export interface CompleteOptions {
+  model?: string
+  thinkingOptionId?: string
+  systemPrompt?: string
+  cwd?: string
+  signal?: AbortSignal
+}
+
+export interface CompleteResult {
+  text: string
+  usage?: Usage
+  model?: string
+}
 
 /** How full the model's context is. Either side can be null when the provider hasn't said yet. */
 export interface ContextWindow {
@@ -279,6 +332,8 @@ export interface SessionConfig {
    * them once instead of isolating per session.
    */
   mcp?: { exclusive?: boolean; shared?: boolean }
+  /** Extra folders the agent may read without asking (AgentKit passes its attachments folder). Claude: additionalDirectories. */
+  readableDirs?: string[]
   title?: string
   env?: Record<string, string>
   /** Raw provider-native options merged last. The escape hatch. */
@@ -391,6 +446,10 @@ export interface ProviderClient {
   resumeSession(handle: PersistenceHandle, overrides?: Partial<SessionConfig>): Promise<ProviderSession>
   listSessions?(options?: { cwd?: string; limit?: number; query?: string }): Promise<SessionSummary[]>
   archiveSession?(handle: PersistenceHandle): Promise<void>
+  /** Plan / subscription rate-limit windows for the signed-in account. Gated by `capabilities.planUsage`. */
+  planUsage?(): Promise<PlanUsage>
+  /** One-shot, tool-less completion; nothing is persisted. Gated by `capabilities.complete`. */
+  complete?(prompt: string, options?: CompleteOptions): Promise<CompleteResult>
   /** Release background processes. Idempotent. */
   shutdown(): Promise<void>
 }
@@ -419,4 +478,6 @@ export const NO_CAPABILITIES: Capabilities = {
   systemPrompt: false,
   fork: false,
   compact: false,
+  planUsage: false,
+  complete: false,
 }

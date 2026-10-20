@@ -85,6 +85,10 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | compact context | ✓ (`/compact`) | ✓ (`thread/compact`) | ✓ | ✓ |
 | MCP hub: one server list for every provider (`kit.hub`) | ✓ (`strictMcpConfig`) | ✓ (config.toml servers off) | ✓ | – |
 | durable store, idempotent submit, inbox | ✓ | ✓ | ✓ | ✓ (AgentKit-level, every provider) |
+| attachments (`submit({ attachments })`, readable without prompts, images inline) | ✓ | ✓ | ✓ | ✓ |
+| plan usage windows (`kit.planUsage`) | ✓ (5-hour, weekly, per-model) | ✓ (+ live push) | – | ✓ |
+| one-shot `kit.complete()` (no session left behind) | ✓ (no tools) | ✓ (ephemeral, read-only) | ✓ (throwaway, tools denied) | ✓ |
+| paged transcript (`kit.transcriptPage`) | ✓ | ✓ | ✓ | ✓ (AgentKit-level) |
 
 **Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** images, MCP injection, structured questions, file rewind, archive.
 

@@ -1,5 +1,6 @@
-import type { AgentEvent, InboxEntry, PermissionRequest, TimelineItem, Usage } from '../capsules/shared/contract.ts'
+import type { AgentEvent, InboxEntry, PermissionRequest, PlanUsage, TimelineItem, Usage } from '../capsules/shared/contract.ts'
 import { appendTimeline } from '../capsules/shared/timeline.ts'
+import { splitAttachments } from './attachment-tags.ts'
 
 /**
  * A UI-ready projection of a session: the thing a chat view renders.
@@ -22,6 +23,13 @@ export interface Transcript {
   fast: boolean
   /** Prompts waiting behind the current turn. Withdraw with `session.withdraw(id)`. */
   inbox: InboxEntry[]
+  /** Latest plan rate-limit numbers the provider pushed (Codex does). Pull any time with `kit.planUsage()`. */
+  planUsage: PlanUsage | null
+  /**
+   * Index of `items[0]` in the full transcript. 0 for a full transcript; > 0 for a page from
+   * `pageTranscript` / `kit.transcriptPage` (load older items with `before: itemsOffset`).
+   */
+  itemsOffset: number
 }
 
 export function emptyTranscript(): Transcript {
@@ -38,6 +46,8 @@ export function emptyTranscript(): Transcript {
     thinkingOptionId: null,
     fast: false,
     inbox: [],
+    planUsage: null,
+    itemsOffset: 0,
   }
 }
 
@@ -55,9 +65,11 @@ export function reduceTranscript(state: Transcript, event: AgentEvent): Transcri
       return { ...state, status: 'failed', activeTurnId: null, pendingPermissions: [], lastError: event.error }
     case 'timeline': {
       const items = state.items.slice()
-      appendTimeline(items, event.item)
+      appendTimeline(items, withAttachments(event.item))
       return { ...state, items }
     }
+    case 'plan_usage':
+      return { ...state, planUsage: event.usage }
     case 'usage':
       return { ...state, usage: { ...state.usage, ...event.usage } }
     case 'permission_requested':
@@ -82,4 +94,30 @@ export function reduceTranscript(state: Transcript, event: AgentEvent): Transcri
       return { ...state, items, status: 'idle', activeTurnId: null, pendingPermissions: [] }
     }
   }
+}
+
+/** A user message's trailing `<attachments>` tag becomes `attachments`; `text` keeps what the user typed. */
+export function withAttachments(item: TimelineItem): TimelineItem {
+  if (item.type !== 'user_message' || !item.text.includes('<attachments')) return item
+  const { text, attachments } = splitAttachments(item.text)
+  return attachments.length ? { ...item, text, attachments } : item
+}
+
+/**
+ * A page of a transcript: the latest `limit` items before `before` (an absolute item index,
+ * default: the end). Everything except `items` is the current state. Walk back with
+ * `before: page.itemsOffset` until it is 0. Pure and browser-safe.
+ */
+export function pageTranscript(transcript: Transcript, options: { limit?: number; before?: number } = {}): Transcript {
+  const offset = transcript.itemsOffset ?? 0
+  const end = Math.min(Math.max((options.before ?? offset + transcript.items.length) - offset, 0), transcript.items.length)
+  const start = Math.max(end - (options.limit ?? 100), 0)
+  return { ...transcript, items: transcript.items.slice(start, end), itemsOffset: offset + start }
+}
+
+/** Put an older page in front of a partial transcript (client side, after `pageTranscript`). */
+export function prependPage(transcript: Transcript, older: Transcript): Transcript {
+  const offset = transcript.itemsOffset ?? 0
+  const keep = older.items.slice(0, Math.max(offset - (older.itemsOffset ?? 0), 0))
+  return { ...transcript, items: [...keep, ...transcript.items], itemsOffset: older.itemsOffset ?? 0 }
 }

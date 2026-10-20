@@ -48,6 +48,8 @@ export const OPENCODE_CAPABILITIES: Capabilities = {
   fork: true,
   compact: true,
   systemPrompt: true,
+  planUsage: false,
+  complete: true,
 }
 
 type Lease = { client: OpenCodeApi; exited: Promise<Error>; release(): Promise<void> }

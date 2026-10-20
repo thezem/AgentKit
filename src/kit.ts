@@ -21,7 +21,8 @@ import { ToolHub } from './hub.ts'
 import os from 'node:os'
 import path from 'node:path'
 import { discoverSkills, expandSkillPrompt, searchSkills, type Skill } from './skills.ts'
-import type { NativeSkill, PromptInput } from '../capsules/shared/contract.ts'
+import type { CompleteOptions, CompleteResult, NativeSkill, PlanUsage, PromptInput } from '../capsules/shared/contract.ts'
+import { pageTranscript, type Transcript } from './transcript.ts'
 
 export interface AgentKitOptions {
   /** Built-in capsules. `false` disables one. Mock is off unless configured. */
@@ -51,6 +52,13 @@ export interface AgentKitOptions {
    * Default file: next to `store`, else ~/.agentkit/mcp-servers.json.
    */
   hub?: boolean | { file?: string; exclusive?: boolean }
+  /**
+   * Where `submit(..., { attachments })` saves files: `<dir>/<session key>/<submission id>/<name>`.
+   * Every session may read this folder without asking. Default: `attachments/` next to `store`, else ~/.agentkit/attachments.
+   */
+  attachments?: { dir?: string }
+  /** How long `planUsage()` reuses a reading. Default 60s. */
+  planUsageTtlMs?: number
 }
 
 export interface OpenSessionOptions extends Omit<SessionConfig, 'modeId' | 'thinkingOptionId'> {
@@ -96,6 +104,10 @@ export class AgentKit {
   readonly hub: ToolHub
   private readonly hubExclusive: boolean
   private readonly hubWired: boolean
+  /** Root folder for prompt attachments (readable by every session). */
+  readonly attachmentsDir: string
+  private readonly planTtl: number
+  private readonly planUsageCache = new Map<ProviderId, { at: number; value: Promise<PlanUsage> }>()
 
   constructor(options: AgentKitOptions = {}) {
     this.ttl = options.catalogTtlMs ?? 5 * 60_000
@@ -107,6 +119,10 @@ export class AgentKit {
     this.hubWired = options.hub !== false
     this.hub = new ToolHub({ file: options.hub === false ? undefined : (hubConfig.file ?? defaultFile) })
     this.hubExclusive = options.hub === undefined ? false : (hubConfig.exclusive ?? true)
+    this.attachmentsDir = path.resolve(
+      options.attachments?.dir ?? (typeof options.store === 'string' ? path.join(path.dirname(path.resolve(options.store)), 'attachments') : path.join(os.homedir(), '.agentkit', 'attachments')),
+    )
+    this.planTtl = options.planUsageTtlMs ?? 60_000
     if (options.claude !== false) this.register(createClaudeCodeClient(options.claude || {}))
     if (options.codex !== false) this.register(createCodexClient(options.codex || {}))
     if (options.opencode !== false) this.register(createOpenCodeClient(options.opencode || {}))
@@ -201,6 +217,7 @@ export class AgentKit {
       env: options.env,
       providerOptions: options.providerOptions,
       persist: options.persist,
+      readableDirs: [...(options.readableDirs ?? []), this.attachmentsDir],
     }).catch((error) => {
       if (token) this.hub.release(token)
       throw error
@@ -225,6 +242,7 @@ export class AgentKit {
       ...mcp,
       ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       ...(options.env ? { env: options.env } : {}),
+      readableDirs: [...(options.readableDirs ?? []), this.attachmentsDir],
     }).catch((error) => {
       if (token) this.hub.release(token)
       throw error
@@ -245,6 +263,43 @@ export class AgentKit {
     const session = await this.resume(saved.handle, { ...options, key, meta: options.meta ?? saved.meta })
     session.hydrate(transcript)
     return session
+  }
+
+  /**
+   * A page of a session's transcript: the latest `limit` items (default 100) before `before`,
+   * plus all current state. Walk back with `before: page.itemsOffset` until it is 0.
+   * Live sessions in this process are read from memory, others from the store.
+   */
+  transcriptPage(key: string, options: { limit?: number; before?: number } = {}): Transcript {
+    const live = [...this.sessions].find((session) => session.key === key)
+    const transcript = live ? live.transcript : this.requireStore().loadTranscript(key)
+    return pageTranscript(transcript, options)
+  }
+
+  /**
+   * The signed-in account's plan rate-limit windows (5-hour, weekly…), normalized. Cached
+   * (`planUsageTtlMs`, default 60s); `{ force: true }` re-reads. Unsupported → UNSUPPORTED_CAPABILITY.
+   */
+  async planUsage(provider: ProviderId, options: { force?: boolean } = {}): Promise<PlanUsage> {
+    const client = this.client(provider)
+    if (!client.capabilities.planUsage || !client.planUsage) throw new UnsupportedCapabilityError(provider, 'planUsage')
+    const hit = this.planUsageCache.get(provider)
+    if (hit && !options.force && Date.now() - hit.at < this.planTtl) return hit.value
+    const value = client.planUsage()
+    this.planUsageCache.set(provider, { at: Date.now(), value })
+    value.catch(() => this.planUsageCache.delete(provider))
+    return value
+  }
+
+  /**
+   * One-shot completion: no tools, no session left behind, nothing in `listSessions()` or the store.
+   * For titles, summaries, commit messages. Same provider/model choices as a session.
+   */
+  async complete(provider: ProviderId, prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+    const client = this.client(provider)
+    if (!client.capabilities.complete || !client.complete) throw new UnsupportedCapabilityError(provider, 'complete')
+    if (!prompt.trim()) throw new AgentKitError('INVALID_INPUT', 'complete() needs a prompt', { provider })
+    return client.complete(prompt, options)
   }
 
   /** Sessions in the store, newest first. */
@@ -351,6 +406,7 @@ export class AgentKit {
       store: this.store,
       registry: this.submissions,
       skills: (cwd) => this.skills({ cwd }),
+      attachmentsDir: this.attachmentsDir,
       open: (handle, forkKey) => this.resume(handle, { key: forkKey, onPermission: handlers.onPermission, onEvent: handlers.onEvent }),
       onClose: () => {
         this.sessions.delete(session)

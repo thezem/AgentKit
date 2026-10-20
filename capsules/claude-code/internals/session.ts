@@ -63,6 +63,8 @@ export const CLAUDE_CAPABILITIES: Capabilities = {
   fork: true,
   compact: true,
   systemPrompt: true,
+  planUsage: true,
+  complete: true,
 }
 
 export interface ClaudeRuntimeOptions {
@@ -175,6 +177,8 @@ export class ClaudeSession implements ProviderSession {
       ...this.runtime.extraOptions,
       ...(this.config.providerOptions as Partial<Options> | undefined),
     }
+    // Readable folders (AgentKit's attachments) merge with any additionalDirectories the host passed.
+    if (this.config.readableDirs?.length) options.additionalDirectories = [...new Set([...(options.additionalDirectories ?? []), ...this.config.readableDirs])]
     return options
   }
 

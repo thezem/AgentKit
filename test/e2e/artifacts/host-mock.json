@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-20T08:48:21.641Z",
+  "providers": [
+    "mock"
+  ],
+  "checks": [
+    {
+      "name": "attach-file:mock",
+      "ok": true,
+      "note": "mock: structure only"
+    },
+    {
+      "name": "attach-image:mock",
+      "ok": true,
+      "note": "mock: sent"
+    },
+    {
+      "name": "plan-usage:mock",
+      "ok": true,
+      "note": "mock: 5-hour 12%, Weekly 40%"
+    },
+    {
+      "name": "complete:mock",
+      "ok": true,
+      "note": "mock-1, sessions unchanged"
+    },
+    {
+      "name": "attach-names",
+      "ok": true,
+      "note": "passwd, x.txt, x-2.txt"
+    },
+    {
+      "name": "page",
+      "ok": true,
+      "note": "21 items in 7 pages, stored = live"
+    }
+  ]
+}

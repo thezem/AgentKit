@@ -14,6 +14,9 @@ import { appendTimeline } from '../shared/timeline.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 import type {
   AgentEvent,
+  CompleteOptions,
+  CompleteResult,
+  PlanUsage,
   AgentMode,
   Capabilities,
   PermissionRequest,
@@ -54,6 +57,8 @@ export const MOCK_CAPABILITIES: Capabilities = {
   fork: true,
   compact: true,
   systemPrompt: true,
+  planUsage: true,
+  complete: true,
 }
 
 const MODES: AgentMode[] = [
@@ -284,6 +289,24 @@ export function createMockClient(config: MockCapsuleConfig = {}): ProviderClient
         defaultModeId: 'ask',
       }
     },
+    async planUsage(): Promise<PlanUsage> {
+      return {
+        provider: 'mock',
+        plan: 'mock',
+        available: true,
+        windows: [
+          { id: 'five_hour', label: '5-hour', usedPercent: 12, resetsAt: new Date(Date.now() + 3 * 3600_000).toISOString(), windowMinutes: 300 },
+          { id: 'seven_day', label: 'Weekly', usedPercent: 40, resetsAt: new Date(Date.now() + 4 * 86400_000).toISOString(), windowMinutes: 10080 },
+        ],
+      }
+    },
+
+    /** Echoes the prompt (`mock: <prompt>`); never creates a session. */
+    async complete(prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+      if (options.signal?.aborted) throw new Error('aborted')
+      return { text: `mock: ${prompt}`, usage: { inputTokens: prompt.length, outputTokens: prompt.length + 6 }, model: options.model ?? 'mock-1' }
+    },
+
     async createSession(session: SessionConfig) {
       return new MockSession(randomUUID(), session, delayMs)
     },

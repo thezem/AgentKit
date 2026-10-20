@@ -53,6 +53,10 @@
       "types": "./dist/src/transcript.d.ts",
       "import": "./dist/src/transcript.js"
     },
+    "./attachment-tags": {
+      "types": "./dist/src/attachment-tags.d.ts",
+      "import": "./dist/src/attachment-tags.js"
+    },
     "./skill-tags": {
       "types": "./dist/src/skill-tags.d.ts",
       "import": "./dist/src/skill-tags.js"
@@ -70,7 +74,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "verify": "npm run typecheck && node test/e2e/conformance.ts mock && node test/e2e/durable.ts mock",
+    "verify": "npm run typecheck && node test/e2e/conformance.ts mock && node test/e2e/durable.ts mock && node test/e2e/host.ts mock",
     "e2e": "node test/e2e/conformance.ts",
     "e2e:mock": "node test/e2e/conformance.ts mock",
     "doctor": "node examples/doctor.ts",

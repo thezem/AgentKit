@@ -4,7 +4,11 @@ import path from 'node:path'
 import {
   isTerminalEvent,
   type AgentEvent,
+  type CompleteOptions,
+  type CompleteResult,
   type PromptInput,
+  type ProviderSession,
+  type SessionConfig,
   type ProviderId,
   type RunResult,
   type TimelineItem,
@@ -242,4 +246,48 @@ export function deferred<T = void>() {
     reject = rej
   })
   return { promise, resolve, reject }
+}
+
+// ---------------------------------------------------------------- one-shot
+
+/**
+ * `complete()` for capsules without a native one-shot API: a throwaway, non-persisted session in a
+ * read-only mode that denies every permission ask, one turn, then close. `extra` = capsule-specific config.
+ */
+export async function completeViaSession(
+  create: (config: SessionConfig) => Promise<ProviderSession>,
+  prompt: string,
+  options: CompleteOptions,
+  extra: Partial<SessionConfig>,
+  cleanup?: (session: ProviderSession) => Promise<void>,
+): Promise<CompleteResult> {
+  const session = await create({
+    cwd: options.cwd ?? process.cwd(),
+    persist: false,
+    ...(options.model ? { model: options.model } : {}),
+    ...(options.thinkingOptionId ? { thinkingOptionId: options.thinkingOptionId } : {}),
+    ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+    ...extra,
+  })
+  let denied: string | null = null
+  const off = session.subscribe((event) => {
+    if (event.type === 'permission_requested') denied ??= event.request.name
+    if (event.type === 'permission_requested') void session.respondToPermission(event.request.id, { behavior: 'deny', message: 'one-shot completion: tools are not available' }).catch(() => undefined)
+  })
+  const onAbort = () => void session.interrupt().catch(() => undefined)
+  options.signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    const result = await session.run(prompt)
+    if (result.status !== 'completed') {
+      const why = denied ? `the model tried to use a tool (${denied}), which complete() does not allow` : (result.error ?? result.status)
+      throw new Error(`${session.provider} complete ${result.status}: ${why}`)
+    }
+    const info = await session.getRuntimeInfo().catch(() => null)
+    return { text: result.finalText, usage: result.usage, model: info?.model ?? options.model }
+  } finally {
+    off()
+    options.signal?.removeEventListener('abort', onAbort)
+    await cleanup?.(session).catch(() => undefined)
+    await session.close().catch(() => undefined)
+  }
 }

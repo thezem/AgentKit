@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolCallItem, ToolStatus, Usage } from '../../shared/contract.ts'
+import type { PlanUsage, TimelineItem, ToolCallItem, ToolStatus, Usage, UsageWindow } from '../../shared/contract.ts'
 import { safeJson } from '../../shared/runtime.ts'
 
 /** Codex `ThreadItem` (v2 app-server protocol), kept loose on purpose: the schema moves fast. */
@@ -123,4 +123,36 @@ export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message
   if (error && typeof error === 'object' && 'message' in error) return String((error as { message: unknown }).message)
   return safeJson(error)
+}
+
+/** Codex `account/rateLimits/read` (or the `account/rateLimits/updated` push) → PlanUsage. */
+export function codexPlanUsage(raw: any): PlanUsage {
+  const snapshots: any[] = raw?.rateLimitsByLimitId ? Object.values(raw.rateLimitsByLimitId).filter(Boolean) : raw?.rateLimits ? [raw.rateLimits] : []
+  const windows: UsageWindow[] = []
+  let plan: string | null = null
+  for (const snap of snapshots) {
+    plan ??= snap.planType ?? null
+    const prefix = snapshots.length > 1 && snap.limitId ? `${snap.limitId}:` : ''
+    for (const key of ['primary', 'secondary'] as const) {
+      const w = snap[key]
+      if (!w) continue
+      const minutes: number | null = w.windowDurationMins ?? null
+      windows.push({
+        id: `${prefix}${key}`,
+        label: `${snap.limitName && snapshots.length > 1 ? `${snap.limitName} ` : ''}${windowLabel(minutes, key)}`,
+        usedPercent: typeof w.usedPercent === 'number' ? w.usedPercent : null,
+        resetsAt: typeof w.resetsAt === 'number' ? new Date(w.resetsAt * 1000).toISOString() : null,
+        windowMinutes: minutes,
+      })
+    }
+  }
+  return { provider: 'codex', plan, available: windows.length > 0, windows, raw }
+}
+
+function windowLabel(minutes: number | null, fallback: string): string {
+  if (minutes === 300) return '5-hour'
+  if (minutes === 7 * 24 * 60) return 'Weekly'
+  if (minutes && minutes % (24 * 60) === 0) return `${minutes / (24 * 60)}-day`
+  if (minutes && minutes % 60 === 0) return `${minutes / 60}-hour`
+  return fallback
 }
