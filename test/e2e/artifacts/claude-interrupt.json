@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-20T13:41:28.078Z",
+  "checks": [
+    {
+      "name": "stuck-interrupt-cancels",
+      "ok": true,
+      "note": "canceled after 10.0s"
+    },
+    {
+      "name": "stuck-interrupt-stops-process",
+      "ok": false,
+      "note": "query still attached"
+    },
+    {
+      "name": "next-turn-resumes",
+      "ok": true,
+      "note": "said kiwi-ur8v8"
+    }
+  ]
+}
