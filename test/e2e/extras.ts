@@ -12,7 +12,7 @@ import { createAgentKit, type ProviderId } from '../../src/index.ts'
 
 const providers: ProviderId[] = process.argv.slice(2).length ? process.argv.slice(2) : ['claude', 'codex', 'opencode']
 const kit = createAgentKit({ mock: providers.includes('mock') })
-const cheap: Record<string, object> = { claude: { model: 'haiku' }, codex: { thinking: 'low' } }
+const cheap: Record<string, object> = { claude: { model: 'haiku' }, codex: { model: 'gpt-5.6-luna', thinking: 'low' }, opencode: { model: 'opencode-go/minimax-m3.1-flash-free' } }
 const out: Record<string, unknown> = {}
 
 for (const provider of providers) {

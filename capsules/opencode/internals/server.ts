@@ -3,6 +3,17 @@ import { randomBytes } from 'node:crypto'
 import { OpenCode } from '@opencode/client'
 import { killTree } from '../../shared/runtime.ts'
 
+/** `$@` = the server argv. Server gets /dev/null as stdin; the host's pipe is only read by `cat`. */
+const LIFETIME_WATCHDOG = [
+  'exec 3<&0', // background jobs get /dev/null as stdin in non-interactive sh; keep the pipe on fd 3
+  '"$@" </dev/null 3<&- & p=$!',
+  '{ cat <&3 >/dev/null; kill -TERM 0; } &',
+  'exec 3<&-',
+  'wait $p; s=$?',
+  "trap '' TERM; kill -TERM 0 2>/dev/null",
+  'exit $s',
+].join('\n')
+
 export type OpenCodeApi = ReturnType<typeof OpenCode.make>
 
 export interface OpenCodeServer {
@@ -19,12 +30,21 @@ export interface OpenCodeServer {
  */
 export async function startOpenCodeServer(input: { binary: string; args?: string[]; env?: Record<string, string>; cwd?: string; timeoutMs?: number }): Promise<OpenCodeServer> {
   const password = randomBytes(32).toString('base64url')
-  const child = spawn(input.binary, [...(input.args ?? []), 'serve', '--hostname', '127.0.0.1', '--port', '0'], {
-    cwd: input.cwd,
-    env: { ...process.env, ...input.env, OPENCODE_PASSWORD: password },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: process.platform !== 'win32',
-  })
+  const argv = [input.binary, ...(input.args ?? []), 'serve', '--hostname', '127.0.0.1', '--port', '0']
+  const posix = process.platform !== 'win32'
+  // Detached (own process group) so stop() can kill the whole tree. That also cuts the server loose from
+  // the host, so on POSIX it runs under a tiny sh watchdog holding our stdin pipe: when the host dies, even
+  // by SIGKILL, the kernel closes the pipe and the watchdog TERMs the group. If the server exits on its
+  // own, the watchdog clears the group (its pipe reader) and exits with the server's code.
+  const child = posix
+    ? spawn('/bin/sh', ['-c', LIFETIME_WATCHDOG, 'agentkit-opencode', ...argv], {
+        cwd: input.cwd,
+        env: { ...process.env, ...input.env, OPENCODE_PASSWORD: password },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true,
+      })
+    : spawn(argv[0], argv.slice(1), { cwd: input.cwd, env: { ...process.env, ...input.env, OPENCODE_PASSWORD: password }, stdio: ['ignore', 'pipe', 'pipe'] })
+  child.stdin?.on('error', () => undefined)
   const dead = new AbortController()
   let stderr = ''
   child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)))

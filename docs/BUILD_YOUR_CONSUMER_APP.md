@@ -53,8 +53,9 @@ process.on('SIGTERM', async () => { await kit.shutdown(); process.exit(0) })
 Everything a picker needs comes from two calls. Never hardcode model lists.
 
 ```ts
-const providers = await kit.providers()
+const providers = await kit.providers()               // availability cached 60s; { force: true } re-probes
 // [{ provider: 'codex', label: 'Codex', available: true, capabilities: {...} }, ...]
+kit.capabilities('codex')                              // sync, no CLI probe: use this when you only need capabilities
 
 const catalog = await kit.catalog('codex', { cwd })   // cached 5 min
 // catalog.models[i]: { id, label, isDefault, thinkingOptions, supportsFastMode, contextWindowMaxTokens? }
@@ -296,6 +297,8 @@ kit.hub.on((e) => /* status | removed | call */)
 
 - The hub connects to each upstream once and serves each one on a loopback URL (`127.0.0.1:<port>/<secret>/<name>`). Every new session, on any provider, gets exactly the enabled servers.
 - **Exclusive by default**: the CLI's own MCP config is switched off for that thread (Claude `strictMcpConfig`, Codex `config.toml` servers disabled, OpenCode other servers disconnected), so the hub list is the truth. Codex's built-in `codex_apps`/`cua_repl` can't be disabled. `hub: { exclusive: false }` merges instead.
+- **Codex name collisions**: a hub server named like a server in `~/.codex/config.toml` is mounted as `<name>-hub` on Codex (the config.toml one is switched off), because Codex merges overrides onto same-named tables. Tool names on Codex then read `<name>-hub.<tool>`.
+- **Host env for stdio servers**: they get the MCP SDK's safe default env plus their own `env`. `AGENTKIT_INHERIT_ENV=VAR1,VAR2` copies named host vars in too (e.g. a process-ownership tag your app reaps by).
 - `kit.hub` always exists. Without the `hub` option its servers are added next to each CLI's own (not exclusive); an empty hub binds nothing and passes no config. `hub: false` keeps it out of sessions.
 - Toggles and adds apply to **new** threads. Say so in the UI.
 - `load` is a Claude-only hint today: `'always'` → `alwaysLoad` (schemas up front), `'on-demand'` → Claude's tool search. Codex and OpenCode load every tool up front either way; label the control accordingly.
@@ -388,3 +391,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + hub** — `createAgentKit({ hub })`, `kit.hub` (add/update/remove/refresh/importFrom/addTools/on), exclusive MCP per provider, example MCP settings page.
 - **0.2 + native tools** — `kit.hub` always present; `run(args, ctx)` with session context + abort signal; `toolResult.text/image/error/parts`.
 - **0.2 + safe steer** — Claude steer defaults to `priority: 'next'` (waits for the next safe point); `claude.steerPriority: 'now'` restores the old behaviour.
+- **0.2 + host fixes** — `kit.providers()` caches availability (60s, `{ force }`), `kit.capabilities(provider)`; Claude `flagSettings: () => ({...})` per-run flag settings merged with fast mode, catalog `metadata.resolvedModel`; hub `AGENTKIT_INHERIT_ENV`; Codex hub servers colliding with config.toml names mount as `<name>-hub`; `opencode serve` dies with its host even on SIGKILL (POSIX watchdog).

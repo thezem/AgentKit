@@ -1,71 +1,71 @@
 {
   "provider": "opencode",
-  "cwd": "/tmp/agentkit-opencode-kqArLV",
+  "cwd": "/tmp/agentkit-opencode-2O173m",
   "passed": 11,
   "total": 11,
   "checks": [
     {
       "name": "available",
       "ok": true,
-      "ms": 680
+      "ms": 381
     },
     {
       "name": "catalog",
       "ok": true,
-      "ms": 6981,
-      "note": "383 models, modes=build/plan"
+      "ms": 5101,
+      "note": "70 models, modes=build/plan"
     },
     {
       "name": "basic-turn",
       "ok": true,
-      "ms": 8010,
-      "note": "\"marmalade\" in=26912 out=6"
+      "ms": 8269,
+      "note": "\"marmalade\" in=4138 out=13"
     },
     {
       "name": "transcript",
       "ok": true,
-      "ms": 0
+      "ms": 1
     },
     {
       "name": "permission",
       "ok": true,
-      "ms": 1793,
+      "ms": 5024,
       "note": "asked=[tool:edit] tool=write:write"
     },
     {
       "name": "mode-switch",
       "ok": true,
-      "ms": 38,
+      "ms": 29,
       "note": "modeId=build"
     },
     {
       "name": "history",
       "ok": true,
-      "ms": 40,
+      "ms": 25,
       "note": "6 items, 2 user messages"
     },
     {
       "name": "rewind",
       "ok": true,
-      "ms": 896,
+      "ms": 2366,
       "note": "history 6→2"
     },
     {
       "name": "interrupt",
       "ok": true,
-      "ms": 3706,
-      "note": "stopped in 979ms, next turn ok"
+      "ms": 6624,
+      "note": "stopped in 2474ms, next turn ok"
     },
     {
       "name": "resume",
       "ok": true,
-      "ms": 6557,
+      "ms": 7043,
       "note": "remembered \"marmalade\""
     },
     {
       "name": "list-sessions",
       "ok": true,
-      "ms": 1144,
+      "ms": 714,
       "note": "2 sessions in cwd"
     }
   ],
@@ -75,7 +75,7 @@
     "timeline:assistant_message": 7,
     "usage": 6,
     "turn_completed": 5,
-    "timeline:tool_call": 4,
+    "timeline:tool_call": 6,
     "permission_requested": 1,
     "permission_resolved": 1,
     "mode_changed": 1,
@@ -85,7 +85,7 @@
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "0d284555-3f55-47c4-b333-2ad0be5c9512"
+      "turnId": "423900a1-33c4-472e-a6c5-3c8c2b1b9609"
     },
     {
       "type": "timeline",
@@ -93,10 +93,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly the single word: marmalade",
-        "messageId": "msg_153d3084c0014FX6YKdS8eQL5t"
+        "messageId": "msg_158688c45001DrVu45SwKd8wtE"
       },
-      "turnId": "0d284555-3f55-47c4-b333-2ad0be5c9512",
-      "timestamp": "2026-10-19T11:01:42.200Z"
+      "turnId": "423900a1-33c4-472e-a6c5-3c8c2b1b9609",
+      "timestamp": "2026-10-20T08:23:29.586Z"
     },
     {
       "type": "timeline",
@@ -104,38 +104,40 @@
       "item": {
         "type": "assistant_message",
         "text": "marmalade",
-        "messageId": "msg_153d309ce001YP76Zku96e6WlL"
+        "messageId": "msg_158688d37001f61ZmbVu5p4iOu"
       },
-      "turnId": "0d284555-3f55-47c4-b333-2ad0be5c9512",
-      "timestamp": "2026-10-19T11:01:43.268Z"
+      "turnId": "423900a1-33c4-472e-a6c5-3c8c2b1b9609",
+      "timestamp": "2026-10-20T08:23:31.331Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 26912,
-        "outputTokens": 6,
-        "cachedInputTokens": 0,
-        "totalCostUsd": 0.016161599999999998,
-        "contextWindowUsedTokens": 26918
+        "inputTokens": 4138,
+        "outputTokens": 13,
+        "cachedInputTokens": 22784,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26405
       },
-      "turnId": "0d284555-3f55-47c4-b333-2ad0be5c9512"
+      "turnId": "423900a1-33c4-472e-a6c5-3c8c2b1b9609"
     },
     {
       "type": "turn_completed",
       "provider": "opencode",
-      "turnId": "0d284555-3f55-47c4-b333-2ad0be5c9512",
+      "turnId": "423900a1-33c4-472e-a6c5-3c8c2b1b9609",
       "usage": {
-        "inputTokens": 26912,
-        "outputTokens": 6,
-        "cachedInputTokens": 0,
-        "totalCostUsd": 0.016161599999999998
+        "inputTokens": 4138,
+        "outputTokens": 13,
+        "cachedInputTokens": 22784,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa"
     },
     {
       "type": "timeline",
@@ -143,53 +145,69 @@
       "item": {
         "type": "user_message",
         "text": "Create a file named hello.txt in the current directory containing exactly the text: hi. Use your file-writing tool, then reply \"done\".",
-        "messageId": "msg_153d3100f001trByB7gFI9C9VB"
+        "messageId": "msg_1586895f2001zEpm47mcH4QWTZ"
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
-      "timestamp": "2026-10-19T11:01:43.803Z"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:31.792Z"
     },
     {
       "type": "timeline",
       "provider": "opencode",
       "item": {
         "type": "assistant_message",
-        "text": "\n\n",
-        "messageId": "msg_153d3107c001nmwxGmFH4nKvWq"
+        "text": "I'll create that file now.",
+        "messageId": "msg_158689645001qw5AV7I5ZdWSAi"
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
-      "timestamp": "2026-10-19T11:01:44.353Z"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:34.170Z"
     },
     {
       "type": "timeline",
       "provider": "opencode",
       "item": {
         "type": "tool_call",
-        "callId": "chatcmpl-tool-fa59faf76c3245638558eedef8dcd3ce",
+        "callId": "call_0260b127dbd34edeb6f62c08",
         "name": "write",
         "status": "running",
         "detail": {
           "type": "write",
-          "filePath": "/tmp/agentkit-opencode-kqArLV/hello.txt",
+          "filePath": ""
+        }
+      },
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:34.227Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "call_0260b127dbd34edeb6f62c08",
+        "name": "write",
+        "status": "running",
+        "detail": {
+          "type": "write",
+          "filePath": "/tmp/agentkit-opencode-2O173m/hello.txt",
           "content": "hi"
         },
         "metadata": {}
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
-      "timestamp": "2026-10-19T11:01:44.407Z"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:34.461Z"
     },
     {
       "type": "permission_requested",
       "provider": "opencode",
       "request": {
-        "id": "per_153d31332001FlNn50Vn91ElEX",
+        "id": "per_15868a100001wVAegjb0KwQ0BS",
         "provider": "opencode",
         "kind": "tool",
         "name": "edit",
         "title": "edit",
         "description": "hello.txt",
         "input": {
-          "id": "per_153d31332001FlNn50Vn91ElEX",
-          "sessionID": "ses_eac2d0956ffeEu5jvXMs9QOUSs",
+          "id": "per_15868a100001wVAegjb0KwQ0BS",
+          "sessionID": "ses_ea7978293ffeiwnjWCpngN6KY5",
           "action": "edit",
           "resources": [
             "hello.txt"
@@ -210,8 +228,8 @@
           },
           "source": {
             "type": "tool",
-            "messageID": "msg_153d3107c001nmwxGmFH4nKvWq",
-            "id": "chatcmpl-tool-fa59faf76c3245638558eedef8dcd3ce"
+            "messageID": "msg_158689645001qw5AV7I5ZdWSAi",
+            "id": "call_0260b127dbd34edeb6f62c08"
           }
         },
         "actions": [
@@ -232,12 +250,12 @@
           }
         ]
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa"
     },
     {
       "type": "permission_resolved",
       "provider": "opencode",
-      "requestId": "per_153d31332001FlNn50Vn91ElEX",
+      "requestId": "per_15868a100001wVAegjb0KwQ0BS",
       "response": {
         "behavior": "allow",
         "actionId": "once"
@@ -248,32 +266,33 @@
       "provider": "opencode",
       "item": {
         "type": "tool_call",
-        "callId": "chatcmpl-tool-fa59faf76c3245638558eedef8dcd3ce",
+        "callId": "call_0260b127dbd34edeb6f62c08",
         "name": "write",
         "status": "completed",
         "detail": {
           "type": "write",
-          "filePath": "/tmp/agentkit-opencode-kqArLV/hello.txt",
+          "filePath": "/tmp/agentkit-opencode-2O173m/hello.txt",
           "content": "hi"
         },
         "metadata": {
           "truncated": false
         }
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
-      "timestamp": "2026-10-19T11:01:44.538Z"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:34.581Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 27504,
-        "outputTokens": 80,
-        "cachedInputTokens": 26880,
-        "totalCostUsd": 0.016851719999999997,
-        "contextWindowUsedTokens": 27016
+        "inputTokens": 4468,
+        "outputTokens": 68,
+        "cachedInputTokens": 48896,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26497
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa"
     },
     {
       "type": "timeline",
@@ -281,32 +300,34 @@
       "item": {
         "type": "assistant_message",
         "text": "done",
-        "messageId": "msg_153d31444001nDvAUHbktAcjQ7"
+        "messageId": "msg_15868a1fe001kIwE4Xl0PAawkF"
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
-      "timestamp": "2026-10-19T11:01:45.258Z"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
+      "timestamp": "2026-10-20T08:23:36.442Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 27657,
-        "outputTokens": 83,
-        "cachedInputTokens": 53760,
-        "totalCostUsd": 0.01732704,
-        "contextWindowUsedTokens": 27036
+        "inputTokens": 4874,
+        "outputTokens": 71,
+        "cachedInputTokens": 75008,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26521
       },
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c"
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa"
     },
     {
       "type": "turn_completed",
       "provider": "opencode",
-      "turnId": "00df5db6-5039-40b6-93d0-b6d20e3e180c",
+      "turnId": "ae922f0b-b2ee-453f-9ab5-b1804cb0d9fa",
       "usage": {
-        "inputTokens": 27657,
-        "outputTokens": 83,
-        "cachedInputTokens": 53760,
-        "totalCostUsd": 0.01732704
+        "inputTokens": 4874,
+        "outputTokens": 71,
+        "cachedInputTokens": 75008,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
@@ -317,7 +338,7 @@
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "93479692-3d64-4a55-93c2-deea6924bc1a"
+      "turnId": "b4d5fd04-7509-46b7-83c6-2afa1a89f092"
     },
     {
       "type": "timeline",
@@ -325,10 +346,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "msg_153d317ff001TUzfbeBr205k28"
+        "messageId": "msg_15868aa65001oaIVUerrCExQxc"
       },
-      "turnId": "93479692-3d64-4a55-93c2-deea6924bc1a",
-      "timestamp": "2026-10-19T11:01:45.767Z"
+      "turnId": "b4d5fd04-7509-46b7-83c6-2afa1a89f092",
+      "timestamp": "2026-10-20T08:23:36.916Z"
     },
     {
       "type": "timeline",
@@ -336,38 +357,40 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "msg_153d318470016hw26mB3Fee2us"
+        "messageId": "msg_15868aa9c0010EYNA1O0hFbbQu"
       },
-      "turnId": "93479692-3d64-4a55-93c2-deea6924bc1a",
-      "timestamp": "2026-10-19T11:01:46.203Z"
+      "turnId": "b4d5fd04-7509-46b7-83c6-2afa1a89f092",
+      "timestamp": "2026-10-20T08:23:38.623Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 27703,
-        "outputTokens": 86,
-        "cachedInputTokens": 80640,
-        "totalCostUsd": 0.01773816,
-        "contextWindowUsedTokens": 26929
+        "inputTokens": 5181,
+        "outputTokens": 74,
+        "cachedInputTokens": 101120,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26422
       },
-      "turnId": "93479692-3d64-4a55-93c2-deea6924bc1a"
+      "turnId": "b4d5fd04-7509-46b7-83c6-2afa1a89f092"
     },
     {
       "type": "turn_completed",
       "provider": "opencode",
-      "turnId": "93479692-3d64-4a55-93c2-deea6924bc1a",
+      "turnId": "b4d5fd04-7509-46b7-83c6-2afa1a89f092",
       "usage": {
-        "inputTokens": 27703,
-        "outputTokens": 86,
-        "cachedInputTokens": 80640,
-        "totalCostUsd": 0.01773816
+        "inputTokens": 5181,
+        "outputTokens": 74,
+        "cachedInputTokens": 101120,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d"
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99"
     },
     {
       "type": "timeline",
@@ -375,28 +398,44 @@
       "item": {
         "type": "user_message",
         "text": "Run the shell command `sleep 60` and then reply \"finished\".",
-        "messageId": "msg_153d31b37001UiCFL6sacWgqH5"
+        "messageId": "msg_15868b333001J3RpkGrH7xRD6t"
       },
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d",
-      "timestamp": "2026-10-19T11:01:46.663Z"
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
+      "timestamp": "2026-10-20T08:23:39.170Z"
     },
     {
       "type": "timeline",
       "provider": "opencode",
       "item": {
         "type": "assistant_message",
-        "text": "\n\n",
-        "messageId": "msg_153d31ba2001EoBibUu3ig6t8W"
+        "text": "I'll run that command now.",
+        "messageId": "msg_15868b371001RQ1kuSXrbA7vYa"
       },
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d",
-      "timestamp": "2026-10-19T11:01:47.348Z"
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
+      "timestamp": "2026-10-20T08:23:41.453Z"
     },
     {
       "type": "timeline",
       "provider": "opencode",
       "item": {
         "type": "tool_call",
-        "callId": "chatcmpl-tool-ed07fc7e94fa4748ae14f55d0e847cd2",
+        "callId": "call_01a15868bb8f7302b033e570",
+        "name": "shell",
+        "status": "running",
+        "detail": {
+          "type": "shell",
+          "command": ""
+        }
+      },
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
+      "timestamp": "2026-10-20T08:23:41.496Z"
+    },
+    {
+      "type": "timeline",
+      "provider": "opencode",
+      "item": {
+        "type": "tool_call",
+        "callId": "call_01a15868bb8f7302b033e570",
         "name": "shell",
         "status": "running",
         "detail": {
@@ -405,15 +444,15 @@
         },
         "metadata": {}
       },
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d",
-      "timestamp": "2026-10-19T11:01:47.391Z"
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
+      "timestamp": "2026-10-20T08:23:41.645Z"
     },
     {
       "type": "timeline",
       "provider": "opencode",
       "item": {
         "type": "tool_call",
-        "callId": "chatcmpl-tool-ed07fc7e94fa4748ae14f55d0e847cd2",
+        "callId": "call_01a15868bb8f7302b033e570",
         "name": "shell",
         "status": "failed",
         "detail": {
@@ -422,22 +461,22 @@
         },
         "error": "Tool execution interrupted",
         "metadata": {
-          "shellID": "sh_153d31f47001HhrMv7S6jxzOG0"
+          "shellID": "sh_15868bd62001KvwaUsALWylgx8"
         }
       },
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d",
-      "timestamp": "2026-10-19T11:01:48.980Z"
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
+      "timestamp": "2026-10-20T08:23:43.046Z"
     },
     {
       "type": "turn_canceled",
       "provider": "opencode",
-      "turnId": "0539f351-4fb0-4ce7-ba03-ed684c6ccf7d",
+      "turnId": "98d06d7e-07ae-4373-b82b-18be1edf9c99",
       "reason": "user"
     },
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "fe075c3b-4f55-42f2-b652-efc421fcd21a"
+      "turnId": "5a3977e9-b324-4c18-bc67-9c176274b691"
     },
     {
       "type": "timeline",
@@ -445,10 +484,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "msg_153d32575001n0x7hPkkGgWm7Y"
+        "messageId": "msg_15868c30a00188YjFMvkbafzZP"
       },
-      "turnId": "fe075c3b-4f55-42f2-b652-efc421fcd21a",
-      "timestamp": "2026-10-19T11:01:49.179Z"
+      "turnId": "5a3977e9-b324-4c18-bc67-9c176274b691",
+      "timestamp": "2026-10-20T08:23:43.303Z"
     },
     {
       "type": "timeline",
@@ -456,38 +495,40 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "msg_153d325a3001O2Nb7NpUPgjBNM"
+        "messageId": "msg_15868c357001Sw7TN3P30I9Acz"
       },
-      "turnId": "fe075c3b-4f55-42f2-b652-efc421fcd21a",
-      "timestamp": "2026-10-19T11:01:49.605Z"
+      "turnId": "5a3977e9-b324-4c18-bc67-9c176274b691",
+      "timestamp": "2026-10-20T08:23:45.213Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 10935,
-        "outputTokens": 68,
-        "cachedInputTokens": 43520,
-        "totalCostUsd": 0.00711208,
-        "contextWindowUsedTokens": 27012
+        "inputTokens": 26514,
+        "outputTokens": 56,
+        "cachedInputTokens": 26910,
+        "totalCostUsd": 0.00005690000000000001,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26494
       },
-      "turnId": "fe075c3b-4f55-42f2-b652-efc421fcd21a"
+      "turnId": "5a3977e9-b324-4c18-bc67-9c176274b691"
     },
     {
       "type": "turn_completed",
       "provider": "opencode",
-      "turnId": "fe075c3b-4f55-42f2-b652-efc421fcd21a",
+      "turnId": "5a3977e9-b324-4c18-bc67-9c176274b691",
       "usage": {
-        "inputTokens": 10935,
-        "outputTokens": 68,
-        "cachedInputTokens": 43520,
-        "totalCostUsd": 0.00711208
+        "inputTokens": 26514,
+        "outputTokens": 56,
+        "cachedInputTokens": 26910,
+        "totalCostUsd": 0.00005690000000000001,
+        "contextWindowMaxTokens": 1000000
       }
     },
     {
       "type": "turn_started",
       "provider": "opencode",
-      "turnId": "7db3be35-d00a-4804-86bd-687426030c10"
+      "turnId": "4af820c5-7ef8-440d-9f53-4ff4cd956615"
     },
     {
       "type": "timeline",
@@ -495,10 +536,10 @@
       "item": {
         "type": "user_message",
         "text": "In my very first message of this conversation I asked you to reply with one specific word. What was that word? Reply with just that word.",
-        "messageId": "msg_153d33c00001DrAl5C2ie2tlGM"
+        "messageId": "msg_15868ddde001Nyr92Ir0tw6FUv"
       },
-      "turnId": "7db3be35-d00a-4804-86bd-687426030c10",
-      "timestamp": "2026-10-19T11:01:55.275Z"
+      "turnId": "4af820c5-7ef8-440d-9f53-4ff4cd956615",
+      "timestamp": "2026-10-20T08:23:50.345Z"
     },
     {
       "type": "timeline",
@@ -506,32 +547,34 @@
       "item": {
         "type": "assistant_message",
         "text": "marmalade",
-        "messageId": "msg_153d33d0e001fQTMaIdiLQXMnR"
+        "messageId": "msg_15868de9a001oSntRcacKA3MvK"
       },
-      "turnId": "7db3be35-d00a-4804-86bd-687426030c10",
-      "timestamp": "2026-10-19T11:01:56.014Z"
+      "turnId": "4af820c5-7ef8-440d-9f53-4ff4cd956615",
+      "timestamp": "2026-10-20T08:23:52.289Z"
     },
     {
       "type": "usage",
       "provider": "opencode",
       "usage": {
-        "inputTokens": 27784,
-        "outputTokens": 92,
-        "cachedInputTokens": 107520,
-        "totalCostUsd": 0.01817748,
-        "contextWindowUsedTokens": 26967
+        "inputTokens": 5529,
+        "outputTokens": 80,
+        "cachedInputTokens": 127232,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000,
+        "contextWindowUsedTokens": 26466
       },
-      "turnId": "7db3be35-d00a-4804-86bd-687426030c10"
+      "turnId": "4af820c5-7ef8-440d-9f53-4ff4cd956615"
     },
     {
       "type": "turn_completed",
       "provider": "opencode",
-      "turnId": "7db3be35-d00a-4804-86bd-687426030c10",
+      "turnId": "4af820c5-7ef8-440d-9f53-4ff4cd956615",
       "usage": {
-        "inputTokens": 27784,
-        "outputTokens": 92,
-        "cachedInputTokens": 107520,
-        "totalCostUsd": 0.01817748
+        "inputTokens": 5529,
+        "outputTokens": 80,
+        "cachedInputTokens": 127232,
+        "totalCostUsd": 0.0000558,
+        "contextWindowMaxTokens": 1000000
       }
     }
   ]

@@ -16,8 +16,8 @@ type Check = { name: string; ok: boolean; ms: number; note?: string }
 
 const CHEAP: Record<string, Partial<OpenSessionOptions>> = {
   claude: { model: 'haiku' },
-  codex: { thinking: 'low' },
-  opencode: {},
+  codex: { model: 'gpt-5.6-luna', thinking: 'low' },
+  opencode: { model: 'opencode-go/minimax-m3.1-flash-free' },
   mock: {},
 }
 /** OpenCode allows edits by default; force a prompt so the permission path is exercised. */

@@ -13,7 +13,7 @@ import path from 'node:path'
 import { createAgentKit, type AgentKit, type AgentSession, type ProviderId, type TimelineItem } from '../../src/index.ts'
 
 const providers: ProviderId[] = process.argv.slice(2).length ? process.argv.slice(2) : ['claude', 'codex', 'opencode']
-const CHEAP: Record<string, object> = { claude: { model: 'haiku' }, codex: { thinking: 'low' }, opencode: {}, mock: {} }
+const CHEAP: Record<string, object> = { claude: { model: 'haiku' }, codex: { model: 'gpt-5.6-luna', thinking: 'low' }, opencode: { model: 'opencode-go/minimax-m3.1-flash-free' }, mock: {} }
 const artifacts = path.join(import.meta.dirname, 'artifacts')
 mkdirSync(artifacts, { recursive: true })
 const out: Record<string, unknown> = {}

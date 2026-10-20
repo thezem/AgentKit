@@ -33,6 +33,8 @@ export interface AgentKitOptions {
   providers?: ProviderClient[]
   /** How long catalogs stay cached. Default 5 min. */
   catalogTtlMs?: number
+  /** How long `providers()` reuses an availability probe. Default 60s. */
+  availabilityTtlMs?: number
   /**
    * Durable store: a sqlite file path (node:sqlite, no deps) or your own AgentStore.
    * Events are written before they are shown; turns cut off by a crash come back
@@ -83,6 +85,8 @@ export class AgentKit {
   private readonly catalogs = new Map<string, { at: number; value: Promise<ProviderCatalog> }>()
   private readonly sessions = new Set<AgentSession>()
   private readonly ttl: number
+  private readonly availTtl: number
+  private readonly availability = new Map<ProviderId, { at: number; value: Promise<boolean> }>()
   private readonly submissions = new Map<string, Submission>()
   /** The durable store, if configured. */
   readonly store: AgentStore | null
@@ -95,6 +99,7 @@ export class AgentKit {
 
   constructor(options: AgentKitOptions = {}) {
     this.ttl = options.catalogTtlMs ?? 5 * 60_000
+    this.availTtl = options.availabilityTtlMs ?? 60_000
     this.store = typeof options.store === 'string' ? sqliteStore(options.store) : (options.store ?? null)
     this.recovered = this.store?.recover() ?? []
     const hubConfig = typeof options.hub === 'object' ? options.hub : {}
@@ -124,16 +129,32 @@ export class AgentKit {
     return [...this.clients.keys()]
   }
 
-  /** Which providers are installed, plus what each can do. Probes run in parallel. */
-  async providers(): Promise<ProviderStatus[]> {
+  /**
+   * Which providers are installed, plus what each can do. Probes run in parallel and are cached
+   * (`availabilityTtlMs`, default 60s); `{ force: true }` re-probes. For capabilities alone use `capabilities()`.
+   */
+  async providers(options: { force?: boolean } = {}): Promise<ProviderStatus[]> {
     return Promise.all(
       [...this.clients.values()].map(async (client) => ({
         provider: client.provider,
         label: client.label,
-        available: await client.isAvailable().catch(() => false),
+        available: await this.available(client, options.force),
         capabilities: client.capabilities,
       })),
     )
+  }
+
+  /** Static capabilities of a provider. Synchronous, no CLI probe. */
+  capabilities(provider: ProviderId): Capabilities {
+    return this.client(provider).capabilities
+  }
+
+  private available(client: ProviderClient, force?: boolean): Promise<boolean> {
+    const hit = this.availability.get(client.provider)
+    if (hit && !force && Date.now() - hit.at < this.availTtl) return hit.value
+    const value = client.isAvailable().catch(() => false)
+    this.availability.set(client.provider, { at: Date.now(), value })
+    return value
   }
 
   /** Models + modes for a provider (cached). Use it to render model / mode / thinking pickers. */

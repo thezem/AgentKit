@@ -81,3 +81,14 @@ Written before the `native-*` checks in `test/e2e/hub.ts`. Each session gets its
 | 47 | Non-text results break the call (image, error, undefined, unserialisable) | `native-results`: `toolResult.image/error`, `undefined`, circular object → valid MCP results, `isError` where it should be |
 | 48 | Always-present `kit.hub` changes behaviour for apps that never use it | `native-default`: kit without `hub` option and an empty hub → no port bound, no MCP config passed, CLI's own servers untouched |
 | 49 | Fork/resume loses the tool context | `native-ctx`: a resumed session gets a fresh token carrying the same `key` |
+
+## Provider servers outliving the host (#17)
+
+Written before `test/e2e/orphans.ts`. `opencode serve` runs detached (own process group) so it can be group-killed; that also cut its lifetime loose from the host.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 50 | Host is SIGKILLed → `opencode serve` (and its children) keep running forever under init | `orphans`: host child opens an OpenCode session, gets `kill -9`; no process carrying the run's marker env survives 10s |
+| 51 | The watchdog itself leaks (a `cat`/`sh` left behind) after a normal shutdown | `orphans`: graceful `kit.shutdown()` → no marked process left |
+| 52 | The watchdog kills a healthy server early, or swallows the "listening" line | `orphans`: session opens and answers `server.info` through the watchdog before the kill |
+| 53 | Server exits on its own → watchdog keeps the pipe-reader alive | `orphans`: kill only the `opencode` process → no marked `sh`/`cat` left |

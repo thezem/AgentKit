@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-20T08:18:08.879Z",
+  "checks": [
+    {
+      "name": "sigkill-host",
+      "ok": true,
+      "note": "4 processes gone after kill -9"
+    },
+    {
+      "name": "graceful-shutdown",
+      "ok": true,
+      "note": "nothing left"
+    },
+    {
+      "name": "server-dies-alone",
+      "ok": true,
+      "note": "watchdog exited with the server"
+    }
+  ]
+}

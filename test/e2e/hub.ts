@@ -14,7 +14,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { createAgentKit, readCliServers, ToolHub, toolResult, type ProviderId, type ToolContext } from '../../src/index.ts'
 
 const providers: ProviderId[] = process.argv.slice(2).length ? process.argv.slice(2) : ['claude', 'codex', 'opencode']
-const CHEAP: Record<string, object> = { claude: { model: 'haiku' }, codex: { thinking: 'low' }, opencode: {} }
+const CHEAP: Record<string, object> = { claude: { model: 'haiku' }, codex: { model: 'gpt-5.6-luna', thinking: 'low' }, opencode: { model: 'opencode-go/minimax-m3.1-flash-free' } }
 const dir = mkdtempSync(path.join(os.tmpdir(), 'agentkit-hub-'))
 execSync('git init -q', { cwd: dir })
 const hubFile = path.join(dir, 'mcp-servers.json')
