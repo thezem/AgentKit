@@ -1,0 +1,60 @@
+{
+  "at": "2026-10-20T09:12:44.510Z",
+  "providers": [
+    "claude",
+    "codex",
+    "opencode"
+  ],
+  "checks": [
+    {
+      "name": "claude-settings-merge",
+      "ok": true,
+      "note": "fast + flagSettings + sdkOptions + per-session settings/env all kept"
+    },
+    {
+      "name": "steer-replay:claude",
+      "ok": true,
+      "note": "steered message replayed as user_message"
+    },
+    {
+      "name": "question:claude",
+      "ok": true,
+      "note": "asked \"Do you prefer tea or coffee? [tea/coffee]\", reply used the answer"
+    },
+    {
+      "name": "rewind-files:claude",
+      "ok": true,
+      "note": "state.txt back to \"one\" (scope files)"
+    },
+    {
+      "name": "steer-replay:codex",
+      "ok": true,
+      "note": "steered message replayed as user_message"
+    },
+    {
+      "name": "question:codex",
+      "ok": true,
+      "note": "asked \"Which do you prefer? [tea/coffee]\", reply used the answer"
+    },
+    {
+      "name": "rewind-files:codex",
+      "ok": "skipped",
+      "note": "no rewindFiles"
+    },
+    {
+      "name": "steer-replay:opencode",
+      "ok": true,
+      "note": "steered message replayed as user_message"
+    },
+    {
+      "name": "question:opencode",
+      "ok": true,
+      "note": "asked \"Do you prefer tea or coffee? [tea/coffee]\", reply used the answer"
+    },
+    {
+      "name": "rewind-files:opencode",
+      "ok": true,
+      "note": "state.txt back to \"one\" (scope both)"
+    }
+  ]
+}

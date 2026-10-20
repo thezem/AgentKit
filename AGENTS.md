@@ -30,6 +30,7 @@ node test/e2e/skills.ts                # skill discovery/visibility vs each CLI,
 node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
 node test/e2e/orphans.ts               # opencode serve dies with its host (kill -9, graceful, server-only death); no model calls
 node test/e2e/host.ts claude codex opencode  # attachments, plan usage, complete, paged snapshots (mock version runs in verify)
+node test/e2e/proof.ts                 # settings merge, steer replay after resume, structured questions, file rewind
 npm run doctor                         # install/sign-in status per provider
 ```
 
@@ -48,3 +49,5 @@ npm run doctor                         # install/sign-in status per provider
 - Live E2E suites pin the cheapest models (Claude haiku, Codex gpt-5.6-luna low, OpenCode Go minimax-m3.1-flash-free). Keep it that way.
 - A thread never changes provider. Don't add a provider swap; a new provider means a new thread.
 - `src/attachment-tags.ts` is browser-safe like `transcript.ts` (ships as `@ouim/agentkit/attachment-tags`).
+- Codex offers `request_user_input` only in its plan collaboration mode (experimental `collaborationMode` on turn/start); the capsule's `plan` mode sends it. Regenerate wire types with `--experimental` to see those fields.
+- Claude file checkpointing tracks Write/Edit only; shell edits aren't rewound.

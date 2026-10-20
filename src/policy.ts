@@ -8,7 +8,7 @@ export type AccessLevel = 'plan' | 'supervised' | 'auto-edit' | 'full-access'
 
 export const ACCESS_MODE_MAP: Record<string, Record<AccessLevel, string>> = {
   claude: { plan: 'plan', supervised: 'default', 'auto-edit': 'acceptEdits', 'full-access': 'bypassPermissions' },
-  codex: { plan: 'read-only', supervised: 'read-only', 'auto-edit': 'auto', 'full-access': 'full-access' },
+  codex: { plan: 'plan', supervised: 'read-only', 'auto-edit': 'auto', 'full-access': 'full-access' },
   opencode: { plan: 'plan', supervised: 'build', 'auto-edit': 'build', 'full-access': 'build' },
   mock: { plan: 'ask', supervised: 'ask', 'auto-edit': 'ask', 'full-access': 'auto' },
 }

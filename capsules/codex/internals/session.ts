@@ -25,6 +25,7 @@ import { codexPlanUsage, describeError, mapCodexItem, usageFromCodex, type Codex
 import type { CodexRpc } from './rpc.ts'
 
 export const CODEX_MODES: AgentMode[] = [
+  { id: 'plan', label: 'Plan', description: "Codex's plan mode: read-only, plans first, can ask you structured questions." },
   { id: 'read-only', label: 'Read only', description: 'Can read files; asks before any write or command.' },
   { id: 'auto', label: 'Default', description: 'Edits inside the workspace, asks before leaving the sandbox.' },
   { id: 'full-access', label: 'Full access', description: 'No sandbox, no approval prompts.', unattended: true },
@@ -33,6 +34,8 @@ export const DEFAULT_CODEX_MODE = 'auto'
 
 const PRESETS: Record<string, { approvalPolicy: string; sandbox: string; sandboxPolicy: Record<string, unknown> }> = {
   'read-only': { approvalPolicy: 'on-request', sandbox: 'read-only', sandboxPolicy: { type: 'readOnly', networkAccess: false } },
+  // Read-only sandbox + Codex's `plan` collaboration mode (sent per turn); the only mode where Codex offers request_user_input.
+  plan: { approvalPolicy: 'on-request', sandbox: 'read-only', sandboxPolicy: { type: 'readOnly', networkAccess: false } },
   auto: {
     approvalPolicy: 'on-request',
     sandbox: 'workspace-write',
@@ -163,6 +166,16 @@ export class CodexSession implements ProviderSession {
     return this.threadId
   }
 
+  /** The thread's collaboration mode persists, so leaving plan sends `default` once. */
+  private lastCollaboration: 'plan' | 'default' = 'default'
+  private collaborationMode(): Record<string, unknown> {
+    const mode = this.modeId === 'plan' ? 'plan' : 'default'
+    if (mode === 'default' && this.lastCollaboration === 'default') return {}
+    if (!this.model) return {}
+    this.lastCollaboration = mode
+    return { collaborationMode: { mode, settings: { model: this.model, reasoning_effort: this.effort ?? null, developer_instructions: null } } }
+  }
+
   subscribe(listener: (event: AgentEvent) => void): () => void {
     return this.events.on(listener)
   }
@@ -183,6 +196,7 @@ export class CodexSession implements ProviderSession {
       ...(this.model ? { model: this.model } : {}),
       ...(this.effort ? { effort: this.effort } : {}),
       serviceTier,
+      ...this.collaborationMode(),
       ...(options?.outputSchema !== undefined ? { outputSchema: options.outputSchema } : {}),
       ...(options?.clientMessageId ? { clientUserMessageId: options.clientMessageId } : {}),
     })

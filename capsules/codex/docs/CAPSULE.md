@@ -18,7 +18,7 @@ await codex.shutdown()
 | Export | What |
 | --- | --- |
 | `createCodexClient(config?)` | Returns a `ProviderClient` (see `../shared/contract.ts`) |
-| `CODEX_MODES` | `read-only`, `auto` (default), `full-access` |
+| `CODEX_MODES` | `plan` (read-only + Codex plan collaboration mode; the only mode with structured questions), `read-only`, `auto` (default), `full-access` |
 | `CODEX_CAPABILITIES` | What this capsule supports |
 
 Config: `binary`, `args` (inserted before `app-server`, e.g. `['-c','model_reasoning_summary=detailed']`), `env` (e.g. `CODEX_HOME`), `requestTimeoutMs`.

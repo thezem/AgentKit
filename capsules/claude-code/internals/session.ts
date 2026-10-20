@@ -177,6 +177,13 @@ export class ClaudeSession implements ProviderSession {
       ...this.runtime.extraOptions,
       ...(this.config.providerOptions as Partial<Options> | undefined),
     }
+    // `settings` and `env` merge across layers (kit sdkOptions, flagSettings, per-session providerOptions)
+    // instead of the last spread replacing the rest; fast mode always survives.
+    const native = (this.config.providerOptions ?? {}) as Partial<Options>
+    const extra = this.runtime.extraOptions ?? {}
+    const layers = [this.runtime.flagSettings?.(), extra.settings, native.settings].filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+    if (layers.length || this.fast) options.settings = Object.assign({}, ...layers, this.fast ? { fastMode: true } : {}) as Options['settings']
+    options.env = { ...process.env, ...this.config.env, ...extra.env, ...native.env } as Record<string, string>
     // Readable folders (AgentKit's attachments) merge with any additionalDirectories the host passed.
     if (this.config.readableDirs?.length) options.additionalDirectories = [...new Set([...(options.additionalDirectories ?? []), ...this.config.readableDirs])]
     return options

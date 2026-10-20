@@ -235,6 +235,8 @@ await session.respond(request.id, 'deny')
 await session.respond(request.id, { behavior: 'allow', answers: { [questionId]: 'option' } })
 ```
 
+**Codex asks structured questions only in plan mode** (`access: 'plan'`, which maps to Codex's own plan collaboration mode). Claude and OpenCode can ask in any mode.
+
 A request has `kind` (`tool` · `question` · `plan` · `other`), `title`, `detail` (typed like tool calls: show the diff/command), `actions` (the buttons the provider offers) and `questions`. Show the actual command or diff, not just the tool name. This is the one place that deserves an accent colour: it's the only time the agent is waiting on the user.
 
 ---
@@ -333,6 +335,8 @@ await session.compact('keep the API decisions')                // native compact
 
 - `messageId` comes from `user_message.messageId` in the transcript.
 - Fork is the safe alternative to rewind: offer it on every user message ("branch from here"). It returns a live session with the hydrated transcript; give it its own `key`.
+- File rewind on Claude restores what its file tools (Write/Edit) changed. **Changes made through shell commands are not tracked** (Claude's checkpointing limit). OpenCode snapshots the whole worktree, so it covers shell changes too.
+- Steered messages come back as normal `user_message`s in `history()` after a resume on all three providers.
 - After rewind the native id may change; `session.key` doesn't. Re-read `session.handle` if you keep handles yourself.
 - Compact counts as busy (submits queue behind it). Show progress; it can take 10+ s on Codex.
 
@@ -452,3 +456,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + safe steer** — Claude steer defaults to `priority: 'next'` (waits for the next safe point); `claude.steerPriority: 'now'` restores the old behaviour.
 - **0.2 + host fixes** — `kit.providers()` caches availability (60s, `{ force }`), `kit.capabilities(provider)`; Claude `flagSettings: () => ({...})` per-run flag settings merged with fast mode, catalog `metadata.resolvedModel`; hub `AGENTKIT_INHERIT_ENV`; Codex hub servers colliding with config.toml names mount as `<name>-hub`; `opencode serve` dies with its host even on SIGKILL (POSIX watchdog).
 - **0.2 + host primitives** — `submit({ attachments })` (saved, readable without prompts, images inline, `user_message.attachments`, `@ouim/agentkit/attachment-tags`), `kit.planUsage(provider)` + `plan_usage` event, `kit.complete()`, `kit.transcriptPage()` / `pageTranscript` / `prependPage` + `transcript.itemsOffset`; documented that a thread never changes provider.
+- **0.2 + proofs** — Codex `plan` mode (plan collaboration mode; `access: 'plan'` maps to it) so Codex can ask structured questions; Claude `providerOptions.settings`/`env` now merge with fast mode, `flagSettings` and `sdkOptions` instead of replacing them; documented Claude file rewind's shell limit. Proven live: questions, file rewind, steer replay after resume (`test/e2e/proof.ts`).

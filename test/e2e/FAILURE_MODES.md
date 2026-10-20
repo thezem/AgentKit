@@ -106,3 +106,14 @@ Written before `test/e2e/host.ts`. A thread never changes provider; none of thes
 | 58 | Plan usage throws, or invents numbers when the provider has none | `plan-usage:<p>`: Claude/Codex windows with 0–100 percent and an ISO reset; OpenCode → `UNSUPPORTED_CAPABILITY` |
 | 59 | `complete()` leaves a session behind (listed, saved, process running) or uses tools | `complete:<p>`: exact-answer prompt; session list unchanged; no tool_call |
 | 60 | Paged snapshot drops or duplicates items, or the cursor walks wrong | `page`: latest N + cursor, then older pages, concatenate to the full transcript exactly; live session page matches stored |
+
+## Issue #15 leftovers: settings merge, steer replay, questions, file rewind
+
+Written before `test/e2e/proof.ts`.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 61 | Per-session `providerOptions.settings` / `env` replace the capsule's own (fast mode, host flag settings, process env) | `claude-settings-merge`: fast + `flagSettings` + `sdkOptions.settings` + per-session `settings`/`env` all present in the options Claude gets |
+| 62 | A steered message vanishes from history after a resume (stored differently from a normal prompt) | `steer-replay:<p>`: steer a nonce mid-turn, resume from the handle in a fresh kit, `history()` has a `user_message` with the nonce, all three |
+| 63 | A structured question never reaches the host, or the answer never reaches the model | `question:<p>`: model must ask tea/coffee via its question tool; `kind: 'question'` arrives with options; we answer "coffee"; reply says coffee |
+| 64 | File rewind leaves files as they were (or rewinds the wrong turn) | `rewind-files:<p>`: turn 1 writes "one", turn 2 overwrites with "two", rewind to turn 2's message → file says "one" again (providers with `rewindFiles`) |
