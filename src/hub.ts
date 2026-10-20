@@ -14,6 +14,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import type { McpServerConfig, ProviderId } from '../capsules/shared/contract.ts'
 
 /**
+ * Extra host env vars MCP servers should see on top of the SDK's safe default set, named in AGENTKIT_INHERIT_ENV
+ * (comma-separated). Hosts use it for process ownership tags (e.g. MYAPP_OWNER) so cleanup can find what servers spawn.
+ */
+const inheritedEnv = (): Record<string, string> =>
+  Object.fromEntries((process.env.AGENTKIT_INHERIT_ENV ?? '').split(',').map((k) => k.trim()).filter((k) => k && process.env[k] !== undefined).map((k) => [k, process.env[k]!]))
+
+/**
  * One MCP registry for every provider and model.
  *
  * You add servers once (a command, a remote URL, or plain functions). The hub connects
@@ -157,7 +164,7 @@ class Upstream {
       }
       const t = this.config.transport
       if (t.type === 'stdio') {
-        const transport = new StdioClientTransport({ command: t.command, args: t.args ?? [], env: { ...getDefaultEnvironment(), ...(t.env ?? {}) }, cwd: t.cwd, stderr: 'pipe' })
+        const transport = new StdioClientTransport({ command: t.command, args: t.args ?? [], env: { ...getDefaultEnvironment(), ...inheritedEnv(), ...(t.env ?? {}) }, cwd: t.cwd, stderr: 'pipe' })
         transport.stderr?.on('data', (chunk: Buffer) => {
           stderr.push(chunk.toString())
           if (stderr.length > 20) stderr.shift()
