@@ -75,6 +75,9 @@ export interface ClaudeRuntimeOptions {
   flagSettings?: () => Record<string, unknown> | undefined
 }
 
+/** How long interrupt() waits for the CLI to stop on its own before stopping the process. */
+const INTERRUPT_GRACE_MS = 10_000
+
 /** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
 type Turn = { id: string; done: ReturnType<typeof deferred<void>>; interrupted: boolean; schemaKey: string | null; lastMessageId: string }
 type PendingPermission = { request: PermissionRequest; resolve: (result: PermissionResult) => void; input: Record<string, unknown> }
@@ -278,8 +281,13 @@ export class ClaudeSession implements ProviderSession {
     turn.interrupted = true
     for (const id of [...this.permissions.keys()]) await this.respondToPermission(id, { behavior: 'deny', message: 'interrupted' }).catch(() => undefined)
     await this.q?.interrupt().catch(() => undefined)
-    await Promise.race([turn.done.promise, new Promise((r) => setTimeout(r, 10_000))])
-    if (this.turn === turn) this.endTurn({ type: 'turn_canceled', provider: 'claude', turnId: turn.id, reason: 'interrupted' })
+    await Promise.race([turn.done.promise, new Promise((r) => setTimeout(r, INTERRUPT_GRACE_MS))])
+    if (this.turn !== turn) return
+    // The CLI ignored the interrupt and is still working. Reporting the turn over while it runs on would put host and
+    // CLI out of step (the next prompt lands mid-turn). End the turn first (so the closing stream can't fail it), then
+    // stop the process; the next turn starts a fresh one that resumes the same session.
+    this.endTurn({ type: 'turn_canceled', provider: 'claude', turnId: turn.id, reason: 'interrupted' })
+    await this.stopQuery()
   }
 
   private endTurn(event: Extract<AgentEvent, { type: 'turn_completed' | 'turn_failed' | 'turn_canceled' }>): void {

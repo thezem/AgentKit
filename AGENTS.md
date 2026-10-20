@@ -29,6 +29,7 @@ node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency
 node test/e2e/skills.ts                # skill discovery/visibility vs each CLI, search, expansion, invocation
 node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
 node test/e2e/hub-retry.ts             # HTTP upstreams: honest errors, SSE fallback only on 4xx, reconnect with backoff (no models; runs in verify)
+node test/e2e/claude-interrupt.ts      # a Claude CLI that ignores Stop is closed after 10s; next turn resumes (haiku)
 node test/e2e/orphans.ts               # opencode serve dies with its host (kill -9, graceful, server-only death); no model calls
 node test/e2e/host.ts claude codex opencode  # attachments, plan usage, complete, paged snapshots (mock version runs in verify)
 node test/e2e/proof.ts                 # settings merge, steer replay after resume, structured questions, file rewind
