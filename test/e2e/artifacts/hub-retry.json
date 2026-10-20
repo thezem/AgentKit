@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-20T10:58:47.413Z",
+  "checks": [
+    {
+      "name": "retry-after-failure",
+      "ok": true,
+      "note": "failed with \"fetch failed\", connected 5.1s later without refresh"
+    },
+    {
+      "name": "no-sse-on-5xx",
+      "ok": true,
+      "note": "Streamable HTTP error: Error POSTing to endpoint: down"
+    },
+    {
+      "name": "sse-fallback-on-405",
+      "ok": true,
+      "note": "connected over SSE, 1 tool"
+    }
+  ]
+}

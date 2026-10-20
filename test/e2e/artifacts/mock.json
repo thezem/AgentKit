@@ -1,35 +1,35 @@
 {
   "provider": "mock",
-  "cwd": "/tmp/agentkit-mock-uYV1Q1",
+  "cwd": "/tmp/agentkit-mock-EIKBHB",
   "passed": 11,
   "total": 11,
   "checks": [
     {
       "name": "available",
       "ok": true,
-      "ms": 259
+      "ms": 204
     },
     {
       "name": "catalog",
       "ok": true,
-      "ms": 1,
+      "ms": 0,
       "note": "2 models, modes=ask/auto"
     },
     {
       "name": "basic-turn",
       "ok": true,
-      "ms": 62,
+      "ms": 52,
       "note": "\"echo: Reply with exactly the single word: marmalade\" in=45 out=51"
     },
     {
       "name": "transcript",
       "ok": true,
-      "ms": 1
+      "ms": 0
     },
     {
       "name": "permission",
       "ok": true,
-      "ms": 26,
+      "ms": 25,
       "note": "asked=[tool:shell] tool=shell:shell"
     },
     {
@@ -41,20 +41,20 @@
     {
       "name": "history",
       "ok": true,
-      "ms": 0,
+      "ms": 1,
       "note": "7 items, 2 user messages"
     },
     {
       "name": "rewind",
       "ok": true,
-      "ms": 30,
+      "ms": 31,
       "note": "history 7→3"
     },
     {
       "name": "interrupt",
       "ok": true,
-      "ms": 1782,
-      "note": "stopped in 29ms, next turn ok"
+      "ms": 1784,
+      "note": "stopped in 31ms, next turn ok"
     },
     {
       "name": "resume",
@@ -65,7 +65,7 @@
     {
       "name": "list-sessions",
       "ok": true,
-      "ms": 1,
+      "ms": 0,
       "note": "2 sessions in cwd"
     }
   ],
@@ -85,7 +85,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
     },
     {
       "type": "timeline",
@@ -93,10 +93,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly the single word: marmalade",
-        "messageId": "5dec33b3-7280-4ba6-a606-2e46b7a76ba1"
+        "messageId": "9528813d-1a82-4b2b-96af-5e3ff3b6117c"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.270Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.656Z"
     },
     {
       "type": "timeline",
@@ -105,8 +105,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly the single word: marm\""
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.270Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.656Z"
     },
     {
       "type": "timeline",
@@ -114,10 +114,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.279Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.662Z"
     },
     {
       "type": "timeline",
@@ -125,10 +125,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.285Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.668Z"
     },
     {
       "type": "timeline",
@@ -136,10 +136,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.291Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.674Z"
     },
     {
       "type": "timeline",
@@ -147,10 +147,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.298Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.680Z"
     },
     {
       "type": "timeline",
@@ -158,10 +158,10 @@
       "item": {
         "type": "assistant_message",
         "text": "the ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.304Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.686Z"
     },
     {
       "type": "timeline",
@@ -169,10 +169,10 @@
       "item": {
         "type": "assistant_message",
         "text": "single ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.310Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.692Z"
     },
     {
       "type": "timeline",
@@ -180,10 +180,10 @@
       "item": {
         "type": "assistant_message",
         "text": "word: ",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.315Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.697Z"
     },
     {
       "type": "timeline",
@@ -191,15 +191,15 @@
       "item": {
         "type": "assistant_message",
         "text": "marmalade",
-        "messageId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3"
+        "messageId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7"
       },
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
-      "timestamp": "2026-10-19T15:28:52.320Z"
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
+      "timestamp": "2026-10-20T10:58:05.702Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "bc8d4aea-ed8d-4da5-9a99-7efde35d64c3",
+      "turnId": "7f1e9b1e-ae8e-4ade-a910-86bc0936d7e7",
       "usage": {
         "inputTokens": 45,
         "outputTokens": 51,
@@ -211,7 +211,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26"
     },
     {
       "type": "timeline",
@@ -219,10 +219,10 @@
       "item": {
         "type": "user_message",
         "text": "make the file [tool]",
-        "messageId": "8b55567e-9c46-4476-bd59-43ac4a778499"
+        "messageId": "34ad818c-6ad7-4996-9d51-99ddcad129c9"
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.324Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.705Z"
     },
     {
       "type": "timeline",
@@ -231,31 +231,31 @@
         "type": "reasoning",
         "text": "Thinking about \"make the file [tool]\""
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.324Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.705Z"
     },
     {
       "type": "timeline",
       "provider": "mock",
       "item": {
         "type": "tool_call",
-        "callId": "4187f38a-b4d1-4dbe-aad1-ab2290cd353e",
+        "callId": "77a1f9dd-e3b8-450d-a565-50642153f995",
         "name": "shell",
         "status": "running",
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uYV1Q1"
+          "cwd": "/tmp/agentkit-mock-EIKBHB"
         }
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.324Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.705Z"
     },
     {
       "type": "permission_requested",
       "provider": "mock",
       "request": {
-        "id": "4187f38a-b4d1-4dbe-aad1-ab2290cd353e",
+        "id": "77a1f9dd-e3b8-450d-a565-50642153f995",
         "provider": "mock",
         "kind": "tool",
         "name": "shell",
@@ -263,7 +263,7 @@
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uYV1Q1"
+          "cwd": "/tmp/agentkit-mock-EIKBHB"
         },
         "actions": [
           {
@@ -278,12 +278,12 @@
           }
         ]
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26"
     },
     {
       "type": "permission_resolved",
       "provider": "mock",
-      "requestId": "4187f38a-b4d1-4dbe-aad1-ab2290cd353e",
+      "requestId": "77a1f9dd-e3b8-450d-a565-50642153f995",
       "response": {
         "behavior": "allow",
         "actionId": "once"
@@ -294,19 +294,19 @@
       "provider": "mock",
       "item": {
         "type": "tool_call",
-        "callId": "4187f38a-b4d1-4dbe-aad1-ab2290cd353e",
+        "callId": "77a1f9dd-e3b8-450d-a565-50642153f995",
         "name": "shell",
         "status": "completed",
         "detail": {
           "type": "shell",
           "command": "echo hello",
-          "cwd": "/tmp/agentkit-mock-uYV1Q1",
+          "cwd": "/tmp/agentkit-mock-EIKBHB",
           "output": "hello\n",
           "exitCode": 0
         }
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.326Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.706Z"
     },
     {
       "type": "timeline",
@@ -314,10 +314,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+        "messageId": "2206facf-6ecb-455a-a906-2d6be4791e26"
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.332Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.712Z"
     },
     {
       "type": "timeline",
@@ -325,10 +325,10 @@
       "item": {
         "type": "assistant_message",
         "text": "make ",
-        "messageId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+        "messageId": "2206facf-6ecb-455a-a906-2d6be4791e26"
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.338Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.718Z"
     },
     {
       "type": "timeline",
@@ -336,10 +336,10 @@
       "item": {
         "type": "assistant_message",
         "text": "the ",
-        "messageId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+        "messageId": "2206facf-6ecb-455a-a906-2d6be4791e26"
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.343Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.722Z"
     },
     {
       "type": "timeline",
@@ -347,15 +347,15 @@
       "item": {
         "type": "assistant_message",
         "text": "file",
-        "messageId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58"
+        "messageId": "2206facf-6ecb-455a-a906-2d6be4791e26"
       },
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
-      "timestamp": "2026-10-19T15:28:52.348Z"
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
+      "timestamp": "2026-10-20T10:58:05.728Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "143f6f0a-528d-4ae7-aee1-cf4c0f9e0e58",
+      "turnId": "2206facf-6ecb-455a-a906-2d6be4791e26",
       "usage": {
         "inputTokens": 20,
         "outputTokens": 19,
@@ -372,7 +372,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86"
     },
     {
       "type": "timeline",
@@ -380,10 +380,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "a7869917-4394-47ab-8b28-9ba7e2de4b4c"
+        "messageId": "e1910990-5c53-4b1e-9b76-e7c2c02a2fcc"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.354Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.732Z"
     },
     {
       "type": "timeline",
@@ -392,8 +392,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly: ok\""
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.354Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.732Z"
     },
     {
       "type": "timeline",
@@ -401,10 +401,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+        "messageId": "302b7512-613c-4bf3-904f-9133eccb9f86"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.360Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.738Z"
     },
     {
       "type": "timeline",
@@ -412,10 +412,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+        "messageId": "302b7512-613c-4bf3-904f-9133eccb9f86"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.365Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.744Z"
     },
     {
       "type": "timeline",
@@ -423,10 +423,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+        "messageId": "302b7512-613c-4bf3-904f-9133eccb9f86"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.370Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.750Z"
     },
     {
       "type": "timeline",
@@ -434,10 +434,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly: ",
-        "messageId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+        "messageId": "302b7512-613c-4bf3-904f-9133eccb9f86"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.376Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.756Z"
     },
     {
       "type": "timeline",
@@ -445,15 +445,15 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b"
+        "messageId": "302b7512-613c-4bf3-904f-9133eccb9f86"
       },
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
-      "timestamp": "2026-10-19T15:28:52.382Z"
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
+      "timestamp": "2026-10-20T10:58:05.761Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "1881feeb-07fb-4723-a4aa-a8f0cc7f960b",
+      "turnId": "302b7512-613c-4bf3-904f-9133eccb9f86",
       "usage": {
         "inputTokens": 22,
         "outputTokens": 28,
@@ -465,7 +465,7 @@
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
     },
     {
       "type": "timeline",
@@ -473,10 +473,10 @@
       "item": {
         "type": "user_message",
         "text": "a b c d e f g h i j k l m n o p q r s t u v w x y z [slow]",
-        "messageId": "fc9fcf6f-a6f4-4b66-9d84-4d246cc0832a"
+        "messageId": "94cc7763-96b4-4ee7-99c0-9046836e37e8"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:52.385Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:05.764Z"
     },
     {
       "type": "timeline",
@@ -485,8 +485,8 @@
         "type": "reasoning",
         "text": "Thinking about \"a b c d e f g h i j k l m n o p q r s t \""
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:52.385Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:05.764Z"
     },
     {
       "type": "timeline",
@@ -494,10 +494,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:52.635Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:06.015Z"
     },
     {
       "type": "timeline",
@@ -505,10 +505,10 @@
       "item": {
         "type": "assistant_message",
         "text": "a ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:52.885Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:06.265Z"
     },
     {
       "type": "timeline",
@@ -516,10 +516,10 @@
       "item": {
         "type": "assistant_message",
         "text": "b ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:53.136Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:06.516Z"
     },
     {
       "type": "timeline",
@@ -527,10 +527,10 @@
       "item": {
         "type": "assistant_message",
         "text": "c ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:53.386Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:06.767Z"
     },
     {
       "type": "timeline",
@@ -538,10 +538,10 @@
       "item": {
         "type": "assistant_message",
         "text": "d ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:53.637Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:07.019Z"
     },
     {
       "type": "timeline",
@@ -549,21 +549,21 @@
       "item": {
         "type": "assistant_message",
         "text": "e ",
-        "messageId": "8b52d563-267d-42fa-9a3e-21b7903545da"
+        "messageId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52"
       },
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
-      "timestamp": "2026-10-19T15:28:53.888Z"
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
+      "timestamp": "2026-10-20T10:58:07.269Z"
     },
     {
       "type": "turn_canceled",
       "provider": "mock",
-      "turnId": "8b52d563-267d-42fa-9a3e-21b7903545da",
+      "turnId": "0c9f25c3-2f2a-4493-8036-cdcd7a8e4c52",
       "reason": "interrupted"
     },
     {
       "type": "turn_started",
       "provider": "mock",
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff"
     },
     {
       "type": "timeline",
@@ -571,10 +571,10 @@
       "item": {
         "type": "user_message",
         "text": "Reply with exactly: ok",
-        "messageId": "9c3cd12b-dc3b-45c8-b851-fd5f3d596e76"
+        "messageId": "3190d243-c753-4e5d-8deb-cd380fd26eb8"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.138Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.517Z"
     },
     {
       "type": "timeline",
@@ -583,8 +583,8 @@
         "type": "reasoning",
         "text": "Thinking about \"Reply with exactly: ok\""
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.138Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.517Z"
     },
     {
       "type": "timeline",
@@ -592,10 +592,10 @@
       "item": {
         "type": "assistant_message",
         "text": "echo: ",
-        "messageId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+        "messageId": "0815af7f-ac65-4450-962a-ecc21de080ff"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.142Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.523Z"
     },
     {
       "type": "timeline",
@@ -603,10 +603,10 @@
       "item": {
         "type": "assistant_message",
         "text": "Reply ",
-        "messageId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+        "messageId": "0815af7f-ac65-4450-962a-ecc21de080ff"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.147Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.529Z"
     },
     {
       "type": "timeline",
@@ -614,10 +614,10 @@
       "item": {
         "type": "assistant_message",
         "text": "with ",
-        "messageId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+        "messageId": "0815af7f-ac65-4450-962a-ecc21de080ff"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.153Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.534Z"
     },
     {
       "type": "timeline",
@@ -625,10 +625,10 @@
       "item": {
         "type": "assistant_message",
         "text": "exactly: ",
-        "messageId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+        "messageId": "0815af7f-ac65-4450-962a-ecc21de080ff"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.158Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.540Z"
     },
     {
       "type": "timeline",
@@ -636,15 +636,15 @@
       "item": {
         "type": "assistant_message",
         "text": "ok",
-        "messageId": "eeeb9453-6e83-42a4-b55e-6acd4364c493"
+        "messageId": "0815af7f-ac65-4450-962a-ecc21de080ff"
       },
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
-      "timestamp": "2026-10-19T15:28:54.164Z"
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
+      "timestamp": "2026-10-20T10:58:07.545Z"
     },
     {
       "type": "turn_completed",
       "provider": "mock",
-      "turnId": "eeeb9453-6e83-42a4-b55e-6acd4364c493",
+      "turnId": "0815af7f-ac65-4450-962a-ecc21de080ff",
       "usage": {
         "inputTokens": 22,
         "outputTokens": 28,

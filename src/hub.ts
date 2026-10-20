@@ -130,6 +130,8 @@ const CALL_TIMEOUT_MS = 120_000
 
 // ------------------------------------------------------------------ upstream
 
+const RETRY_MAX_MS = 5 * 60_000
+
 class Upstream {
   config: HubServerConfig
   status: HubStatus = 'off'
@@ -138,6 +140,8 @@ class Upstream {
   private client: Client | null = null
   private connecting: Promise<void> | null = null
   private closing = false
+  private retry: NodeJS.Timeout | null = null
+  private attempts = 0
   private readonly onChange: () => void
 
   constructor(config: HubServerConfig, onChange: () => void) {
@@ -146,6 +150,8 @@ class Upstream {
   }
 
   connect(): Promise<void> {
+    if (this.retry) clearTimeout(this.retry)
+    this.retry = null
     if (this.status === 'connected' && this.client) return Promise.resolve()
     this.connecting ??= this.open().finally(() => (this.connecting = null))
     return this.connecting
@@ -176,9 +182,15 @@ class Upstream {
         try {
           await withTimeout(client.connect(new StreamableHTTPClientTransport(url, init)), 30_000, 'connect')
         } catch (error) {
-          if (isAuthError(error)) throw error
-          // Older servers only speak SSE.
-          await withTimeout(client.connect(new SSEClientTransport(url, init)), 30_000, 'connect (sse)')
+          // Spec back-compat: only a 4xx on the initialize POST means "SSE-only server". Timeouts, network errors
+          // and 5xx keep their own error instead of turning into a misleading SSE 405.
+          const code = (error as { code?: unknown })?.code
+          if (isAuthError(error) || typeof code !== 'number' || code < 400 || code > 499) throw error
+          try {
+            await withTimeout(client.connect(new SSEClientTransport(url, init)), 30_000, 'connect (sse)')
+          } catch (sse) {
+            throw new Error(`${message(error)} (SSE fallback: ${message(sse)})`)
+          }
         }
       }
       this.client = client
@@ -211,6 +223,9 @@ class Upstream {
 
   async close(): Promise<void> {
     this.closing = true
+    if (this.retry) clearTimeout(this.retry)
+    this.retry = null
+    this.attempts = 0
     const client = this.client
     this.client = null
     await client?.close().catch(() => undefined)
@@ -221,6 +236,15 @@ class Upstream {
   private set(status: HubStatus, error?: string): void {
     this.status = status
     this.error = error
+    if (status === 'connected') this.attempts = 0
+    // A failed upstream (connect error or a later drop) reconnects on its own: 5s, 15s, 45s, 135s, then every 5 min.
+    if (status === 'failed' && !this.closing && !this.retry) {
+      this.retry = setTimeout(() => {
+        this.retry = null
+        void this.connect()
+      }, Math.min(5_000 * 3 ** this.attempts++, RETRY_MAX_MS))
+      this.retry.unref()
+    }
     this.onChange()
   }
 }

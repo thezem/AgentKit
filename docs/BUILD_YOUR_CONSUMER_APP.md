@@ -363,6 +363,7 @@ kit.hub.on((e) => /* status | removed | call */)
 - Toggles and adds apply to **new** threads. Say so in the UI.
 - `load` is a Claude-only hint today: `'always'` → `alwaysLoad` (schemas up front), `'on-demand'` → Claude's tool search. Codex and OpenCode load every tool up front either way; label the control accordingly.
 - Status per server: `connected | starting | failed | needs_auth | off`, with `error` and `tools`. Show a badge + tool count; a failed server never blocks the others.
+- A `failed` server reconnects by itself (5s, 15s, 45s, 135s, then every 5 min), whether the connect failed or the server dropped later. `refresh(name)` retries now and takes over the schedule. `needs_auth` and `off` never retry. Show the `error` as is: an HTTP server only falls back to legacy SSE when the initialize POST gets a 4xx, so a timeout or 5xx reads as itself, not as an SSE 405.
 - Never send env/header values to the browser. Mask them (see [`server.ts`](../examples/web/server.ts) `publicServer`).
 - Settings UI reference: [`mcp-settings.tsx`](../examples/web/src/components/mcp-settings.tsx): list with badge, tool count, On demand/Always, delete, enable switch; Add dialog with Command (stdio) / Remote (HTTP) tabs; Import; live updates over SSE.
 
@@ -434,7 +435,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 
 - `createAgentKit({ mock: true })` gives a free, deterministic provider with every capability. Prompt directives: `[tool]` (permission + shell tool), `[ask]` (question), `[fail]`, `[slow]`.
 - Run AgentKit's own suites against your machine before blaming your app:
-  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`, `node test/e2e/hub.ts`.
+  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`, `node test/e2e/hub.ts`, `node test/e2e/hub-retry.ts`.
 
 ---
 
@@ -457,3 +458,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + host fixes** — `kit.providers()` caches availability (60s, `{ force }`), `kit.capabilities(provider)`; Claude `flagSettings: () => ({...})` per-run flag settings merged with fast mode, catalog `metadata.resolvedModel`; hub `AGENTKIT_INHERIT_ENV`; Codex hub servers colliding with config.toml names mount as `<name>-hub`; `opencode serve` dies with its host even on SIGKILL (POSIX watchdog).
 - **0.2 + host primitives** — `submit({ attachments })` (saved, readable without prompts, images inline, `user_message.attachments`, `@ouim/agentkit/attachment-tags`), `kit.planUsage(provider)` + `plan_usage` event, `kit.complete()`, `kit.transcriptPage()` / `pageTranscript` / `prependPage` + `transcript.itemsOffset`; documented that a thread never changes provider.
 - **0.2 + proofs** — Codex `plan` mode (plan collaboration mode; `access: 'plan'` maps to it) so Codex can ask structured questions; Claude `providerOptions.settings`/`env` now merge with fast mode, `flagSettings` and `sdkOptions` instead of replacing them; documented Claude file rewind's shell limit. Proven live: questions, file rewind, steer replay after resume (`test/e2e/proof.ts`).
+- **0.2 + hub reconnect** — failed hub upstreams reconnect with backoff (5s → 5 min); HTTP upstreams fall back to SSE only on a 4xx, and a failed fallback reports both errors.

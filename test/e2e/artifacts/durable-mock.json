@@ -1,6 +1,6 @@
 {
   "mock": {
-    "storeFile": "/tmp/agentkit-durable-mock-wPkXpd/agentkit.db",
+    "storeFile": "/tmp/agentkit-durable-mock-uumVqw/agentkit.db",
     "checks": [
       {
         "name": "crash",
