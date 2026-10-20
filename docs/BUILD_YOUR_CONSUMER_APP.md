@@ -253,6 +253,7 @@ await session.info()                      // { model, modeId, thinkingOptionId, 
 await session.contextWindow()             // { usedTokens, maxTokens } — exact, from the provider
 await session.commands()                  // provider slash commands (native)
 ```
+- **Stop always stops.** If a provider ignores the interrupt, the turn is still ended as `canceled` after a grace period (Claude: 10s, then its CLI process is closed and the next turn resumes the same conversation). The host and the CLI never disagree about whether a turn is running, so the next prompt never lands mid-turn.
 
 **Capability guards.** Every optional primitive throws `UnsupportedCapabilityError` *before* touching the provider. Don't rely on the throw for UX: read `session.capabilities` (or `kit.providers()`) and hide/disable the control.
 
@@ -459,3 +460,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + host primitives** — `submit({ attachments })` (saved, readable without prompts, images inline, `user_message.attachments`, `@ouim/agentkit/attachment-tags`), `kit.planUsage(provider)` + `plan_usage` event, `kit.complete()`, `kit.transcriptPage()` / `pageTranscript` / `prependPage` + `transcript.itemsOffset`; documented that a thread never changes provider.
 - **0.2 + proofs** — Codex `plan` mode (plan collaboration mode; `access: 'plan'` maps to it) so Codex can ask structured questions; Claude `providerOptions.settings`/`env` now merge with fast mode, `flagSettings` and `sdkOptions` instead of replacing them; documented Claude file rewind's shell limit. Proven live: questions, file rewind, steer replay after resume (`test/e2e/proof.ts`).
 - **0.2 + hub reconnect** — failed hub upstreams reconnect with backoff (5s → 5 min); HTTP upstreams fall back to SSE only on a 4xx, and a failed fallback reports both errors.
+- **0.2 + stop always stops** — a Claude interrupt the CLI ignores closes the process after 10s (turn `canceled`, next turn resumes the session).

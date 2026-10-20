@@ -75,10 +75,10 @@ export interface ClaudeRuntimeOptions {
   flagSettings?: () => Record<string, unknown> | undefined
 }
 
-/** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
 /** How long interrupt() waits for the CLI to stop on its own before stopping the process. */
 const INTERRUPT_GRACE_MS = 10_000
 
+/** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
 type Turn = { id: string; done: ReturnType<typeof deferred<void>>; interrupted: boolean; schemaKey: string | null; lastMessageId: string }
 type PendingPermission = { request: PermissionRequest; resolve: (result: PermissionResult) => void; input: Record<string, unknown> }
 
