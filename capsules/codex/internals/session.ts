@@ -84,12 +84,17 @@ export function threadParams(config: SessionConfig, modeId: string): Record<stri
   const inner: Record<string, unknown> = { ...(config.providerOptions ?? {}) }
   if (config.mcpServers || config.mcp?.exclusive) {
     // Exclusive: switch off the user's own config.toml servers for this thread (merge override).
-    const off = config.mcp?.exclusive ? Object.fromEntries(configuredCodexServers().filter((n) => !config.mcpServers?.[n]).map((n) => [n, { enabled: false }])) : {}
+    // Codex merges this override onto config.toml tables of the same name, so a hub `url` on top of a
+    // stdio `command` table is rejected. Colliding names get switched off and remounted as `<name>-hub`.
+    const configured = new Set(configuredCodexServers())
+    const off = Object.fromEntries(
+      [...configured].filter((n) => config.mcp?.exclusive || config.mcpServers?.[n]).map((n) => [n, { enabled: false }]),
+    )
     inner.mcp_servers = {
       ...off,
       ...Object.fromEntries(
         Object.entries(config.mcpServers ?? {}).map(([name, server]) => [
-          name,
+          configured.has(name) ? `${name}-hub` : name,
           server.type === 'stdio' ? { command: server.command, args: server.args, env: server.env } : { url: server.url, http_headers: server.headers },
         ]),
       ),
