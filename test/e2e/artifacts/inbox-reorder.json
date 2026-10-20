@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-20T15:17:24.253Z",
+  "checks": [
+    {
+      "name": "reorder-runs-in-new-order",
+      "ok": true,
+      "note": "inbox and run order C, A, B"
+    },
+    {
+      "name": "reorder-partial-and-unknown",
+      "ok": true,
+      "note": "ran C,A,B"
+    }
+  ]
+}

@@ -327,6 +327,22 @@ export class AgentSession {
     return true
   }
 
+  /**
+   * Put queued prompts in a new order (ids as in `transcript.inbox`, first runs first). Only visible inbox entries
+   * move, among their own slots; ids that are unknown or already started are ignored, and entries left out keep
+   * their relative order after the listed ones. Returns false when nothing changed.
+   */
+  reorderInbox(ids: string[]): boolean {
+    const slots = this.queue.map((live, index) => (live.visible ? index : -1)).filter((index) => index >= 0)
+    const visible = slots.map((index) => this.queue[index])
+    const listed = ids.map((id) => visible.find((live) => live.record.id === id)).filter((live): live is Live => !!live)
+    const ordered = [...new Set([...listed, ...visible])]
+    if (ordered.every((live, i) => live === visible[i])) return false
+    slots.forEach((index, i) => (this.queue[index] = ordered[i]))
+    this.emitInbox()
+    return true
+  }
+
   get queued(): number {
     return this.queue.length
   }
