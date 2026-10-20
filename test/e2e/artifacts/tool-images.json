@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-20T15:09:07.237Z",
+  "providers": [
+    "claude",
+    "codex"
+  ],
+  "checks": [
+    {
+      "name": "tool-image-file:claude",
+      "ok": false,
+      "note": "output has no image path: \"here it is:\\n[image]\\n[Image: source: /home/hazem/.claude/projects/-tmp-agentkit-tool-images-jTo5yL/20f1701a-2923-4b4b-99e1-b2718f0ddf60/tool-results/mcp-pics-"
+    },
+    {
+      "name": "tool-image-file:codex",
+      "ok": false,
+      "note": "output has no image path: [{\"type\":\"text\",\"text\":\"here it is:\"},{\"type\":\"image\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=\",\"mim"
+    },
+    {
+      "name": "no-base64-in-store",
+      "ok": false,
+      "note": "1 stored rows carry the image data"
+    }
+  ]
+}

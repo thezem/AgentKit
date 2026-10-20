@@ -16,6 +16,19 @@ export function toolResultText(block: Block): string {
   return content === undefined ? '' : safeJson(content)
 }
 
+/** An MCP result with images, as content parts: { type: 'text', text } and { type: 'image', data, mimeType }. Null without images. */
+function mcpParts(block: Block): unknown[] | null {
+  const content = block.content
+  if (!Array.isArray(content) || !content.some((part: any) => part?.type === 'image')) return null
+  return content.map((part: any) =>
+    part?.type === 'image' && part.source?.type === 'base64'
+      ? { type: 'image', data: part.source.data, mimeType: part.source.media_type ?? 'image/png' }
+      : part?.type === 'text'
+        ? { type: 'text', text: part.text ?? '' }
+        : { type: String(part?.type ?? 'unknown') },
+  )
+}
+
 export function toolStarted(block: Block): ToolCallItem {
   return { type: 'tool_call', callId: block.id, name: block.name, status: 'running', detail: deriveToolDetail(block.name, block.input) }
 }
@@ -29,7 +42,8 @@ export function toolFinished(started: ToolCallItem | undefined, block: Block, in
     callId: block.tool_use_id,
     name,
     status: failed ? 'failed' : 'completed',
-    detail: deriveToolDetail(name, input, output),
+    // MCP results keep their parts when they carry images (AgentKit saves those to files); everything else stays text.
+    detail: deriveToolDetail(name, input, name.startsWith('mcp__') ? (mcpParts(block) ?? output) : output),
     ...(failed ? { error: output } : {}),
   }
 }
