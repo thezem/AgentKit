@@ -28,6 +28,7 @@ node test/e2e/extras.ts codex          # steer, structured output, system prompt
 node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency, inbox, fork, compact
 node test/e2e/skills.ts                # skill discovery/visibility vs each CLI, search, expansion, invocation
 node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
+node test/e2e/inbox-reorder.ts         # reorderInbox: queued prompts run in the host's order (mock; runs in verify)
 node test/e2e/hub-retry.ts             # HTTP upstreams: honest errors, SSE fallback only on 4xx, reconnect with backoff (no models; runs in verify)
 node test/e2e/claude-interrupt.ts      # a Claude CLI that ignores Stop is closed after 10s; next turn resumes (haiku)
 node test/e2e/claude-tool-drafts.ts    # Claude tool calls show while their arguments stream (haiku)

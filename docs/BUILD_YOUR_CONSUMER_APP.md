@@ -128,6 +128,7 @@ await sub.wait()                // the final SubmissionRecord
 **Good harness behaviour**
 - Let the user keep typing while a turn runs. Composer while running: steer if `capabilities.steer`, otherwise queue.
 - **Render the inbox.** `transcript.inbox` lists waiting prompts; give each an ✕ that calls `session.withdraw(id)`. Never queue silently.
+- **Let users reorder it.** Drag-to-reorder calls `session.reorderInbox(ids)` with inbox ids, first runs first. Ids that already started are ignored, and entries you leave out keep their order after the listed ones. It emits `inbox_changed` (returns false if nothing moved), so render from `transcript.inbox`, not from your local drag state.
 - Always send a `requestId` from the client. If the HTTP call times out and the client retries, the turn still runs once.
 - Reattach from anywhere: `kit.submission(requestId)?.wait()` works across restarts and across processes sharing the store.
 
@@ -194,7 +195,7 @@ state = reduceTranscript(state, event)     // live events keep working on a part
 | `items` | the timeline (below) |
 | `status` | `idle` · `running` · `waiting_permission` · `failed` — spinner, stop button, amber "needs you" state |
 | `pendingPermissions` | approval cards (§6) |
-| `inbox` | queued prompts with withdraw (§4) |
+| `inbox` | queued prompts with withdraw and reorder (§4) |
 | `usage` | tokens, cost, `contextWindowUsedTokens` / `contextWindowMaxTokens` |
 | `modeId`, `model`, `thinkingOptionId`, `fast` | keep pickers in sync with reality |
 | `lastError` | error banner |
@@ -417,7 +418,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 
 - [ ] Pickers come from `kit.catalog()`; controls hidden by `capabilities`
 - [ ] Every send carries a client-generated `requestId`
-- [ ] User can type while the agent works: steer or visible, withdrawable inbox
+- [ ] User can type while the agent works: steer or visible, withdrawable, reorderable inbox
 - [ ] Interrupt is always one click away while `status` is running
 - [ ] Permission cards show the real command/diff; questions are answerable
 - [ ] Transcript rendered from events via `reduceTranscript`, snapshot on reconnect
@@ -464,3 +465,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + hub reconnect** — failed hub upstreams reconnect with backoff (5s → 5 min); HTTP upstreams fall back to SSE only on a 4xx, and a failed fallback reports both errors.
 - **0.2 + stop always stops** — a Claude interrupt the CLI ignores closes the process after 10s (turn `canceled`, next turn resumes the session).
 - **0.2 + tool drafts** — Claude tool calls show while their arguments stream: a running row at once, then ~1/s updates with `ToolCallItem.inputChars` and strings cut to a 2000-char tail; the complete call replaces it.
+- **0.2 + inbox reorder** — `session.reorderInbox(ids)`: hosts set the order of queued prompts.
