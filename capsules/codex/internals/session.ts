@@ -70,6 +70,7 @@ export const CODEX_CAPABILITIES: Capabilities = {
   systemPrompt: true,
   planUsage: true,
   complete: true,
+  transcribe: false,
 }
 
 type PendingPermission = { request: PermissionRequest; reply: (response: PermissionResponse) => unknown }

@@ -285,6 +285,26 @@ const { text } = await kit.complete('claude', `Title this chat in 5 words:\n${fi
 
 No session is left behind (nothing in `listSessions()` or the store). Claude runs with no tools at all; Codex runs an ephemeral read-only thread and OpenCode a throwaway `plan` session that is deleted after, with every permission ask denied (they can't switch tools off entirely, so a model may still read).
 
+**Dictation** (mic button in the composer). Claude's sign-in has speech to text; Codex (API-key only) and OpenCode don't. Use Claude for dictation **whatever provider the thread runs on**, as long as `kit.capabilities('claude').transcribe` is true:
+
+```ts
+// Live (the mic path): one connection per press. Send 16 kHz mono PCM16 (other rates: pass sampleRate).
+const mic = kit.transcribeStream('claude', { sampleRate: 48000, language: 'en' })
+mic.on('interim', ({ text }) => setDraft(before + text))     // everything heard so far, replace each time
+mic.on('error', ({ error }) => hideMicFor(error.code))       // SIGNED_OUT | TRANSCRIBE_FAILED
+recorder.ondata = (pcm16) => mic.write(pcm16)
+const { text } = await mic.end()                             // on release: last words, ~1s
+mic.abort()                                                  // on cancel (Esc): end() rejects ABORTED
+
+// Whole recording: WAV (PCM 16-bit, any rate/channels) or raw PCM16. No ffmpeg needed.
+const { text } = await kit.transcribe('claude', { data: wavBytes })
+```
+
+- Capture PCM in the browser (an AudioWorklet) and stream it to your server; MediaRecorder's webm/opus is not accepted.
+- Show `interim` text live in the composer, then put the final text there; never send on its own.
+- Errors are typed and never thrown out of the stream: `SIGNED_OUT` ("Open Claude once to turn on dictation"; AgentKit lets `claude auth status` refresh an expired sign-in first, it never rotates tokens itself), `TRANSCRIBE_FAILED` (endpoint changed, blocked or down: hide the mic, keep typing), `INVALID_INPUT`, `ABORTED`.
+- It is Claude Code's own voice endpoint (`/api/ws/speech_to_text/voice_stream`), not a public API: it can change with a CLI update. Treat it like the other optional controls.
+
 ---
 
 ## 8. Persistence, restarts and crashes
@@ -433,6 +453,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 - [ ] Provider picker locked once a thread has messages (a thread never changes provider)
 - [ ] Native tools use `ctx.sessionKey` for per-conversation data and pass `ctx.signal` to slow work
 - [ ] One MCP settings page backed by `kit.hub`; secrets masked; "applies to new threads" made clear
+- [ ] Mic button only when `kit.capabilities('claude').transcribe`; live `interim` text in the composer; hidden on `SIGNED_OUT` / `TRANSCRIBE_FAILED`
 - [ ] `kit.shutdown()` on exit
 
 ---
@@ -469,3 +490,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + tool drafts** — Claude tool calls show while their arguments stream: a running row at once, then ~1/s updates with `ToolCallItem.inputChars` and strings cut to a 2000-char tail; the complete call replaces it.
 - **0.2 + inbox reorder** — `session.reorderInbox(ids)`: hosts set the order of queued prompts.
 - **0.2 + tool images** — images in tool results are saved under `attachmentsDir/<key>/tools/` and appear as `{ type: 'image', path, mimeType }` parts in `detail.output` (Claude keeps MCP images instead of `[image]`; no base64 in the store).
+- **0.2 + dictation** — `kit.transcribe(provider, audio)` and `kit.transcribeStream(provider)` (interim/text/error events, `end()`, `abort()`), `capabilities.transcribe` (Claude only), error codes `SIGNED_OUT` / `TRANSCRIBE_FAILED` / `ABORTED`.

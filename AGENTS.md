@@ -33,6 +33,7 @@ node test/e2e/hub-retry.ts             # HTTP upstreams: honest errors, SSE fall
 node test/e2e/claude-interrupt.ts      # a Claude CLI that ignores Stop is closed after 10s; next turn resumes (haiku)
 node test/e2e/claude-tool-drafts.ts    # Claude tool calls show while their arguments stream (haiku)
 node test/e2e/tool-images.ts claude codex  # tool-result images become files under attachmentsDir, no base64 stored
+node test/e2e/transcribe.ts            # dictation on the Claude sign-in: batch, streaming, pauses, typed failures (needs `phonon` for test speech)
 node test/e2e/orphans.ts               # opencode serve dies with its host (kill -9, graceful, server-only death); no model calls
 node test/e2e/host.ts claude codex opencode  # attachments, plan usage, complete, paged snapshots (mock version runs in verify)
 node test/e2e/proof.ts                 # settings merge, steer replay after resume, structured questions, file rewind
@@ -56,3 +57,4 @@ npm run doctor                         # install/sign-in status per provider
 - `src/attachment-tags.ts` is browser-safe like `transcript.ts` (ships as `@ouim/agentkit/attachment-tags`).
 - Codex offers `request_user_input` only in its plan collaboration mode (experimental `collaborationMode` on turn/start); the capsule's `plan` mode sends it. Regenerate wire types with `--experimental` to see those fields.
 - Claude file checkpointing tracks Write/Edit only; shell edits aren't rewound.
+- Dictation (`capsules/claude-code/internals/voice.ts`) is Claude Code's own voice websocket, not a public API. With `forward_interims` every `TranscriptText` is the whole text so far; an endpoint commits it. Re-run `test/e2e/transcribe.ts` after a CLI upgrade. Never refresh/rotate the Claude OAuth token in AgentKit (a second writer can sign the CLI out); expired → `claude auth status`, then `SIGNED_OUT`.

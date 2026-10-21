@@ -9,9 +9,10 @@
  *   const result = await session.run('hello')
  */
 import { listSessions, query, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { CompleteOptions, CompleteResult, PersistenceHandle, PlanUsage, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary, UsageWindow } from '../shared/contract.ts'
+import type { CompleteOptions, CompleteResult, PersistenceHandle, PlanUsage, ProviderCatalog, ProviderClient, SessionConfig, SessionSummary, TranscribeAudio, TranscribeOptions, TranscribeResult, TranscribeStreamOptions, TranscriptionStream, UsageWindow } from '../shared/contract.ts'
 import { usageFromResult } from './internals/mapping.ts'
 import { findBinary, runCapture } from '../shared/runtime.ts'
+import { openVoiceStream, transcribeOnce, type VoiceConfig } from './internals/voice.ts'
 import { CLAUDE_CAPABILITIES, CLAUDE_MODES, ClaudeSession, DEFAULT_CLAUDE_MODE, knownContextWindow } from './internals/session.ts'
 
 export interface ClaudeCodeCapsuleConfig {
@@ -35,6 +36,8 @@ export interface ClaudeCodeCapsuleConfig {
    * E.g. `{ modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 400000 } } }`.
    */
   flagSettings?: () => Record<string, unknown> | undefined
+  /** Dictation (`transcribe` / `transcribeStream`): endpoint and sign-in location overrides. Defaults match Claude Code. */
+  voice?: VoiceConfig
 }
 
 export { CLAUDE_CAPABILITIES, CLAUDE_MODES }
@@ -114,6 +117,14 @@ export function createClaudeCodeClient(config: ClaudeCodeCapsuleConfig = {}): Pr
     },
 
     /** Tool-less one-shot: no built-in tools, no MCP, no settings files, nothing written to disk. */
+    async transcribe(audio: TranscribeAudio, options?: TranscribeOptions): Promise<TranscribeResult> {
+      return transcribeOnce(config.voice ?? {}, binary, audio, options)
+    },
+
+    transcribeStream(options?: TranscribeStreamOptions): TranscriptionStream {
+      return openVoiceStream(config.voice ?? {}, binary, options)
+    },
+
     async complete(prompt: string, options: CompleteOptions = {}): Promise<CompleteResult> {
       const bin = await binary()
       const abort = new AbortController()

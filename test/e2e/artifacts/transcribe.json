@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-21T16:04:10.818Z",
+  "checks": [
+    {
+      "name": "transcribe-batch",
+      "ok": true,
+      "note": "\"Please write the word tangerine and then the word pelican.\" in 2402ms; raw PCM same words"
+    },
+    {
+      "name": "transcribe-stream",
+      "ok": true,
+      "note": "10 interims while speaking, final in 1080ms after end(): \"The first word is pineapple, and the last word is hammock.\""
+    },
+    {
+      "name": "transcribe-pause",
+      "ok": true,
+      "note": "\"Remember pineapple. Also remember hammock.\""
+    },
+    {
+      "name": "transcribe-signed-out",
+      "ok": true,
+      "note": "expired.json + nope.json → SIGNED_OUT (batch, stream error event once, end())"
+    },
+    {
+      "name": "transcribe-unreachable",
+      "ok": true,
+      "note": "\"Claude dictation endpoint unavailable (HTTP 404)\""
+    },
+    {
+      "name": "transcribe-abort",
+      "ok": true,
+      "note": "end() → ABORTED, no events after"
+    },
+    {
+      "name": "transcribe-guards",
+      "ok": true,
+      "note": "claude only; mock → UNSUPPORTED_CAPABILITY; 8-bit WAV → INVALID_INPUT"
+    }
+  ]
+}

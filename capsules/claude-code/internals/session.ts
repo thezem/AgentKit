@@ -68,6 +68,7 @@ export const CLAUDE_CAPABILITIES: Capabilities = {
   systemPrompt: true,
   planUsage: true,
   complete: true,
+  transcribe: true,
 }
 
 export interface ClaudeRuntimeOptions {
