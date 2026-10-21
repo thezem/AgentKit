@@ -150,6 +150,9 @@ export interface ToolCallItem {
   status: ToolStatus
   detail: ToolDetail
   error?: string
+  /** Set while the model is still writing the call's arguments (streamed): characters so far. Long string arguments in
+   * `detail` are cut to their tail meanwhile. Gone once the complete call arrives. */
+  inputChars?: number
   metadata?: Metadata
 }
 
