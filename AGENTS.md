@@ -32,6 +32,7 @@ node test/e2e/inbox-reorder.ts         # reorderInbox: queued prompts run in the
 node test/e2e/hub-retry.ts             # HTTP upstreams: honest errors, SSE fallback only on 4xx, reconnect with backoff (no models; runs in verify)
 node test/e2e/claude-interrupt.ts      # a Claude CLI that ignores Stop is closed after 10s; next turn resumes (haiku)
 node test/e2e/claude-tool-drafts.ts    # Claude tool calls show while their arguments stream (haiku)
+node test/e2e/tool-images.ts claude codex  # tool-result images become files under attachmentsDir, no base64 stored
 node test/e2e/orphans.ts               # opencode serve dies with its host (kill -9, graceful, server-only death); no model calls
 node test/e2e/host.ts claude codex opencode  # attachments, plan usage, complete, paged snapshots (mock version runs in verify)
 node test/e2e/proof.ts                 # settings merge, steer replay after resume, structured questions, file rewind

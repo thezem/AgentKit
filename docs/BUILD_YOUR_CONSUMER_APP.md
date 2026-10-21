@@ -217,6 +217,8 @@ Timeline items (`items[i].type`):
 
 Tool calls with the same `callId` are one call updating (`running` → `completed`/`failed`); the reducer already replaces them in place. Group consecutive tool calls into one quiet block so prose stays readable ([`thread.tsx`](../examples/web/src/components/thread.tsx)).
 
+**Images in tool results.** When a tool returns images (an MCP screenshot, a chart), `detail.output` is a list of parts: `{ type: 'text', text }` and `{ type: 'image', path, mimeType }`. AgentKit writes each image to `<attachmentsDir>/<session key>/tools/<callId>-<n>.<ext>` before the event is stored, so the store, transcript and snapshots never carry base64. Serve that file to the UI (a local route that only reads under `kit.attachmentsDir`) and render a thumbnail; output that's a plain string stays text. Claude and Codex, proven; OpenCode tool attachments aren't mapped yet.
+
 **Tool calls while they're being written.** A `tool_call` with `inputChars` set is a draft: the model is still writing its arguments (Claude streams them; a big `Write` can take minutes). It updates about once a second, and long string arguments in `detail` hold only their last 2000 characters. Show the row at once with what's known (file path, command) plus a live size ("writing… 8.2k chars") so the thread never looks dead; don't render the cut `content` as the final file. The complete call replaces it under the same `callId`, without `inputChars`.
 
 ---
@@ -466,3 +468,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + stop always stops** — a Claude interrupt the CLI ignores closes the process after 10s (turn `canceled`, next turn resumes the session).
 - **0.2 + tool drafts** — Claude tool calls show while their arguments stream: a running row at once, then ~1/s updates with `ToolCallItem.inputChars` and strings cut to a 2000-char tail; the complete call replaces it.
 - **0.2 + inbox reorder** — `session.reorderInbox(ids)`: hosts set the order of queued prompts.
+- **0.2 + tool images** — images in tool results are saved under `attachmentsDir/<key>/tools/` and appear as `{ type: 'image', path, mimeType }` parts in `detail.output` (Claude keeps MCP images instead of `[image]`; no base64 in the store).

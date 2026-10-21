@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-21T12:08:21.954Z",
+  "providers": [
+    "claude",
+    "codex"
+  ],
+  "checks": [
+    {
+      "name": "tool-image-file:claude",
+      "ok": true,
+      "note": "img-claude/tools/toolu_01VfobmjVyVuWT6fmTuLWh5N-0.png, 68 bytes"
+    },
+    {
+      "name": "tool-image-file:codex",
+      "ok": true,
+      "note": "img-codex/tools/exec-d1c84bb4-f890-4cca-92e4-271503ab265c-0.png, 68 bytes"
+    },
+    {
+      "name": "no-base64-in-store",
+      "ok": true,
+      "note": "2 rows, image stored as a path, no image data"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ import type {
 import { isTerminalEvent } from '../capsules/shared/contract.ts'
 import { deferred, Emitter } from '../capsules/shared/runtime.ts'
 import { randomUUID } from 'node:crypto'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { attachmentsTag } from './attachment-tags.ts'
@@ -168,6 +169,7 @@ export class AgentSession {
 
   /** Every event goes through here: stored first (commit-before-show), then reduced, then shown. */
   private publish(event: AgentEvent): void {
+    event = this.saveToolImages(event)
     const store = this.ctx.store
     if (event.type === 'turn_started' && this.running && !this.running.record.turnId) {
       this.running.record = { ...this.running.record, turnId: event.turnId }
@@ -180,6 +182,36 @@ export class AgentSession {
     if (event.type === 'permission_requested' && this.handlers.onPermission) void this.autoAnswer(event.request)
     this.handlers.onEvent?.(event)
     this.events.emit(event)
+  }
+
+  /**
+   * Images in a tool's output (MCP image content, `data:image/…` URLs) are written to
+   * `<attachmentsDir>/<session key>/tools/<callId>-<n>.<ext>` and replaced by `{ type: 'image', path, mimeType }`,
+   * so transcripts, the store and snapshots never carry the base64 (a screenshot tool would bloat every one of them).
+   */
+  private saveToolImages(event: AgentEvent): AgentEvent {
+    if (event.type !== 'timeline' || event.item.type !== 'tool_call') return event
+    const detail = event.item.detail as { output?: unknown } | undefined
+    if (!detail || !Array.isArray(detail.output)) return event
+    let n = 0
+    let changed = false
+    const output = detail.output.map((part: any) => {
+      const dataUrl = typeof part?.imageUrl === 'string' && /^data:image\//.test(part.imageUrl) ? /^data:([^;,]+);base64,(.*)$/s.exec(part.imageUrl) : null
+      const mimeType: string | undefined = dataUrl ? dataUrl[1] : part?.type === 'image' && typeof part.data === 'string' ? (part.mimeType ?? 'image/png') : undefined
+      const data: string | undefined = dataUrl ? dataUrl[2] : mimeType ? part.data : undefined
+      if (!mimeType || !data) return part
+      try {
+        const dir = path.join(this.ctx.attachmentsDir, safeSegment(this.key), 'tools')
+        mkdirSync(dir, { recursive: true })
+        const file = path.join(dir, `${safeSegment(String((event.item as any).callId ?? randomUUID()))}-${n++}.${IMAGE_EXT[mimeType] ?? 'png'}`)
+        writeFileSync(file, Buffer.from(data, 'base64'))
+        changed = true
+        return { type: 'image', path: file, mimeType }
+      } catch {
+        return part
+      }
+    })
+    return changed ? { ...event, item: { ...event.item, detail: { ...detail, output } as any } } : event
   }
 
   /** Load a saved transcript (restore from a store, or a fork's history). */
@@ -677,6 +709,8 @@ export function storedSubmission(record: SubmissionRecord, store: AgentStore): S
     withdraw: () => false,
   }
 }
+
+const IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' }
 
 /** One path segment, no traversal. */
 function safeSegment(value: string): string {
