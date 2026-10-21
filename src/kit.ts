@@ -21,7 +21,8 @@ import { ToolHub } from './hub.ts'
 import os from 'node:os'
 import path from 'node:path'
 import { discoverSkills, expandSkillPrompt, searchSkills, type Skill } from './skills.ts'
-import type { CompleteOptions, CompleteResult, NativeSkill, PlanUsage, PromptInput } from '../capsules/shared/contract.ts'
+import type { CompleteOptions, CompleteResult, NativeSkill, PlanUsage, PromptInput, TranscribeAudio, TranscribeOptions, TranscribeResult, TranscribeStreamOptions, TranscriptionEvent, TranscriptionStream } from '../capsules/shared/contract.ts'
+import type { AgentKitErrorCode } from './errors.ts'
 import { pageTranscript, type Transcript } from './transcript.ts'
 
 export interface AgentKitOptions {
@@ -302,6 +303,39 @@ export class AgentKit {
     return client.complete(prompt, options)
   }
 
+  /**
+   * Speech to text of a whole recording on the provider's own sign-in (Claude today). WAV (PCM 16-bit) or raw PCM16.
+   * Failures are `AgentKitError`s: `SIGNED_OUT` (open Claude once), `TRANSCRIBE_FAILED` (endpoint down/changed/blocked),
+   * `INVALID_INPUT` (not PCM16), `ABORTED`. Unsupported provider → `UNSUPPORTED_CAPABILITY`.
+   */
+  async transcribe(provider: ProviderId, audio: TranscribeAudio, options: TranscribeOptions = {}): Promise<TranscribeResult> {
+    const client = this.client(provider)
+    if (!client.capabilities.transcribe || !client.transcribe) throw new UnsupportedCapabilityError(provider, 'transcribe')
+    try {
+      return await client.transcribe(audio, options)
+    } catch (error) {
+      throw voiceFailure(provider, error)
+    }
+  }
+
+  /**
+   * Live dictation (the mic path): `write()` PCM16 mono as it is recorded, show `interim` text, `end()` for the final
+   * text. One connection per stream. Errors arrive once as an `error` event and as the `end()` rejection, typed like
+   * `transcribe()`. Throws `UNSUPPORTED_CAPABILITY` synchronously for providers without dictation.
+   */
+  transcribeStream(provider: ProviderId, options: TranscribeStreamOptions = {}): TranscriptionStream {
+    const client = this.client(provider)
+    if (!client.capabilities.transcribe || !client.transcribeStream) throw new UnsupportedCapabilityError(provider, 'transcribe')
+    const inner = client.transcribeStream(options)
+    return {
+      write: (pcm16) => inner.write(pcm16),
+      abort: () => inner.abort(),
+      end: () => inner.end().catch((error) => Promise.reject(voiceFailure(provider, error))),
+      on: (type, listener) =>
+        inner.on(type, ((event: TranscriptionEvent) => listener((event.type === 'error' ? { type: 'error', error: voiceFailure(provider, event.error) } : event) as never)) as never),
+    }
+  }
+
   /** Sessions in the store, newest first. */
   storedSessions(): StoredSession[] {
     return this.requireStore().listSessions()
@@ -446,4 +480,14 @@ export class AgentKit {
 
 export function createAgentKit(options?: AgentKitOptions): AgentKit {
   return new AgentKit(options)
+}
+
+const VOICE_CODES = new Set<string>(['SIGNED_OUT', 'TRANSCRIBE_FAILED', 'ABORTED', 'INVALID_INPUT'])
+
+/** Capsule voice errors carry a string `code`; hosts get an `AgentKitError` with the same code. */
+function voiceFailure(provider: ProviderId, error: unknown): AgentKitError {
+  if (error instanceof AgentKitError) return error
+  const code = (error as { code?: unknown })?.code
+  const message = error instanceof Error ? error.message : String(error)
+  return new AgentKitError(typeof code === 'string' && VOICE_CODES.has(code) ? (code as AgentKitErrorCode) : 'TRANSCRIBE_FAILED', message, { provider, cause: error })
 }

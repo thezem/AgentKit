@@ -50,6 +50,7 @@ export const OPENCODE_CAPABILITIES: Capabilities = {
   systemPrompt: true,
   planUsage: false,
   complete: true,
+  transcribe: false,
 }
 
 type Lease = { client: OpenCodeApi; exited: Promise<Error>; release(): Promise<void> }

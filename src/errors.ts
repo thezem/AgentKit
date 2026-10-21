@@ -1,6 +1,6 @@
 import type { CapabilityName, ProviderId } from '../capsules/shared/contract.ts'
 
-export type AgentKitErrorCode = 'UNKNOWN_PROVIDER' | 'PROVIDER_UNAVAILABLE' | 'UNSUPPORTED_CAPABILITY' | 'SESSION_BUSY' | 'SESSION_CLOSED' | 'INVALID_INPUT'
+export type AgentKitErrorCode = 'UNKNOWN_PROVIDER' | 'PROVIDER_UNAVAILABLE' | 'UNSUPPORTED_CAPABILITY' | 'SESSION_BUSY' | 'SESSION_CLOSED' | 'INVALID_INPUT' | 'SIGNED_OUT' | 'TRANSCRIBE_FAILED' | 'ABORTED'
 
 export class AgentKitError extends Error {
   readonly code: AgentKitErrorCode

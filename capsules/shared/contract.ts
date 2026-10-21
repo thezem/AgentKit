@@ -102,6 +102,8 @@ export interface Capabilities {
   planUsage: boolean
   /** Tool-less one-shot completion that leaves no session behind (`ProviderClient.complete`). */
   complete: boolean
+  /** Speech to text on the provider's own sign-in (`ProviderClient.transcribe` / `transcribeStream`). */
+  transcribe: boolean
 }
 
 export type CapabilityName = keyof Capabilities
@@ -453,6 +455,10 @@ export interface ProviderClient {
   planUsage?(): Promise<PlanUsage>
   /** One-shot, tool-less completion; nothing is persisted. Gated by `capabilities.complete`. */
   complete?(prompt: string, options?: CompleteOptions): Promise<CompleteResult>
+  /** Speech to text of a whole recording (WAV or raw PCM16). Gated by `capabilities.transcribe`. */
+  transcribe?(audio: TranscribeAudio, options?: TranscribeOptions): Promise<TranscribeResult>
+  /** Live dictation: write PCM16 as it is recorded, read interim text, `end()` for the final text. */
+  transcribeStream?(options?: TranscribeStreamOptions): TranscriptionStream
   /** Release background processes. Idempotent. */
   shutdown(): Promise<void>
 }
@@ -483,4 +489,53 @@ export const NO_CAPABILITIES: Capabilities = {
   compact: false,
   planUsage: false,
   complete: false,
+  transcribe: false,
+}
+
+// ------------------------------------------------------------------ speech to text
+
+/**
+ * Audio for `transcribe()`: a WAV file (PCM 16-bit, any rate/channels; resampled to what the provider needs) or raw
+ * PCM16 little-endian (`mimeType: 'audio/pcm'`, give `sampleRate`/`channels` if not 16 kHz mono).
+ */
+export type TranscribeAudio = ({ data: Uint8Array | string } | { path: string }) & {
+  /** `audio/wav` (default when the bytes start with RIFF) or `audio/pcm`. */
+  mimeType?: string
+  sampleRate?: number
+  channels?: number
+}
+
+export interface TranscribeOptions {
+  /** BCP-47-ish language hint, e.g. `en`. */
+  language?: string
+  /** Words the recogniser should favour (project names, identifiers). */
+  keyterms?: string[]
+  signal?: AbortSignal
+}
+
+export interface TranscribeStreamOptions extends TranscribeOptions {
+  /** Sample rate of the PCM16 mono you `write()`. Default 16000 (sent as is); others are resampled. */
+  sampleRate?: number
+}
+
+export interface TranscribeResult {
+  text: string
+}
+
+export type TranscriptionEvent =
+  /** Everything heard so far (grows as the user talks); show it as is, replacing the previous interim. */
+  | { type: 'interim'; text: string }
+  /** An utterance the recogniser closed (after a long pause, and once at the end). `end()` resolves with all of them joined. */
+  | { type: 'text'; text: string }
+  /** The stream failed (signed out, endpoint unreachable, server error). `end()` rejects with the same error. */
+  | { type: 'error'; error: Error & { code?: string } }
+
+export interface TranscriptionStream {
+  /** PCM16 little-endian mono at the stream's `sampleRate`. Buffered until the connection is open. */
+  write(pcm16: Uint8Array): void
+  /** Stop sending, wait for the last words, close. Resolves with the whole text. */
+  end(): Promise<TranscribeResult>
+  /** Close at once; `end()` rejects with code `ABORTED`. */
+  abort(): void
+  on<T extends TranscriptionEvent['type']>(type: T, listener: (event: Extract<TranscriptionEvent, { type: T }>) => void): () => void
 }

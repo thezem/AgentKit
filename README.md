@@ -89,8 +89,9 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | plan usage windows (`kit.planUsage`) | ✓ (5-hour, weekly, per-model) | ✓ (+ live push) | – | ✓ |
 | one-shot `kit.complete()` (no session left behind) | ✓ (no tools) | ✓ (ephemeral, read-only) | ✓ (throwaway, tools denied) | ✓ |
 | paged transcript (`kit.transcriptPage`) | ✓ | ✓ | ✓ | ✓ (AgentKit-level) |
+| dictation (`kit.transcribe`, `kit.transcribeStream`, live interim text) | ✓ (Claude sign-in) | – (API key only) | – | – |
 
-**Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands, plus images (`host.ts`), MCP injection (`hub.ts`), structured questions, file rewind and steer replay after resume (`proof.ts`) ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** archive.
+**Live-verified** on Claude Code 2.1.302, codex-cli 0.162.1 and OpenCode 2.0.26: everything in the conformance and extras E2Es: streaming, typed tools, permissions, interrupt, steer, queue, mode switch, fast mode, system prompt, structured output, resume, history, listing, conversation rewind, slash commands, plus images (`host.ts`), MCP injection (`hub.ts`), structured questions, file rewind and steer replay after resume (`proof.ts`), dictation batch + streaming (`transcribe.ts`) ([artifacts](test/e2e/artifacts)). **Implemented, not yet E2E-proven:** archive.
 
 Unsupported calls throw `UnsupportedCapabilityError` before touching the provider. Check `session.capabilities` to hide the control.
 

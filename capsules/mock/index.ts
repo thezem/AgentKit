@@ -59,6 +59,7 @@ export const MOCK_CAPABILITIES: Capabilities = {
   systemPrompt: true,
   planUsage: true,
   complete: true,
+  transcribe: false,
 }
 
 const MODES: AgentMode[] = [
