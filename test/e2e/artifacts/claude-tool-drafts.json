@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-21T12:07:19.669Z",
+  "checks": [
+    {
+      "name": "partial-json",
+      "ok": true,
+      "note": "92 prefixes"
+    },
+    {
+      "name": "tool-draft-streams",
+      "ok": true,
+      "note": "5 drafts over 4s, 4994 chars before the complete call (5289)"
+    }
+  ]
+}

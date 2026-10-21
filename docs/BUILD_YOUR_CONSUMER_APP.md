@@ -216,6 +216,8 @@ Timeline items (`items[i].type`):
 
 Tool calls with the same `callId` are one call updating (`running` → `completed`/`failed`); the reducer already replaces them in place. Group consecutive tool calls into one quiet block so prose stays readable ([`thread.tsx`](../examples/web/src/components/thread.tsx)).
 
+**Tool calls while they're being written.** A `tool_call` with `inputChars` set is a draft: the model is still writing its arguments (Claude streams them; a big `Write` can take minutes). It updates about once a second, and long string arguments in `detail` hold only their last 2000 characters. Show the row at once with what's known (file path, command) plus a live size ("writing… 8.2k chars") so the thread never looks dead; don't render the cut `content` as the final file. The complete call replaces it under the same `callId`, without `inputChars`.
+
 ---
 
 ## 6. Permissions and questions
@@ -461,3 +463,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + proofs** — Codex `plan` mode (plan collaboration mode; `access: 'plan'` maps to it) so Codex can ask structured questions; Claude `providerOptions.settings`/`env` now merge with fast mode, `flagSettings` and `sdkOptions` instead of replacing them; documented Claude file rewind's shell limit. Proven live: questions, file rewind, steer replay after resume (`test/e2e/proof.ts`).
 - **0.2 + hub reconnect** — failed hub upstreams reconnect with backoff (5s → 5 min); HTTP upstreams fall back to SSE only on a 4xx, and a failed fallback reports both errors.
 - **0.2 + stop always stops** — a Claude interrupt the CLI ignores closes the process after 10s (turn `canceled`, next turn resumes the session).
+- **0.2 + tool drafts** — Claude tool calls show while their arguments stream: a running row at once, then ~1/s updates with `ToolCallItem.inputChars` and strings cut to a 2000-char tail; the complete call replaces it.

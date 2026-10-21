@@ -28,7 +28,10 @@ import type {
   TurnOptions,
 } from '../../shared/contract.ts'
 import { collectRun, deferred, deriveToolDetail, Emitter, nowIso, safeJson } from '../../shared/runtime.ts'
-import { contentBlocks, replayMessages, toolFinished, toolStarted, usageFromResult } from './mapping.ts'
+import { contentBlocks, replayMessages, toolDraft, toolFinished, toolStarted, usageFromResult } from './mapping.ts'
+
+/** How often a tool call whose arguments are still streaming gets an update. */
+const DRAFT_EVERY_MS = 1000
 
 export const CLAUDE_MODES: AgentMode[] = [
   { id: 'default', label: 'Always ask', description: 'Asks the first time each tool is used.' },
@@ -127,6 +130,8 @@ export class ClaudeSession implements ProviderSession {
   private pump: Promise<void> | null = null
   private turn: Turn | null = null
   private streamedText = false
+  /** Tool calls whose arguments are still streaming in, by content block index. */
+  private drafts = new Map<number, { id: string; name: string; json: string; sent: number }>()
   private modeId: string
   private model: string | null
   private effort: string | null
@@ -325,8 +330,28 @@ export class ClaudeSession implements ProviderSession {
       case 'stream_event': {
         if (m.parent_tool_use_id) return
         const event = m.event
-        if (event?.type === 'message_start') this.streamedText = false
+        if (event?.type === 'message_start') {
+          this.streamedText = false
+          this.drafts.clear()
+        }
+        // A tool call shows the moment the model starts writing it, then about once a second while its arguments stream.
+        if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+          const draft = { id: event.content_block.id, name: event.content_block.name, json: '', sent: Date.now() }
+          this.drafts.set(event.index, draft)
+          this.timeline(toolDraft(draft.id, draft.name, ''))
+          return
+        }
+        if (event?.type === 'content_block_stop') return void this.drafts.delete(event.index)
         if (event?.type !== 'content_block_delta') return
+        if (event.delta?.type === 'input_json_delta') {
+          const draft = this.drafts.get(event.index)
+          if (!draft) return
+          draft.json += event.delta.partial_json ?? ''
+          if (Date.now() - draft.sent < DRAFT_EVERY_MS) return
+          draft.sent = Date.now()
+          this.timeline(toolDraft(draft.id, draft.name, draft.json))
+          return
+        }
         if (event.delta?.type === 'text_delta') {
           this.streamedText = true
           this.timeline({ type: 'assistant_message', text: event.delta.text, messageId: event.message_id })

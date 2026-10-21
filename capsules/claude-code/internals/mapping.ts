@@ -20,6 +20,66 @@ export function toolStarted(block: Block): ToolCallItem {
   return { type: 'tool_call', callId: block.id, name: block.name, status: 'running', detail: deriveToolDetail(block.name, block.input) }
 }
 
+/** Tool arguments still streaming in: a row at once, then updates as the JSON grows (strings cut to their last 2000
+ * characters, so frequent updates stay small). The complete call replaces it (same callId). */
+export function toolDraft(id: string, name: string, json: string): ToolCallItem {
+  return { type: 'tool_call', callId: id, name, status: 'running', detail: deriveToolDetail(name, tail(parsePartialJson(json))), inputChars: json.length }
+}
+
+const TAIL = 2000
+function tail(value: unknown): unknown {
+  if (typeof value === 'string') return value.length > TAIL ? '…' + value.slice(-TAIL) : value
+  if (Array.isArray(value)) return value.map(tail)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, tail(v)]))
+  return value
+}
+
+/** Best-effort parse of a JSON prefix: close the open string / arrays / objects; if that isn't valid (a dangling key,
+ * colon or comma), walk back to the last complete value and close from there. */
+export function parsePartialJson(text: string): Record<string, unknown> {
+  const tryParse = (candidate: string) => {
+    try {
+      const parsed = JSON.parse(candidate)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+    } catch {
+      return null
+    }
+  }
+  const { inString, escaped, closers } = scan(text)
+  const closedString = inString ? (escaped ? text.slice(0, -1) : text) + '"' : text
+  const direct = tryParse(closedString + closers)
+  if (direct) return direct
+  // Walk back (bounded) to a point right after a complete value and close from there.
+  for (let end = closedString.length, steps = 0; end > 0 && steps < 400; end--, steps++) {
+    const prefix = closedString.slice(0, end).replace(/[\s,:]+$/, '')
+    if (!/["\]}\deul]$/.test(prefix)) continue
+    const s = scan(prefix)
+    if (s.inString) continue
+    const parsed = tryParse(prefix + s.closers)
+    if (parsed) return parsed
+  }
+  return {}
+}
+
+/** Where a JSON prefix stands: inside a string? which brackets are still open (as their closers)? */
+function scan(text: string): { inString: boolean; escaped: boolean; closers: string } {
+  const stack: string[] = []
+  let inString = false
+  let escaped = false
+  for (const ch of text) {
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') inString = true
+    else if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']')
+    else if (ch === '}' || ch === ']') stack.pop()
+  }
+  return { inString, escaped, closers: stack.reverse().join('') }
+}
+
 export function toolFinished(started: ToolCallItem | undefined, block: Block, input: unknown): ToolCallItem {
   const name = started?.name ?? 'tool'
   const output = toolResultText(block)
