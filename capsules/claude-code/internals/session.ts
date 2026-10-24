@@ -582,7 +582,8 @@ export class ClaudeSession implements ProviderSession {
 
   /** Claude's own accounting (same numbers as `/context`), so 1M-context variants report 1M. */
   async contextWindow(): Promise<ContextWindow> {
-    await this.ensureQuery(undefined)
+    // Read from the query that is running (a structured-output turn has its own); only start one when there is none.
+    if (!this.q) await this.ensureQuery(undefined)
     const usage: any = await this.q!.getContextUsage({ detail: 'summary' })
     if (this.model && usage?.maxTokens) knownWindows.set(this.model, usage.maxTokens)
     return { usedTokens: usage?.totalTokens ?? null, maxTokens: usage?.maxTokens ?? null }

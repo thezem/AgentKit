@@ -1,5 +1,6 @@
 /**
- * Hub HTTP upstreams: honest connect errors, SSE fallback only on a 4xx, reconnect with backoff. Failure modes #65–67.
+ * Hub HTTP upstreams: honest connect errors, SSE fallback only on a 4xx, reconnect with backoff, close while connecting.
+ * Failure modes #65–67, #81.
  * Real MCP servers on loopback, no models, no mocks.
  *
  *   node test/e2e/hub-retry.ts
@@ -116,6 +117,36 @@ await check('sse-fallback-on-405', async () => {
     if (state.status !== 'connected' || state.tools.length !== 1) throw new Error(`status ${state.status} ${state.error ?? ''}`)
     await hub.remove('legacy')
     return 'connected over SSE, 1 tool'
+  } finally {
+    await stop(server)
+  }
+})
+
+// #81: removing a server while it is still connecting must not leave it connected (no tools/list afterwards).
+await check('close-during-connect', async () => {
+  const seen: string[] = []
+  const server = await listen(async (req, res) => {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(chunk as Buffer)
+    const raw = Buffer.concat(chunks).toString()
+    const body = raw ? JSON.parse(raw) : undefined
+    seen.push(body?.method ?? req.method ?? '?')
+    if (body?.method === 'initialize') await new Promise((r) => setTimeout(r, 1500))
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
+    res.on('close', () => void transport.close())
+    await mcp().connect(transport)
+    await transport.handleRequest(req, res, body)
+  })
+  try {
+    const adding = hub.add({ name: 'slow', transport: { type: 'http', url: `http://127.0.0.1:${portOf(server)}/mcp` } }).catch(() => null)
+    await new Promise((r) => setTimeout(r, 300))
+    if (!seen.includes('initialize')) throw new Error(`initialize not seen yet: ${seen.join()}`)
+    await hub.remove('slow')
+    await adding
+    await new Promise((r) => setTimeout(r, 1500))
+    if (seen.includes('tools/list')) throw new Error(`the removed server was listed anyway: ${seen.join()}`)
+    if (hub.get('slow')) throw new Error('state came back after remove')
+    return `requests: ${seen.join(', ')}`
   } finally {
     await stop(server)
   }

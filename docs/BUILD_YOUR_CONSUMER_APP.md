@@ -130,7 +130,7 @@ await sub.wait()                // the final SubmissionRecord
 - **Render the inbox.** `transcript.inbox` lists waiting prompts; give each an ✕ that calls `session.withdraw(id)`. Never queue silently.
 - **Let users reorder it.** Drag-to-reorder calls `session.reorderInbox(ids)` with inbox ids, first runs first. Ids that already started are ignored, and entries you leave out keep their order after the listed ones. It emits `inbox_changed` (returns false if nothing moved), so render from `transcript.inbox`, not from your local drag state.
 - Always send a `requestId` from the client. If the HTTP call times out and the client retries, the turn still runs once.
-- Reattach from anywhere: `kit.submission(requestId)?.wait()` works across restarts and across processes sharing the store.
+- Reattach from anywhere: `kit.submission(requestId)?.wait()` works across restarts and across processes sharing the store. A turn owned by another process is polled only while you are waiting (`wait()` / `result`); if its thread is deleted meanwhile, `wait()` settles as `canceled` instead of hanging.
 
 Steer is non-disruptive on every provider: the running step (e.g. a shell command) finishes, and the message lands at the next safe point in the same turn. Claude does this via `priority: 'next'` (AgentKit's default); pass `createAgentKit({ claude: { steerPriority: 'now' } })` to cut the current step short instead. Codex (`turn/steer`) and OpenCode (`delivery: 'steer'`) behave this way natively and have no knob.
 
@@ -157,7 +157,7 @@ await session.submit('Summarise this and fix the layout in the screenshot', {
 
 ## 5. Rendering: events → transcript
 
-Subscribe once per session and stream every event to the client. Fold them with the same reducer on both sides.
+Subscribe once per session and stream every event to the client. Fold them with the same reducer on both sides. Prefer pull? `for await (const event of session.stream(signal))` ends when `signal` aborts or the session closes.
 
 ```ts
 // backend
@@ -462,7 +462,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 
 - `createAgentKit({ mock: true })` gives a free, deterministic provider with every capability. Prompt directives: `[tool]` (permission + shell tool), `[ask]` (question), `[fail]`, `[slow]`.
 - Run AgentKit's own suites against your machine before blaming your app:
-  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`, `node test/e2e/hub.ts`, `node test/e2e/hub-retry.ts`.
+  `npm run verify` (free), `npm run e2e`, `node test/e2e/extras.ts`, `npm run e2e:durable`, `npm run e2e:skills`, `node test/e2e/hub.ts`, `node test/e2e/hub-retry.ts`, `node test/e2e/lifecycle.ts`.
 
 ---
 
@@ -491,3 +491,4 @@ When you add or change a primitive, in the same change:
 - **0.2 + inbox reorder** — `session.reorderInbox(ids)`: hosts set the order of queued prompts.
 - **0.2 + tool images** — images in tool results are saved under `attachmentsDir/<key>/tools/` and appear as `{ type: 'image', path, mimeType }` parts in `detail.output` (Claude keeps MCP images instead of `[image]`; no base64 in the store).
 - **0.2 + dictation** — `kit.transcribe(provider, audio)` and `kit.transcribeStream(provider)` (interim/text/error events, `end()`, `abort()`), `capabilities.transcribe` (Claude only), error codes `SIGNED_OUT` / `TRANSCRIBE_FAILED` / `ABORTED`.
+- **0.2 + audit fixes** — `session.stream()` ends on `close()`; a hub server removed or closed while connecting stays closed (and a timed-out connect no longer leaks its client); Claude `contextWindow()` reads the running query instead of restarting it after a structured-output turn; `kit.submission().wait()` stops when the row is deleted (`canceled`) and polls only while awaited; Codex TOML import keeps ` #` inside quoted values; `npm test` runs `verify`.

@@ -133,6 +133,8 @@ export class AgentSession {
   private draining = false
   private compacting = false
   private closed = false
+  /** Readers parked in `stream()`; `close()` wakes them so they can end. */
+  private readonly streamWakers = new Set<() => void>()
   private lastInbox = '[]'
   private handlers: SessionHandlers
   private readonly ctx: SessionContext
@@ -248,6 +250,7 @@ export class AgentSession {
     })
     const onAbort = () => wake?.()
     signal?.addEventListener('abort', onAbort)
+    this.streamWakers.add(onAbort)
     try {
       while (!signal?.aborted && !this.closed) {
         if (buffer.length) {
@@ -259,6 +262,7 @@ export class AgentSession {
       }
     } finally {
       off()
+      this.streamWakers.delete(onAbort)
       signal?.removeEventListener('abort', onAbort)
     }
   }
@@ -673,6 +677,7 @@ export class AgentSession {
     this.closed = true
     await this.inner.close()
     this.events.clear()
+    for (const wake of [...this.streamWakers]) wake()
     this.ctx.onClose()
   }
 }
@@ -689,23 +694,29 @@ export function storedSubmission(record: SubmissionRecord, store: AgentStore): S
     usage: r.result?.usage,
     timeline: [],
   })
-  const wait = async (): Promise<SubmissionRecord> => {
-    // Another live process may still own it: poll the shared file.
-    while (!TERMINAL_SUBMISSION.has(current.status)) {
-      await new Promise((r) => setTimeout(r, 500))
-      current = store.getSubmission(record.id) ?? current
-    }
-    return current
-  }
-  const settled = wait()
+  // Another live process may still own it: poll the shared file, but only once someone waits (a timer per lookup
+  // would keep the host alive), and stop if the row is gone (its thread was deleted).
+  let settled: Promise<SubmissionRecord> | null = null
+  const wait = (): Promise<SubmissionRecord> =>
+    (settled ??= (async () => {
+      while (!TERMINAL_SUBMISSION.has(current.status)) {
+        await new Promise((r) => setTimeout(r, 500))
+        const latest = store.getSubmission(record.id)
+        if (!latest) current = { ...current, status: 'canceled', error: 'submission was deleted', finishedAt: new Date().toISOString() }
+        else current = latest
+      }
+      return current
+    })())
   return {
     id: record.id,
     get status() {
       return current.status
     },
     record: () => current,
-    result: settled.then(toResult),
-    wait: () => settled,
+    get result() {
+      return wait().then(toResult)
+    },
+    wait,
     withdraw: () => false,
   }
 }

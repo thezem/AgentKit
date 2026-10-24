@@ -131,3 +131,16 @@ Written before `test/e2e/proof.ts`.
 | 76 | Endpoint changed / blocked (404, Cloudflare 403, DNS) crashes or hangs instead of a typed error | `transcribe-unreachable`: base URL pointed at a loopback server answering 404 → `TRANSCRIBE_FAILED` mentioning the status, `error` event once, `end()` rejects, process keeps running |
 | 77 | `abort()` leaves a socket open or keeps emitting | `transcribe-abort`: abort mid-stream → `end()` rejects with `ABORTED`, no events after abort |
 | 78 | Dictation offered where it can't work | `capabilities.transcribe` true only for Claude; `kit.transcribe('codex', …)` → `UNSUPPORTED_CAPABILITY`; a non-PCM16 WAV (8-bit) → `INVALID_INPUT` |
+
+## Audit fixes: CI, stream(), hub close race, context window, stored submissions, TOML
+
+Written before `test/e2e/lifecycle.ts` and the new `hub-retry.ts` check.
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 79 | CI and the publish workflow run `npm test`, which doesn't exist, so every run fails before the build and a release can't ship | `npm test` runs `verify` and exits 0 (CI runs exactly that) |
+| 80 | `session.stream()` never ends after `close()` (a reader waiting for the next event hangs forever, though the doc says it ends on close) | `lifecycle` `stream-ends-on-close`: a waiting reader and an idle one both finish within a second of `close()` |
+| 81 | Closing a hub server while it is still connecting leaves it connected (a stdio child keeps running, its tools get listed, status flips from `off` to `connected`); a connect that times out leaks the half-open client | `hub-retry` `close-during-connect`: the server answers `initialize` after 1.5 s; `remove()` at 0.3 s → no `tools/list` ever arrives and the state stays removed |
+| 82 | Reading Claude's context size after a structured-output turn restarts the CLI (`ensureQuery(undefined)` sees a different schema key) | checked by hand with a probe (one Haiku structured turn): the CLI query was replaced after the turn before the fix, the same query object stays after it; not in the suite, it needs a live turn for one assertion |
+| 83 | `kit.submission(id)` for a turn another process owns polls the store forever if the row is deleted, and its timer starts (and keeps the process alive) even if nobody waits | `lifecycle` `stored-wait-deleted` (row deleted → `wait()` settles `canceled`), `stored-wait-lazy` (no timer until `wait()`/`result` is used) |
+| 84 | A `#` after a space inside a quoted TOML value (`"pass #1"`) cuts the value, so the imported Codex MCP server has broken args or env | `lifecycle` `toml-hash-in-string`: quoted values keep their ` #`, real trailing comments are still dropped |

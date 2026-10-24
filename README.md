@@ -170,7 +170,7 @@ Return text/JSON, or `toolResult.image(...)` / `toolResult.error(...)`. Settings
 ## Checks
 
 ```bash
-npm run verify            # typecheck + mock conformance + durable (free, no CLIs)
+npm test / npm run verify # typecheck + mock conformance, durable, host, hub-retry, inbox-reorder, lifecycle (free, no CLIs)
 npm run e2e -- claude     # real conformance against your signed-in CLI
 npm run e2e               # claude + codex + opencode
 npm run e2e:durable -- mock   # kill -9 mid-turn, idempotency, inbox, fork, compact

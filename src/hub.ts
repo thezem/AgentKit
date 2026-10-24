@@ -140,6 +140,8 @@ class Upstream {
   private client: Client | null = null
   private connecting: Promise<void> | null = null
   private closing = false
+  /** Bumped by `close()`: a connect that started before it must not come back to life. */
+  private epoch = 0
   private retry: NodeJS.Timeout | null = null
   private attempts = 0
   private readonly onChange: () => void
@@ -153,18 +155,26 @@ class Upstream {
     if (this.retry) clearTimeout(this.retry)
     this.retry = null
     if (this.status === 'connected' && this.client) return Promise.resolve()
-    this.connecting ??= this.open().finally(() => (this.connecting = null))
+    if (!this.connecting) {
+      const attempt: Promise<void> = this.open().finally(() => {
+        if (this.connecting === attempt) this.connecting = null
+      })
+      this.connecting = attempt
+    }
     return this.connecting
   }
 
   private async open(): Promise<void> {
     this.closing = false
+    const epoch = this.epoch
     this.set('starting')
     const stderr: string[] = []
+    let client: Client | null = null
     try {
-      const client = new Client({ name: 'agentkit-hub', version: '0.2.0' })
-      client.onclose = () => {
-        if (this.closing || this.client !== client) return
+      client = new Client({ name: 'agentkit-hub', version: '0.2.0' })
+      const opening = client
+      opening.onclose = () => {
+        if (this.closing || this.client !== opening) return
         this.client = null
         this.set('failed', `disconnected${stderr.length ? `: ${stderr.join('').trim().split('\n').slice(-2).join(' ')}` : ''}`)
       }
@@ -193,11 +203,18 @@ class Upstream {
           }
         }
       }
-      this.client = client
-      this.tools = await this.listAll(client)
+      if (epoch !== this.epoch) {
+        await opening.close().catch(() => undefined) // closed while connecting
+        return
+      }
+      this.client = opening
+      const tools = await this.listAll(opening)
+      if (epoch !== this.epoch) return
+      this.tools = tools
       this.set('connected')
     } catch (error) {
-      await this.client?.close().catch(() => undefined)
+      await client?.close().catch(() => undefined)
+      if (epoch !== this.epoch) return
       this.client = null
       const tail = stderr.join('').trim().split('\n').slice(-2).join(' ')
       this.set(isAuthError(error) ? 'needs_auth' : 'failed', `${message(error)}${tail ? ` (${tail})` : ''}`)
@@ -223,6 +240,8 @@ class Upstream {
 
   async close(): Promise<void> {
     this.closing = true
+    this.epoch++
+    this.connecting = null
     if (this.retry) clearTimeout(this.retry)
     this.retry = null
     this.attempts = 0
@@ -644,7 +663,9 @@ function message(error: unknown): string {
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
-  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${ms / 1000}s`)), ms))])
+  let timer: NodeJS.Timeout
+  const late = new Promise<T>((_, reject) => (timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms / 1000}s`)), ms)))
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer))
 }
 
 /** Split a shell-ish command line ("npx -y pkg --flag 'a b'") into command + args. */
@@ -715,7 +736,7 @@ export function readCodexToml(text: string): CliServer[] {
     if (!kv) continue
     let value = kv[3]
     // Arrays may span lines.
-    while (value.trim().startsWith('[') && !balanced(value) && i + 1 < lines.length) value += lines[++i]
+    while (value.trim().startsWith('[') && !balanced(stripTomlComment(value)) && i + 1 < lines.length) value += `\n${lines[++i]}`
     target[kv[2]] = parseTomlValue(value.trim())
   }
   return [...servers.entries()].flatMap(([name, s]): CliServer[] => {
@@ -743,8 +764,31 @@ function balanced(value: string): boolean {
   return depth === 0
 }
 
+/** Drops `# comment` (to the end of its line) but not a `#` inside a quoted string. */
+function stripTomlComment(text: string): string {
+  let out = ''
+  let quote: string | null = null
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quote) {
+      if (ch === '\\' && quote === '"') out += ch + (text[++i] ?? '')
+      else {
+        if (ch === quote) quote = null
+        out += ch
+      }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+      out += ch
+    } else if (ch === '#') {
+      while (i < text.length && text[i] !== '\n') i++
+      i--
+    } else out += ch
+  }
+  return out
+}
+
 function parseTomlValue(value: string): any {
-  value = value.replace(/\s+#.*$/, '')
+  value = stripTomlComment(value).trim()
   if (value.startsWith('"')) return JSON.parse(value.slice(0, value.lastIndexOf('"') + 1))
   if (value.startsWith("'")) return value.slice(1, value.indexOf("'", 1))
   if (value === 'true' || value === 'false') return value === 'true'

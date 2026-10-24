@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-24T09:46:13.710Z",
+  "checks": [
+    {
+      "name": "stream-ends-on-close",
+      "ok": true,
+      "note": "two readers waiting for the next event both ended"
+    },
+    {
+      "name": "stored-wait-lazy",
+      "ok": true,
+      "note": "no polling until wait()/result"
+    },
+    {
+      "name": "stored-wait-deleted",
+      "ok": true,
+      "note": "settled canceled: submission was deleted"
+    },
+    {
+      "name": "toml-hash-in-string",
+      "ok": true,
+      "note": "quoted \" #\" kept, trailing comments dropped"
+    }
+  ]
+}

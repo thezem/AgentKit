@@ -74,7 +74,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "verify": "npm run typecheck && node test/e2e/conformance.ts mock && node test/e2e/durable.ts mock && node test/e2e/host.ts mock && node test/e2e/hub-retry.ts && node test/e2e/inbox-reorder.ts",
+    "test": "npm run verify",
+    "verify": "npm run typecheck && node test/e2e/conformance.ts mock && node test/e2e/durable.ts mock && node test/e2e/host.ts mock && node test/e2e/hub-retry.ts && node test/e2e/inbox-reorder.ts && node test/e2e/lifecycle.ts",
     "e2e": "node test/e2e/conformance.ts",
     "e2e:mock": "node test/e2e/conformance.ts mock",
     "doctor": "node examples/doctor.ts",
