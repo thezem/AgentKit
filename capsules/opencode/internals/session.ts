@@ -59,6 +59,7 @@ type Turn = { id: string; accepted: boolean; done: ReturnType<typeof deferred<vo
 /** What each opencode server already has registered, per folder: `${dir}\0${name}` → config signature. */
 const registeredMcp = new WeakMap<object, Map<string, string>>()
 
+const STREAMING = new Set(['session.text.started', 'session.text.delta', 'session.reasoning.started', 'session.reasoning.delta'])
 const EXECUTION = new Set(['session.execution.started', 'session.execution.succeeded', 'session.execution.failed', 'session.execution.interrupted'])
 
 export function modelRef(id: string, variant?: string | null): { providerID: string; id: string; variant?: string } {
@@ -72,6 +73,7 @@ export class OpenCodeSession implements ProviderSession {
   readonly capabilities = OPENCODE_CAPABILITIES
   private readonly events = new Emitter<AgentEvent>()
   private readonly timelineState = new OpenCodeTimeline()
+  private replaying = false
   private readonly abort = new AbortController()
   private readonly pending = new Map<string, { request: PermissionRequest; form?: any }>()
   /** Ids already answered. A snapshot fetched before a reply landed must not resurrect them. */
@@ -321,13 +323,39 @@ export class OpenCodeSession implements ProviderSession {
     }
   }
 
+  /**
+   * The user message only reaches the timeline through a snapshot sync, while text streams in as deltas. A fast model
+   * (hundreds of tokens/s) wins that race and its answer lands before the question. So when an assistant part starts,
+   * hold its events until one sync has flushed the durable messages (the user message is stored before the answer starts).
+   */
+  private held: any[] | null = null
+
   private observe(event: any): void {
     const data = event.data ?? {}
     const sessionID = data.sessionID ?? data.form?.sessionID
     if (sessionID !== this.id) return
+    if (this.held && STREAMING.has(event.type)) {
+      this.held.push(event)
+      return
+    }
     switch (event.type) {
       case 'session.text.started':
       case 'session.reasoning.started':
+        if (!this.replaying) {
+          const held: any[] = (this.held = [event])
+          void this.sync()
+            .catch(() => undefined)
+            .then(() => {
+              this.held = null
+              this.replaying = true
+              try {
+                for (const e of held) this.observe(e)
+              } finally {
+                this.replaying = false
+              }
+            })
+          return
+        }
         this.timelineState.startPart(data.assistantMessageID, event.type === 'session.text.started' ? 'text' : 'reasoning', data.ordinal)
         return
       case 'session.text.delta':
