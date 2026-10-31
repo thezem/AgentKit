@@ -1,4 +1,4 @@
-import type { AgentEvent, InboxEntry, PermissionRequest, PlanUsage, TimelineItem, Usage } from '../capsules/shared/contract.ts'
+import type { AgentEvent, Goal, InboxEntry, PermissionRequest, PlanUsage, TimelineItem, Usage } from '../capsules/shared/contract.ts'
 import { appendTimeline } from '../capsules/shared/timeline.ts'
 import { splitAttachments } from './attachment-tags.ts'
 
@@ -11,6 +11,7 @@ import { splitAttachments } from './attachment-tags.ts'
  */
 export interface Transcript {
   sessionId: string | null
+  goal: Goal | null
   status: 'idle' | 'running' | 'waiting_permission' | 'failed'
   activeTurnId: string | null
   items: TimelineItem[]
@@ -35,6 +36,7 @@ export interface Transcript {
 export function emptyTranscript(): Transcript {
   return {
     sessionId: null,
+    goal: null,
     status: 'idle',
     activeTurnId: null,
     items: [],
@@ -53,6 +55,8 @@ export function emptyTranscript(): Transcript {
 
 export function reduceTranscript(state: Transcript, event: AgentEvent): Transcript {
   switch (event.type) {
+    case 'goal_updated':
+      return { ...state, goal: event.goal }
     case 'session_started':
       return { ...state, sessionId: event.sessionId }
     case 'turn_started':

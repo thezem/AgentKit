@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  Goal,
   AgentMode,
   Capabilities,
   CapabilityName,
@@ -132,6 +133,8 @@ export class AgentSession {
   private state: Transcript = emptyTranscript()
   private draining = false
   private compacting = false
+  private goalStarting = false
+  private heldGoal: Goal | null = null
   private closed = false
   /** Readers parked in `stream()`; `close()` wakes them so they can end. */
   private readonly streamWakers = new Set<() => void>()
@@ -282,7 +285,7 @@ export class AgentSession {
 
   /** A turn is running, about to run, or compaction is in progress. */
   get busy(): boolean {
-    return this.isRunning || this.running !== null || this.queue.length > 0 || this.compacting
+    return this.isRunning || this.running !== null || this.queue.length > 0 || this.compacting || this.goalStarting || this.state.goal?.status === 'active'
   }
 
   /**
@@ -515,10 +518,10 @@ export class AgentSession {
   }
 
   private waitIdle(): Promise<void> {
-    if (!this.isRunning && !this.compacting) return Promise.resolve()
+    if (!this.isRunning && !this.compacting && !this.goalStarting) return Promise.resolve()
     return new Promise<void>((resolve) => {
       const check = () => {
-        if (!this.isRunning && !this.compacting) {
+        if (!this.isRunning && !this.compacting && !this.goalStarting) {
           off()
           clearInterval(timer)
           resolve()
@@ -555,9 +558,83 @@ export class AgentSession {
     }
   }
 
+  private goalWarning(message: string): void {
+    this.publish({ type: 'timeline', provider: this.provider, item: { type: 'notice', level: 'warning', message }, timestamp: new Date().toISOString() })
+  }
+
+  private holdStoppedGoal(goal: Goal, reason: string): void {
+    this.heldGoal = { ...goal, status: 'paused', reason, updatedAt: new Date().toISOString() }
+    this.publish({ type: 'goal_updated', provider: this.provider, goal: this.heldGoal })
+  }
+
+  private async clearAndHoldGoal(goal: Goal, timeoutMs?: number): Promise<void> {
+    if (!this.inner.clearGoal) throw new Error('provider cannot clear its goal')
+    if (timeoutMs === undefined) {
+      await this.inner.clearGoal()
+    } else {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          this.inner.clearGoal(),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('goal clear timed out')), timeoutMs) }),
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
+    this.holdStoppedGoal(goal, 'Stopped by the user')
+  }
+
+  /** A broken provider must never prevent Stop or close. */
+  private async pauseForStop(): Promise<void> {
+    if (!this.capabilities.goals || !this.inner.getGoal) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        (async () => {
+          const goal = await this.inner.getGoal!()
+          if (goal?.status !== 'active') return
+          if (this.capabilities.goalPause && this.inner.pauseGoal) {
+            try {
+              await this.inner.pauseGoal()
+            } catch (error) {
+              this.goalWarning(`Could not pause the provider goal: ${error instanceof Error ? error.message : String(error)}`)
+              if (!this.inner.clearGoal) throw error
+              await this.clearAndHoldGoal(goal)
+            }
+          } else {
+            await this.clearAndHoldGoal(goal)
+          }
+        })(),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('goal pause timed out')), 2000) }),
+      ])
+    } catch (error) {
+      const goal = this.state.goal
+      this.goalWarning(`Could not pause the goal while stopping: ${error instanceof Error ? error.message : String(error)}`)
+      if (goal?.status === 'active') {
+        let cleared = false
+        if (this.inner.clearGoal) {
+          try {
+            await this.clearAndHoldGoal(goal, 250)
+            cleared = true
+          } catch (clearError) {
+            this.goalWarning(`Could not clear the provider goal: ${clearError instanceof Error ? clearError.message : String(clearError)}`)
+          }
+        }
+        if (!cleared) this.holdStoppedGoal(goal, 'Native pause could not be confirmed')
+      }
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   async interrupt(): Promise<void> {
     this.ctx.onInterrupt?.()
-    await this.inner.interrupt()
+    try {
+      await this.pauseForStop()
+    } finally {
+      await this.inner.interrupt()
+    }
   }
 
   // ---------------------------------------------------------- permissions
@@ -571,6 +648,110 @@ export class AgentSession {
   }
 
   // ---------------------------------------------------------- controls
+
+  private goalError(error: unknown): never {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'CLAUDE_GOAL_PROTOCOL') {
+      throw new AgentKitError('GOAL_PROTOCOL', error instanceof Error ? error.message : String(error), { provider: this.provider, cause: error })
+    }
+    throw error
+  }
+
+  async setGoal(objective: string, options: { tokenBudget?: number } = {}): Promise<Goal> {
+    this.guard('goals')
+    if (options.tokenBudget !== undefined) this.guard('goalBudget')
+    if (!objective.trim() || (options.tokenBudget !== undefined && (!Number.isSafeInteger(options.tokenBudget) || options.tokenBudget <= 0))) {
+      throw new AgentKitError('INVALID_INPUT', 'goal objective and positive integer token budget required', { provider: this.provider })
+    }
+    if (this.busy) throw new AgentKitError('SESSION_BUSY', 'cannot set a goal while work is running or queued', { provider: this.provider })
+    this.goalStarting = true
+    try {
+      const goal = await this.inner.setGoal!(objective, options)
+      this.heldGoal = null
+      return goal
+    } catch (error) {
+      this.goalError(error)
+    } finally {
+      this.goalStarting = false
+      void this.drain()
+    }
+  }
+
+  async getGoal(): Promise<Goal | null> {
+    this.guard('goals')
+    if (this.heldGoal) return this.heldGoal
+    try {
+      return await this.inner.getGoal!()
+    } catch (error) {
+      this.goalError(error)
+    }
+  }
+
+  async clearGoal(): Promise<void> {
+    this.guard('goals')
+    try {
+      await this.inner.clearGoal!()
+    } catch (error) {
+      this.goalError(error)
+    }
+    this.heldGoal = null
+    if (this.state.goal) this.publish({ type: 'goal_updated', provider: this.provider, goal: null })
+  }
+
+  async pauseGoal(): Promise<Goal> {
+    this.guard('goals')
+    this.guard('goalPause')
+    try {
+      return await this.inner.pauseGoal!()
+    } catch (error) {
+      this.goalError(error)
+    }
+  }
+
+  async resumeGoal(): Promise<Goal> {
+    this.guard('goals')
+    this.guard('goalPause')
+    if (this.busy) throw new AgentKitError('SESSION_BUSY', 'cannot resume a goal while work is running or queued', { provider: this.provider })
+    this.goalStarting = true
+    try {
+      const goal = await this.inner.resumeGoal!()
+      this.heldGoal = null
+      return goal
+    } catch (error) {
+      this.goalError(error)
+    } finally {
+      this.goalStarting = false
+      void this.drain()
+    }
+  }
+
+  /** Reconcile restored state without starting an unfinished goal. */
+  async recoverGoal(): Promise<void> {
+    if (!this.capabilities.goals) return
+    const saved = this.state.goal
+    try {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const native = await Promise.race([
+        this.inner.getGoal!(),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('goal read timed out')), 2000) }),
+      ]).finally(() => { if (timer) clearTimeout(timer) })
+      if (native?.status === 'active') {
+        await this.pauseForStop()
+      } else if (!native && saved && this.inner.restoreGoal) {
+        await this.inner.restoreGoal(saved)
+      } else if (native) {
+        this.publish({ type: 'goal_updated', provider: this.provider, goal: native })
+      } else if (saved) {
+        this.heldGoal = { ...saved, status: saved.status === 'active' ? 'paused' : saved.status }
+        this.publish({ type: 'goal_updated', provider: this.provider, goal: this.heldGoal })
+      }
+    } catch (error) {
+      if (saved) {
+        this.heldGoal = { ...saved, status: saved.status === 'active' ? 'paused' : saved.status, updatedAt: new Date().toISOString() }
+        this.publish({ type: 'goal_updated', provider: this.provider, goal: this.heldGoal })
+      }
+      this.goalWarning(`Could not read the provider goal during recovery: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
 
   info(): Promise<RuntimeInfo> {
     return this.inner.getRuntimeInfo()
@@ -675,11 +856,19 @@ export class AgentSession {
     if (this.closed) return
     this.clearQueue()
     this.closed = true
-    await this.inner.close()
-    this.events.clear()
-    for (const wake of [...this.streamWakers]) wake()
-    this.ctx.onClose()
+    try {
+      await this.pauseForStop()
+    } finally {
+      try {
+        await this.inner.close()
+      } finally {
+        this.events.clear()
+        for (const wake of [...this.streamWakers]) wake()
+        this.ctx.onClose()
+      }
+    }
   }
+
 }
 
 /** A read-only view of a submission from the store (another process, or before a restart). */

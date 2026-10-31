@@ -213,7 +213,7 @@ export function sqliteStore(file: string): AgentStore {
       for (const row of q.liveSessions.all() as any[]) {
         if (isAlive(row.owner) || touched.has(row.key)) continue
         const t = store.loadTranscript(row.key)
-        if (t.activeTurnId || t.inbox.length) touched.set(row.key, null)
+        if (t.activeTurnId || t.inbox.length || t.goal?.status === 'active') touched.set(row.key, null)
       }
       for (const [key, record] of touched) {
         const t = store.loadTranscript(key)
@@ -221,6 +221,7 @@ export function sqliteStore(file: string): AgentStore {
         if (t.activeTurnId || record) {
           store.appendEvent(key, { type: 'turn_interrupted', provider, turnId: t.activeTurnId ?? record?.turnId ?? null, submissionId: record?.id ?? null, reason: 'process exited mid-turn' })
         }
+        if (t.goal?.status === 'active') store.appendEvent(key, { type: 'goal_updated', provider, goal: { ...t.goal, status: 'paused', reason: 'process exited', updatedAt: now() } })
         if (t.inbox.length) store.appendEvent(key, { type: 'inbox_changed', provider, inbox: [] })
         store.checkpoint(key, store.loadTranscript(key))
       }

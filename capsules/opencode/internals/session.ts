@@ -4,6 +4,7 @@ import type {
   AgentEvent,
   AgentMode,
   ContextWindow,
+  Goal,
   Capabilities,
   PermissionRequest,
   PermissionResponse,
@@ -23,6 +24,9 @@ import type { OpenCodeApi } from './server.ts'
 import { OpenCodeTimeline } from './timeline.ts'
 
 export const OPENCODE_CAPABILITIES: Capabilities = {
+  goals: true,
+  goalPause: true,
+  goalBudget: false,
   streaming: true,
   reasoningStream: true,
   toolDetail: true,
@@ -70,7 +74,7 @@ export function modelRef(id: string, variant?: string | null): { providerID: str
 
 export class OpenCodeSession implements ProviderSession {
   readonly provider = 'opencode'
-  readonly capabilities = OPENCODE_CAPABILITIES
+  readonly capabilities = { ...OPENCODE_CAPABILITIES }
   private readonly events = new Emitter<AgentEvent>()
   private readonly timelineState = new OpenCodeTimeline()
   private replaying = false
@@ -111,6 +115,10 @@ export class OpenCodeSession implements ProviderSession {
   /** Mark existing history as seen, install MCP + instructions, open the event stream. */
   async initialize(): Promise<void> {
     await waitForLocation(this.client, this.location)
+    const commands = await this.client.command.list({ location: this.location })
+    const hasGoal = (commands.data ?? []).some((command: any) => command.name === 'goal')
+    this.capabilities.goals = OPENCODE_CAPABILITIES.goals && hasGoal
+    this.capabilities.goalPause = OPENCODE_CAPABILITIES.goalPause && hasGoal
     await this.installMcp()
     if (this.config.systemPrompt) {
       await this.client.session.instructions.entry.put({ sessionID: this.id, key: 'agentkit', value: this.config.systemPrompt })
@@ -167,6 +175,51 @@ export class OpenCodeSession implements ProviderSession {
   }
 
   // ------------------------------------------------------------ turns
+
+  private async goalCommand(text: string): Promise<void> {
+    await this.client.session.command({ sessionID: this.id, name: 'goal', text })
+  }
+
+  async getGoal(): Promise<Goal | null> {
+    const result: { output: NativeGoal | null } = await this.client.rpc.call({ rpcID: 'opencode.goal', method: 'get', input: { sessionID: this.id } })
+    return mapGoal(result.output)
+  }
+
+  private async startGoal(text: string): Promise<Goal> {
+    if (this.closed || this.turn) throw new Error('opencode session is busy')
+    const turn: Turn = { id: randomUUID(), accepted: true, done: deferred<void>(), denied: false, interrupting: false }
+    this.turn = turn
+    this.events.emit({ type: 'turn_started', provider: 'opencode', turnId: turn.id })
+    try {
+      await this.goalCommand(text)
+      this.schedulePoll()
+      const goal = await this.getGoal()
+      if (!goal) throw new Error('OpenCode did not create a goal')
+      return goal
+    } catch (error) {
+      this.finish({ type: 'turn_failed', provider: 'opencode', turnId: turn.id, error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+  }
+
+  async setGoal(objective: string): Promise<Goal> {
+    return this.startGoal(objective)
+  }
+
+  async pauseGoal(): Promise<Goal> {
+    await this.goalCommand('pause')
+    const goal = await this.getGoal()
+    if (!goal) throw new Error('OpenCode has no goal to pause')
+    return goal
+  }
+
+  async resumeGoal(): Promise<Goal> {
+    return this.startGoal('resume')
+  }
+
+  async clearGoal(): Promise<void> {
+    await this.goalCommand('clear')
+  }
 
   async startTurn(prompt: PromptInput, options?: TurnOptions): Promise<{ turnId: string }> {
     if (this.closed) throw new Error('opencode session is closed')
@@ -339,6 +392,9 @@ export class OpenCodeSession implements ProviderSession {
       return
     }
     switch (event.type) {
+      case 'rpc.opencode.goal.changed':
+        this.events.emit({ type: 'goal_updated', provider: 'opencode', goal: mapGoal(data.goal), ...(this.turn ? { turnId: this.turn.id } : {}) })
+        return
       case 'session.text.started':
       case 'session.reasoning.started':
         if (!this.replaying) {
@@ -649,6 +705,14 @@ export class OpenCodeSession implements ProviderSession {
       this.events.clear()
     }
   }
+}
+
+type NativeGoal = { objective: string; status: string; rounds?: number; reason?: string; updatedAt: number }
+
+function mapGoal(goal: NativeGoal | null): Goal | null {
+  if (!goal) return null
+  const status = goal.status === 'active' || goal.status === 'paused' || goal.status === 'complete' ? goal.status : 'blocked'
+  return { objective: goal.objective, status, ...(goal.rounds !== undefined ? { rounds: goal.rounds } : {}), ...(goal.reason ? { reason: goal.reason } : status === 'blocked' ? { reason: `Unknown OpenCode goal status: ${goal.status}` } : {}), updatedAt: new Date(goal.updatedAt).toISOString() }
 }
 
 function toInput(prompt: PromptInput): { text: string; files: Array<{ uri: string }> } {

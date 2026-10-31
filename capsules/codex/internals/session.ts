@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  Goal,
   AgentMode,
   ContextWindow,
   Capabilities,
@@ -45,6 +46,9 @@ const PRESETS: Record<string, { approvalPolicy: string; sandbox: string; sandbox
 }
 
 export const CODEX_CAPABILITIES: Capabilities = {
+  goals: true,
+  goalPause: true,
+  goalBudget: true,
   streaming: true,
   reasoningStream: true,
   toolDetail: true,
@@ -88,6 +92,8 @@ function configuredCodexServers(): string[] {
 export function threadParams(config: SessionConfig, modeId: string): Record<string, unknown> {
   const preset = PRESETS[modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
   const inner: Record<string, unknown> = { ...(config.providerOptions ?? {}) }
+  // Automatic goal turns have no host turn/start, so their effort must be set on the thread.
+  if (config.thinkingOptionId && inner.model_reasoning_effort === undefined) inner.model_reasoning_effort = config.thinkingOptionId
   if (config.mcpServers || config.mcp?.exclusive) {
     // Exclusive: switch off the user's own config.toml servers for this thread (merge override).
     // Codex merges this override onto config.toml tables of the same name, so a hub `url` on top of a
@@ -131,9 +137,15 @@ export class CodexSession implements ProviderSession {
   private readonly streamed = new Set<string>()
   private readonly items = new Map<string, CodexItem>()
   private activeTurnId: string | null = null
+  private stopFence = false
+  private goalHandoff = false
+  private goalMayStart = false
+  private resumeGoalAfterTurn: string | null = null
+  private startEpoch = 0
   private starting: Promise<unknown> | null = null
   private announced = new Set<string>()
   private turnDone = new Map<string, ReturnType<typeof deferred<void>>>()
+  private cancelling = new Map<string, Promise<void>>()
   private closed = false
   private modeId: string
   private model: string | null
@@ -185,28 +197,76 @@ export class CodexSession implements ProviderSession {
 
   async startTurn(prompt: PromptInput, options?: TurnOptions): Promise<{ turnId: string }> {
     if (this.closed) throw new Error('codex session is closed')
-    if (this.activeTurnId || this.starting) throw new Error('codex session already has an active turn')
-    const preset = PRESETS[this.modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
-    const serviceTier = await this.serviceTier()
-    const request = this.rpc.request('turn/start', {
-      threadId: this.threadId,
-      input: toCodexInput(prompt),
-      cwd: this.config.cwd,
-      approvalPolicy: preset.approvalPolicy,
-      sandboxPolicy: preset.sandboxPolicy,
-      ...(this.model ? { model: this.model } : {}),
-      ...(this.effort ? { effort: this.effort } : {}),
-      serviceTier,
-      ...this.collaborationMode(),
-      ...(options?.outputSchema !== undefined ? { outputSchema: options.outputSchema } : {}),
-      ...(options?.clientMessageId ? { clientUserMessageId: options.clientMessageId } : {}),
-    })
-    this.starting = request
+    const startEpoch = this.startEpoch
+    if (this.starting) throw new Error('codex session already has an active turn')
+    let restoreGoal = false
     try {
+      // Pause the scheduler first: there is no guessed gap between goal turns.
+      if (this.goalMayStart) {
+        const goal = await this.getGoal()
+        if (goal?.status === 'active') {
+          this.goalHandoff = true
+          // The set response may arrive before queued turn/started notifications.
+          // Wait for the paused notification to drain that earlier stream before
+          // admitting a host turn; an RPC response alone is not a safe barrier.
+          const paused = deferred<void>()
+          const off = this.events.on((event) => {
+            if (event.type === 'goal_updated' && event.goal?.status === 'paused' && event.goal.objective === goal.objective) paused.resolve()
+          })
+          let timer: ReturnType<typeof setTimeout> | undefined
+          try {
+            await this.pauseGoal()
+            restoreGoal = true
+            await Promise.race([
+              paused.promise,
+              new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('codex goal pause notification timed out')), 2000) }),
+            ])
+            if (this.activeTurnId) await this.cancelTurn(this.activeTurnId)
+          } finally {
+            off()
+            if (timer) clearTimeout(timer)
+            this.goalHandoff = false
+          }
+        }
+      }
+      if (this.startEpoch !== startEpoch || this.closed) throw new Error('codex turn start interrupted')
+      if (this.activeTurnId || this.starting) throw new Error('codex session already has an active turn')
+      const preset = PRESETS[this.modeId] ?? PRESETS[DEFAULT_CODEX_MODE]
+      const serviceTier = await this.serviceTier()
+      if (this.startEpoch !== startEpoch || this.closed) throw new Error('codex turn start interrupted')
+      if (this.activeTurnId || this.starting) throw new Error('codex session already has an active turn')
+      this.stopFence = false
+      const request = this.rpc.request('turn/start', {
+        threadId: this.threadId,
+        input: toCodexInput(prompt),
+        cwd: this.config.cwd,
+        approvalPolicy: preset.approvalPolicy,
+        sandboxPolicy: preset.sandboxPolicy,
+        ...(this.model ? { model: this.model } : {}),
+        ...(this.effort ? { effort: this.effort } : {}),
+        serviceTier,
+        ...this.collaborationMode(),
+        ...(options?.outputSchema !== undefined ? { outputSchema: options.outputSchema } : {}),
+        ...(options?.clientMessageId ? { clientUserMessageId: options.clientMessageId } : {}),
+      })
+      this.starting = request
       const response = await request
       const turnId: string = response.turn.id
       this.beginTurn(turnId)
+      if (restoreGoal) {
+        if (this.activeTurnId === turnId) this.resumeGoalAfterTurn = turnId
+        else if (this.startEpoch === startEpoch && !this.stopFence) await this.resumeGoal()
+      }
       return { turnId }
+    } catch (error) {
+      if (restoreGoal && this.startEpoch === startEpoch && !this.closed) {
+        try {
+          await this.resumeGoal()
+        } catch (resumeError) {
+          this.timeline({ type: 'notice', level: 'warning', message: `Could not resume the goal: ${describeError(resumeError)}` })
+        }
+      }
+      throw error
     } finally {
       this.starting = null
     }
@@ -235,13 +295,40 @@ export class CodexSession implements ProviderSession {
   }
 
   async interrupt(): Promise<void> {
+    this.startEpoch++
+    this.stopFence = true
+    this.resumeGoalAfterTurn = null
     if (this.starting) await this.starting.catch(() => undefined)
     const turnId = this.activeTurnId
-    if (!turnId) return
+    if (turnId) await this.cancelTurn(turnId)
+  }
+
+  /** Cancel a specific turn without changing the user-Stop fence or start epoch. */
+  private cancelTurn(turnId: string): Promise<void> {
+    const existing = this.cancelling.get(turnId)
+    if (existing) return existing
+    const cancel = this.cancelTurnOnce(turnId).finally(() => this.cancelling.delete(turnId))
+    this.cancelling.set(turnId, cancel)
+    return cancel
+  }
+
+  private async cancelTurnOnce(turnId: string): Promise<void> {
+    if (this.activeTurnId !== turnId) return
     const done = this.turnDone.get(turnId)
-    for (const id of [...this.permissions.keys()]) await this.respondToPermission(id, { behavior: 'deny', interrupt: true }).catch(() => undefined)
-    await this.rpc.request('turn/interrupt', { threadId: this.threadId, turnId }).catch(() => undefined)
-    await Promise.race([done?.promise, new Promise((r) => setTimeout(r, 15_000))])
+    for (const id of [...this.permissions.keys()]) await this.respondToPermission(id, { behavior: 'deny' }).catch(() => undefined)
+    const request = this.rpc.request('turn/interrupt', { threadId: this.threadId, turnId }, 2000).catch(() => undefined)
+    // A second stop can race completion. The terminal notification is sufficient;
+    // do not wait for an RPC response after the turn has already ended.
+    if (done) await Promise.race([request, done.promise])
+    else await request
+    if (done) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([done.promise, new Promise<void>((resolve) => { timer = setTimeout(resolve, 15_000) })])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
     if (this.activeTurnId === turnId) this.finishTurn(turnId, { type: 'turn_canceled', provider: 'codex', turnId, reason: 'interrupted' })
   }
 
@@ -261,6 +348,10 @@ export class CodexSession implements ProviderSession {
       this.events.emit({ type: 'permission_resolved', provider: 'codex', requestId: entry.request.id, response: { behavior: 'deny' } })
     }
     this.events.emit(event)
+    if (this.resumeGoalAfterTurn === turnId) {
+      this.resumeGoalAfterTurn = null
+      if (!this.stopFence && event.type !== 'turn_canceled') void this.resumeGoal().catch((error) => this.timeline({ type: 'notice', level: 'warning', message: `Could not resume the goal: ${describeError(error)}` }))
+    }
     this.turnDone.get(turnId)?.resolve()
     this.turnDone.delete(turnId)
   }
@@ -277,6 +368,18 @@ export class CodexSession implements ProviderSession {
     switch (method) {
       case 'turn/started':
         this.beginTurn(params.turn.id)
+        if (this.stopFence) {
+          if (this.goalHandoff) void this.cancelTurn(params.turn.id)
+          else void this.interrupt()
+        }
+        return
+      case 'thread/goal/updated':
+        this.goalMayStart = params.goal?.status === 'active'
+        this.events.emit({ type: 'goal_updated', provider: 'codex', goal: mapGoal(params.goal), ...(params.turnId ? { turnId: params.turnId } : {}) })
+        return
+      case 'thread/goal/cleared':
+        this.goalMayStart = false
+        this.events.emit({ type: 'goal_updated', provider: 'codex', goal: null })
         return
       case 'turn/completed': {
         const turn = params.turn
@@ -425,6 +528,49 @@ export class CodexSession implements ProviderSession {
     entry.reply(response)
     this.events.emit({ type: 'permission_resolved', provider: 'codex', requestId, response })
     if (response.behavior === 'deny' && response.interrupt && this.activeTurnId) void this.interrupt()
+  }
+
+  async setGoal(objective: string, options?: { tokenBudget?: number }): Promise<Goal> {
+    this.stopFence = false
+    const previous = this.goalMayStart
+    this.goalMayStart = true
+    try {
+      const response = await this.rpc.request('thread/goal/set', { threadId: this.threadId, origin: 'user', objective, ...(options?.tokenBudget !== undefined ? { tokenBudget: options.tokenBudget } : {}) })
+      return mapGoal(response.goal)
+    } catch (error) {
+      this.goalMayStart = previous
+      throw error
+    }
+  }
+
+  async getGoal(): Promise<Goal | null> {
+    const response = await this.rpc.request('thread/goal/get', { threadId: this.threadId })
+    return response.goal ? mapGoal(response.goal) : null
+  }
+
+  async clearGoal(): Promise<void> {
+    this.resumeGoalAfterTurn = null
+    await this.rpc.request('thread/goal/clear', { threadId: this.threadId, origin: 'user' })
+  }
+
+  async pauseGoal(): Promise<Goal> {
+    this.stopFence = true
+    this.goalMayStart = false
+    const response = await this.rpc.request('thread/goal/set', { threadId: this.threadId, origin: 'user', status: 'paused' })
+    return mapGoal(response.goal)
+  }
+
+  async resumeGoal(): Promise<Goal> {
+    this.stopFence = false
+    const previous = this.goalMayStart
+    this.goalMayStart = true
+    try {
+      const response = await this.rpc.request('thread/goal/set', { threadId: this.threadId, origin: 'user', status: 'active' })
+      return mapGoal(response.goal)
+    } catch (error) {
+      this.goalMayStart = previous
+      throw error
+    }
   }
 
   // ------------------------------------------------------------ settings
@@ -589,4 +735,10 @@ export function toCodexInput(prompt: PromptInput): unknown[] {
         ? { type: 'skill', name: block.name, path: block.path }
         : { type: 'image', url: `data:${block.mimeType};base64,${block.data}` },
   )
+}
+
+function mapGoal(goal: { objective: string; status: string; tokenBudget?: number | null; tokensUsed?: number; updatedAt: number }): Goal {
+  const status = goal.status === 'usageLimited' || goal.status === 'budgetLimited' ? 'limited' : goal.status
+  const known = status === 'active' || status === 'paused' || status === 'blocked' || status === 'complete' || status === 'limited'
+  return { objective: goal.objective, status: known ? status : 'blocked', ...(!known ? { reason: `unknown Codex status: ${goal.status}` } : {}), ...(goal.tokenBudget != null ? { tokenBudget: goal.tokenBudget } : {}), ...(goal.tokensUsed != null ? { tokensUsed: goal.tokensUsed } : {}), updatedAt: new Date(goal.updatedAt * 1000).toISOString() }
 }

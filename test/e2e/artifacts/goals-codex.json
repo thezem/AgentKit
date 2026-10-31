@@ -1,0 +1,42 @@
+{
+  "store": "/tmp/agentkit-goals-FwD2Qp/goals.db",
+  "results": [
+    {
+      "name": "codex: unknown goal status",
+      "ok": true
+    },
+    {
+      "name": "codex: continuation and stop race",
+      "ok": true
+    },
+    {
+      "name": "codex: fork does not inherit goal",
+      "ok": true
+    },
+    {
+      "name": "codex: resume goal",
+      "ok": true
+    },
+    {
+      "name": "codex: budget limit and next prompt",
+      "ok": true
+    },
+    {
+      "name": "codex: active idle handoff and failed start recovery",
+      "ok": true
+    },
+    {
+      "name": "codex: queued submit alongside goal",
+      "ok": true
+    },
+    {
+      "name": "codex: cold resume pauses before thread resume",
+      "ok": true
+    },
+    {
+      "name": "codex: evidence",
+      "ok": true,
+      "detail": "events=/tmp/agentkit-goals-FwD2Qp/codex-events.json, files=.git,a.txt,b.txt,c.txt,codex-events.json,goals.db"
+    }
+  ]
+}

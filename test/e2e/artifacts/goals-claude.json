@@ -1,0 +1,26 @@
+{
+  "store": "/tmp/agentkit-goals-VL8qxk/goals.db",
+  "results": [
+    {
+      "name": "claude review: max turns clears and holds goal",
+      "ok": true
+    },
+    {
+      "name": "claude review: timeout preserves terminal event",
+      "ok": true
+    },
+    {
+      "name": "claude review: control serializes turn and maps errors",
+      "ok": true
+    },
+    {
+      "name": "claude review: protocol failure cannot block Stop",
+      "ok": true
+    },
+    {
+      "name": "claude: evidence",
+      "ok": true,
+      "detail": "modelTurns=6, events=/tmp/agentkit-goals-VL8qxk/claude-events.json"
+    }
+  ]
+}

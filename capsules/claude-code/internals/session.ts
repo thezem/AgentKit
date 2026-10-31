@@ -11,6 +11,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
   AgentEvent,
+  Goal,
   AgentMode,
   ContextWindow,
   Capabilities,
@@ -43,6 +44,9 @@ export const CLAUDE_MODES: AgentMode[] = [
 export const DEFAULT_CLAUDE_MODE = 'default'
 
 export const CLAUDE_CAPABILITIES: Capabilities = {
+  goals: true,
+  goalPause: false,
+  goalBudget: false,
   streaming: true,
   reasoningStream: true,
   toolDetail: true,
@@ -84,6 +88,12 @@ const INTERRUPT_GRACE_MS = 10_000
 
 /** `lastMessageId`: the newest user message pushed into this turn (initial or steer). Only its `result` ends the turn. */
 type Turn = { id: string; done: ReturnType<typeof deferred<void>>; interrupted: boolean; schemaKey: string | null; lastMessageId: string }
+type GoalCommand = { done: ReturnType<typeof deferred<string>>; reply?: string }
+
+function goalProtocolError(message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code: 'CLAUDE_GOAL_PROTOCOL' })
+}
+
 type PendingPermission = { request: PermissionRequest; resolve: (result: PermissionResult) => void; input: Record<string, unknown> }
 
 /** Push-based async iterable that feeds user messages into one long-lived `query()`. */
@@ -130,6 +140,10 @@ export class ClaudeSession implements ProviderSession {
   private input: InputQueue | null = null
   private pump: Promise<void> | null = null
   private turn: Turn | null = null
+  private goal: Goal | null = null
+  private goalCommand: GoalCommand | null = null
+  private goalAck: ReturnType<typeof deferred<void>> | null = null
+  private clearingGoal: Promise<void> | null = null
   private streamedText = false
   /** Tool calls whose arguments are still streaming in, by content block index. */
   private drafts = new Map<number, { id: string; name: string; json: string; sent: number }>()
@@ -230,9 +244,13 @@ export class ClaudeSession implements ProviderSession {
     try {
       for await (const message of q) this.onMessage(message)
     } catch (error) {
-      if (this.turn && !this.closed) this.endTurn({ type: 'turn_failed', provider: 'claude', turnId: this.turn.id, error: error instanceof Error ? error.message : String(error) })
+      this.goalCommand?.done.reject(error)
+      this.goalAck?.reject(error)
+      if (this.q === q && this.turn && !this.closed) this.endTurn({ type: 'turn_failed', provider: 'claude', turnId: this.turn.id, error: error instanceof Error ? error.message : String(error) })
     } finally {
       if (this.q === q) {
+        this.goalCommand?.done.reject(goalProtocolError('Claude exited during a goal command'))
+        this.goalAck?.reject(goalProtocolError('Claude exited before acknowledging a goal'))
         this.q = null
         this.input = null
         if (this.turn && !this.closed) this.endTurn({ type: 'turn_failed', provider: 'claude', turnId: this.turn.id, error: 'claude process exited' })
@@ -245,7 +263,9 @@ export class ClaudeSession implements ProviderSession {
   async startTurn(prompt: PromptInput, options?: TurnOptions): Promise<{ turnId: string }> {
     if (this.closed) throw new Error('claude session is closed')
     if (this.turn) throw new Error('claude session already has an active turn')
+    if (this.goalCommand) throw goalProtocolError('Claude goal command is running')
     await this.ensureQuery(options?.outputSchema)
+    if (this.goalCommand || this.turn) throw goalProtocolError('Claude is busy')
     const turnId = randomUUID()
     const messageId = options?.clientMessageId && isUuid(options.clientMessageId) ? options.clientMessageId : randomUUID()
     this.turn = { id: turnId, done: deferred<void>(), interrupted: false, schemaKey: this.querySchemaKey, lastMessageId: messageId }
@@ -267,6 +287,115 @@ export class ClaudeSession implements ProviderSession {
       interrupt: () => this.interrupt(),
       sessionId: () => this.sessionId,
     })
+  }
+
+  private emitGoal(goal: Goal | null, turnId?: string): void {
+    this.goal = goal
+    this.events.emit({ type: 'goal_updated', provider: 'claude', goal, ...(turnId ? { turnId } : {}) })
+  }
+
+  private async goalControl(text: string): Promise<string> {
+    if (this.goalCommand) throw goalProtocolError('another Claude goal command is running')
+    const command: GoalCommand = { done: deferred<string>() }
+    this.goalCommand = command
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await this.ensureQuery(undefined)
+      this.input!.push(toSdkMessage(text, randomUUID()))
+      this.materialized = true
+      return await Promise.race([
+        command.done.promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            // Discard the query so a late command result cannot consume a subsequent turn.
+            void this.stopQuery()
+            reject(goalProtocolError('Claude goal command timed out'))
+          }, 10_000)
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+      if (this.goalCommand === command) this.goalCommand = null
+    }
+  }
+
+  async setGoal(objective: string): Promise<Goal> {
+    if (this.closed || this.turn || this.goalCommand) throw goalProtocolError('Claude is busy')
+    await this.ensureQuery(undefined)
+    const turnId = randomUUID()
+    const messageId = randomUUID()
+    const ack = deferred<void>()
+    this.goalAck = ack
+    this.turn = { id: turnId, done: deferred<void>(), interrupted: false, schemaKey: this.querySchemaKey, lastMessageId: messageId }
+    this.streamedText = false
+    const goal: Goal = { objective, status: 'active', updatedAt: nowIso() }
+    this.events.emit({ type: 'turn_started', provider: 'claude', turnId })
+    this.input!.push(toSdkMessage(`/goal ${objective}`, messageId))
+    this.materialized = true
+    try {
+      await ack.promise
+      this.emitGoal(goal, turnId)
+      return goal
+    } finally {
+      if (this.goalAck === ack) this.goalAck = null
+    }
+  }
+
+  async getGoal(): Promise<Goal | null> {
+    if (this.turn) return this.goal
+    if (!this.materialized && !this.q) return this.goal
+    const text = await this.goalControl('/goal')
+    const parsed = parseGoalStatus(text)
+    if (!parsed) {
+      if (this.goal?.status !== 'complete' && this.goal?.status !== 'paused') this.goal = null
+      return this.goal
+    }
+    this.goal = { objective: parsed.objective, status: 'active', ...(parsed.rounds !== undefined ? { rounds: parsed.rounds } : {}), updatedAt: this.goal?.updatedAt ?? nowIso() }
+    return this.goal
+  }
+
+  async clearGoal(): Promise<void> {
+    if (this.clearingGoal) return this.clearingGoal
+    const clear = (async () => {
+      if (this.turn) await this.interrupt()
+      if (this.materialized || this.q) {
+        const text = await this.goalControl('/goal clear')
+        if (text !== 'No goal set' && !text.startsWith('Goal cleared: ')) throw goalProtocolError(`Unrecognized Claude goal clear reply: ${text}`)
+      }
+      this.emitGoal(null)
+    })()
+    this.clearingGoal = clear
+    try {
+      await clear
+    } finally {
+      if (this.clearingGoal === clear) this.clearingGoal = null
+    }
+  }
+
+  private async finishGoalTurn(turn: Turn, event: Extract<AgentEvent, { type: 'turn_completed' | 'turn_failed' }>): Promise<void> {
+    try {
+      const parsed = parseGoalStatus(await this.goalControl('/goal'))
+      if (this.turn !== turn || turn.interrupted) return
+      if (parsed && this.goal) {
+        const reply = await this.goalControl('/goal clear')
+        if (reply !== 'No goal set' && !reply.startsWith('Goal cleared: ')) throw goalProtocolError(`Unrecognized Claude goal clear reply: ${reply}`)
+        if (this.turn !== turn || turn.interrupted) return
+        this.emitGoal({ ...this.goal, objective: parsed.objective, status: 'paused', reason: event.type === 'turn_failed' ? event.error : 'Claude stopped before the goal was met', ...(parsed.rounds !== undefined ? { rounds: parsed.rounds } : {}), updatedAt: nowIso() }, turn.id)
+      } else if (event.type === 'turn_completed' && this.goal) {
+        this.emitGoal({ ...this.goal, status: 'complete', updatedAt: nowIso() }, turn.id)
+      }
+      this.endTurn(event)
+    } catch (error) {
+      if (this.turn !== turn) return
+      if (turn.interrupted) {
+        this.endTurn({ type: 'turn_canceled', provider: 'claude', turnId: turn.id, reason: 'interrupted' })
+        return
+      }
+      const message = error instanceof Error ? error.message : String(error)
+      if (this.goal) this.emitGoal({ ...this.goal, reason: `Goal state not confirmed: ${message}`, updatedAt: nowIso() }, turn.id)
+      this.timeline({ type: 'notice', level: 'warning', message: `Could not confirm Claude goal state: ${message}` }, turn.id)
+      this.endTurn(event)
+    }
   }
 
   /** Steer: push a user message into the running turn ('next' by default: delivered at the next safe point). */
@@ -322,6 +451,21 @@ export class ClaudeSession implements ProviderSession {
       this.events.emit({ type: 'session_started', provider: 'claude', sessionId: this.sessionId })
     }
     if (m.fast_mode_state !== undefined && !m.parent_tool_use_id) this.observeFastState(m.fast_mode_state, m.fast_mode_disabled_reason)
+    if (this.goalCommand) {
+      if (m.type === 'assistant' && m.local_command_source) {
+        this.goalCommand.reply = contentBlocks(m.message).filter((block: any) => block.type === 'text').map((block: any) => block.text).join('')
+      } else if (m.type === 'result') {
+        if (m.subtype !== 'success' || m.is_error) this.goalCommand.done.reject(goalProtocolError(`Claude goal command failed: ${m.subtype}`))
+        else this.goalCommand.done.resolve(typeof m.result === 'string' ? m.result : this.goalCommand.reply ?? '')
+      }
+      return
+    }
+    if (m.type === 'assistant' && m.local_command_source && this.goalAck) {
+      const text = contentBlocks(m.message).filter((block: any) => block.type === 'text').map((block: any) => block.text).join('')
+      if (text.startsWith('Goal set: ')) this.goalAck.resolve()
+      else this.goalAck.reject(goalProtocolError(`Unrecognized Claude goal set reply: ${text}`))
+      return
+    }
     switch (m.type) {
       case 'system':
         if (m.subtype === 'init') {
@@ -387,6 +531,8 @@ export class ClaudeSession implements ProviderSession {
       case 'result': {
         const turn = this.turn
         if (!turn) return
+        // A changed or unsupported local command must not leave setGoal waiting forever.
+        this.goalAck?.reject(goalProtocolError('Claude returned a result without acknowledging the goal'))
         const covered: string[] = m.user_message_uuids ?? (m.user_message_uuid ? [m.user_message_uuid] : [])
         // A result for an earlier message of a steered turn is intermediate; keep the turn open.
         if (!turn.interrupted && covered.length && !covered.includes(turn.lastMessageId)) return
@@ -401,8 +547,13 @@ export class ClaudeSession implements ProviderSession {
           () => undefined,
         )
         if (turn.interrupted) this.endTurn({ type: 'turn_canceled', provider: 'claude', turnId: turn.id, reason: 'interrupted' })
-        else if (m.subtype === 'success' && !m.is_error) this.endTurn({ type: 'turn_completed', provider: 'claude', turnId: turn.id, usage })
-        else this.endTurn({ type: 'turn_failed', provider: 'claude', turnId: turn.id, error: (m.errors ?? []).join('; ') || m.result || m.subtype })
+        else {
+          const event: Extract<AgentEvent, { type: 'turn_completed' | 'turn_failed' }> = m.subtype === 'success' && !m.is_error
+            ? { type: 'turn_completed', provider: 'claude', turnId: turn.id, usage }
+            : { type: 'turn_failed', provider: 'claude', turnId: turn.id, error: (m.errors ?? []).join('; ') || m.result || m.subtype }
+          if (this.goal?.status === 'active') void this.finishGoalTurn(turn, event)
+          else this.endTurn(event)
+        }
         return
       }
     }
@@ -534,7 +685,9 @@ export class ClaudeSession implements ProviderSession {
   async *history(): AsyncIterable<TimelineItem> {
     if (!this.materialized) return
     const messages = await getSessionMessages(this.sessionId, { dir: this.config.cwd })
-    yield* replayMessages(messages as any)
+    // The SDK history includes local slash-command envelopes, which are not user prompts.
+    const visible = messages.filter((entry: any) => !(entry.type === 'user' && typeof entry.message?.content === 'string' && entry.message.content.startsWith('<command-name>/goal</command-name>')))
+    yield* replayMessages(visible as any)
   }
 
   async rewind(input: { messageId: string; scope: 'conversation' | 'files' | 'both' }): Promise<void> {
@@ -571,7 +724,14 @@ export class ClaudeSession implements ProviderSession {
       upToMessageId = messages[index - 1].uuid
     }
     const forked = await forkSession(this.sessionId, { dir: this.config.cwd, ...(upToMessageId ? { upToMessageId } : {}) })
-    return { ...this.describePersistence(), sessionId: forked.sessionId }
+    const handle = { ...this.describePersistence(), sessionId: forked.sessionId }
+    const branch = new ClaudeSession(this.config, this.runtime, { sessionId: forked.sessionId })
+    try {
+      if (await branch.getGoal()) await branch.clearGoal()
+    } finally {
+      await branch.close()
+    }
+    return handle
   }
 
   /** Claude compacts through its built-in `/compact [instructions]` command. */
@@ -633,4 +793,11 @@ function windowFromModelUsage(modelUsage: Record<string, any> | undefined, model
 const knownWindows = new Map<string, number>()
 export function knownContextWindow(model: string): number | undefined {
   return knownWindows.get(model)
+}
+
+function parseGoalStatus(text: string): { objective: string; rounds?: number } | null {
+  if (text === 'No goal set. Usage: `/goal <condition>`' || text === 'No goal set') return null
+  const match = /^Goal active: ([\s\S]+) \((not yet evaluated|[0-9]+ turns?)\)(?:\nLast check: [\s\S]*)?$/.exec(text)
+  if (!match) throw goalProtocolError(`Unrecognized Claude goal status reply: ${text}`)
+  return { objective: match[1], ...(match[2] === 'not yet evaluated' ? { rounds: 0 } : { rounds: Number.parseInt(match[2], 10) }) }
 }

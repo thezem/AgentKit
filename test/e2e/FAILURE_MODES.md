@@ -144,3 +144,15 @@ Written before `test/e2e/lifecycle.ts` and the new `hub-retry.ts` check.
 | 82 | Reading Claude's context size after a structured-output turn restarts the CLI (`ensureQuery(undefined)` sees a different schema key) | checked by hand with a probe (one Haiku structured turn): the CLI query was replaced after the turn before the fix, the same query object stays after it; not in the suite, it needs a live turn for one assertion |
 | 83 | `kit.submission(id)` for a turn another process owns polls the store forever if the row is deleted, and its timer starts (and keeps the process alive) even if nobody waits | `lifecycle` `stored-wait-deleted` (row deleted → `wait()` settles `canceled`), `stored-wait-lazy` (no timer until `wait()`/`result` is used) |
 | 84 | A `#` after a space inside a quoted TOML value (`"pass #1"`) cuts the value, so the imported Codex MCP server has broken args or env | `lifecycle` `toml-hash-in-string`: quoted values keep their ` #`, real trailing comments are still dropped |
+
+## Goals
+
+| # | Failure | Covered by |
+| - | --- | --- |
+| 85 | A goal continues indefinitely without a stopping condition | `mock: bounded stalled goal`: mock stalled goal reaches a bounded blocked state |
+| 86 | Interrupt stops a turn but leaves the goal active and able to restart | `mock: interrupt pauses and busy rejects`: interrupt a running goal, assert paused and no later turns |
+| 87 | Provider-initiated goal turns are invisible to transcript or durable store | `mock: continuation-visible-in-transcript-and-store`: goal start and continuation appear in live and stored transcript |
+| 88 | A recovered active goal automatically continues after host death | `mock: kill and restore paused`: kill the durable child mid-goal, resume, assert paused and no spontaneous work |
+| 89 | A fork inherits its source's goal | `mock: fork-not-inherited`: fork has no goal |
+| 90 | Setting a goal during a running turn interleaves work | `mock: interrupt pauses and busy rejects`: setting while busy rejects without modifying the goal |
+| 91 | A provider without goal support accepts goal operations | `mock: unsupported guards`: unsupported capability errors |

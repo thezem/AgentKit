@@ -63,6 +63,7 @@ Each capsule works without AgentKit (`import { createCodexClient } from '@ouim/a
 | permissions (allow once / always / deny) | ✓ | ✓ | ✓ | ✓ |
 | structured questions to the user | ✓ | ✓ (plan mode only) | ✓ | ✓ |
 | interrupt | ✓ | ✓ | ✓ | ✓ |
+| goals (`session.setGoal`, `transcript.goal`) | ✓ | ✓ | ✓ (goal command required) | ✓ |
 | steer a running turn | ✓ | ✓ | ✓ | ✓ |
 | prompt queue (`send`) | ✓ | ✓ | ✓ | ✓ |
 | mode / model / thinking switch | ✓ | ✓ | ✓ | ✓ |
@@ -170,7 +171,8 @@ Return text/JSON, or `toolResult.image(...)` / `toolResult.error(...)`. Settings
 ## Checks
 
 ```bash
-npm test / npm run verify # typecheck + mock conformance, durable, host, hub-retry, inbox-reorder, lifecycle (free, no CLIs)
+npm test / npm run verify # typecheck + mock conformance, durable, host, hub-retry, inbox-reorder, lifecycle, goals (free, no CLIs)
+node test/e2e/goals.ts codex  # live goal checks; uses model turns
 npm run e2e -- claude     # real conformance against your signed-in CLI
 npm run e2e               # claude + codex + opencode
 npm run e2e:durable -- mock   # kill -9 mid-turn, idempotency, inbox, fork, compact

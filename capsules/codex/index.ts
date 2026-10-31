@@ -143,10 +143,17 @@ export function createCodexClient(config: CodexCapsuleConfig = {}): ProviderClie
       const modeId = overrides.modeId ?? meta.modeId ?? DEFAULT_CODEX_MODE
       const rpc = await connect(session.cwd, session.env)
       try {
+        // Goal methods accept an unloaded thread. Pause before resume so Codex cannot start a hidden turn.
+        if (CODEX_CAPABILITIES.goals) {
+          const existing = await rpc.request('thread/goal/get', { threadId: handle.sessionId })
+          if (existing.goal?.status === 'active') {
+            await rpc.request('thread/goal/set', { threadId: handle.sessionId, origin: 'user', status: 'paused' })
+          }
+        }
         const resumed = await rpc.request('thread/resume', {
           threadId: handle.sessionId,
           excludeTurns: true,
-          ...threadParams({ ...session, model: overrides.model ?? meta.model }, modeId),
+          ...threadParams({ ...session, model: overrides.model ?? meta.model, thinkingOptionId: overrides.thinkingOptionId ?? meta.effort }, modeId),
         })
         const resumedSession = new CodexSession(rpc, resumed.thread.id, session, {
           modeId,

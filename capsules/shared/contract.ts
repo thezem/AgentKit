@@ -69,6 +69,9 @@ export interface ProviderCatalog {
 
 /** Every primitive AgentKit knows about. A provider sets true for what it truly supports. */
 export interface Capabilities {
+  goals: boolean
+  goalPause: boolean
+  goalBudget: boolean
   streaming: boolean
   reasoningStream: boolean
   /** Tool calls arrive as typed `ToolDetail` (shell/read/edit/...). */
@@ -186,7 +189,11 @@ export interface Usage {
   contextWindowUsedTokens?: number
 }
 
+export type GoalStatus = 'active' | 'paused' | 'complete' | 'limited' | 'blocked'
+export interface Goal { objective: string; status: GoalStatus; reason?: string; rounds?: number; tokensUsed?: number; tokenBudget?: number; updatedAt: string }
+
 export type AgentEvent =
+  | { type: 'goal_updated'; provider: ProviderId; goal: Goal | null; turnId?: string }
   | { type: 'session_started'; provider: ProviderId; sessionId: string }
   | { type: 'turn_started'; provider: ProviderId; turnId: string }
   | { type: 'turn_completed'; provider: ProviderId; turnId: string; usage?: Usage }
@@ -417,6 +424,14 @@ export interface ProviderSession {
   setMode(modeId: string): Promise<void>
   describePersistence(): PersistenceHandle | null
 
+  setGoal?(objective: string, options?: { tokenBudget?: number }): Promise<Goal>
+  getGoal?(): Promise<Goal | null>
+  clearGoal?(): Promise<void>
+  pauseGoal?(): Promise<Goal>
+  resumeGoal?(): Promise<Goal>
+  /** Restore host-owned state after a process loss without starting work. */
+  restoreGoal?(goal: Goal): Promise<void>
+
   setModel?(model: string | null): Promise<void>
   setThinking?(thinkingOptionId: string | null): Promise<void>
   setFast?(enabled: boolean): Promise<void>
@@ -464,6 +479,9 @@ export interface ProviderClient {
 }
 
 export const NO_CAPABILITIES: Capabilities = {
+  goals: false,
+  goalPause: false,
+  goalBudget: false,
   streaming: false,
   reasoningStream: false,
   toolDetail: false,

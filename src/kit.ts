@@ -228,6 +228,10 @@ export class AgentKit {
 
   /** Reattach to a durable session (same or a different process) from `session.handle`. */
   async resume(handle: PersistenceHandle, options: ResumeOptions = {}): Promise<AgentSession> {
+    return this.resumeInternal(handle, options)
+  }
+
+  private async resumeInternal(handle: PersistenceHandle, options: ResumeOptions, transcript?: Transcript): Promise<AgentSession> {
     const client = this.client(handle.provider)
     this.checkConfig(client, options)
     const { modeId, onPermission } = this.resolveAccess(client.provider, options)
@@ -248,7 +252,10 @@ export class AgentKit {
       if (token) this.hub.release(token)
       throw error
     })
-    return this.track(inner, { onPermission, onEvent: options.onEvent }, key, options.meta, token)
+    const session = this.track(inner, { onPermission, onEvent: options.onEvent }, key, options.meta, token)
+    if (transcript) session.hydrate(transcript)
+    await session.recoverGoal()
+    return session
   }
 
   /**
@@ -261,9 +268,7 @@ export class AgentKit {
     if (!saved) throw new AgentKitError('INVALID_INPUT', `no stored session "${key}"`)
     if (!saved.handle) throw new AgentKitError('INVALID_INPUT', `stored session "${key}" has no resume handle yet`)
     const transcript = store.loadTranscript(key)
-    const session = await this.resume(saved.handle, { ...options, key, meta: options.meta ?? saved.meta })
-    session.hydrate(transcript)
-    return session
+    return this.resumeInternal(saved.handle, { ...options, key, meta: options.meta ?? saved.meta }, transcript)
   }
 
   /**

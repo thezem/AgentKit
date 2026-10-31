@@ -1,0 +1,26 @@
+{
+  "store": "/tmp/agentkit-goals-639fzo/goals.db",
+  "results": [
+    {
+      "name": "opencode: command capability gate",
+      "ok": true
+    },
+    {
+      "name": "opencode: one execution continuation and transcript",
+      "ok": true
+    },
+    {
+      "name": "opencode: Stop, fork and restart",
+      "ok": true
+    },
+    {
+      "name": "opencode: stall pause",
+      "ok": true
+    },
+    {
+      "name": "opencode: evidence",
+      "ok": true,
+      "detail": "model=vercel/inception/mercury-3, steps=8, events=/tmp/agentkit-goals-639fzo/opencode-events.json"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import { appendTimeline } from '../shared/timeline.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 import type {
   AgentEvent,
+  Goal,
   CompleteOptions,
   CompleteResult,
   PlanUsage,
@@ -34,6 +35,9 @@ import type {
 import { collectRun, deferred, Emitter, nowIso, promptToText } from '../shared/runtime.ts'
 
 export const MOCK_CAPABILITIES: Capabilities = {
+  goals: true,
+  goalPause: true,
+  goalBudget: true,
   streaming: true,
   reasoningStream: true,
   toolDetail: true,
@@ -73,7 +77,7 @@ export interface MockCapsuleConfig {
 }
 
 const MOCK_WINDOW = 200_000
-const store = new Map<string, { cwd: string; title: string | null; updatedAt: Date; timeline: TimelineItem[] }>()
+const store = new Map<string, { cwd: string; title: string | null; updatedAt: Date; timeline: TimelineItem[]; goal?: Goal | null }>()
 
 class MockSession implements ProviderSession {
   readonly provider = 'mock'
@@ -88,6 +92,7 @@ class MockSession implements ProviderSession {
   private model: string | null
   private thinking: string | null
   private fast: boolean
+  private goalEpoch = 0
 
   constructor(id: string, config: SessionConfig, delayMs: number) {
     this.id = id
@@ -184,6 +189,52 @@ class MockSession implements ProviderSession {
     return { accepted: true }
   }
 
+  private updateGoal(goal: Goal | null, turnId?: string) {
+    store.get(this.id)!.goal = goal
+    this.events.emit({ type: 'goal_updated', provider: 'mock', goal, ...(turnId ? { turnId } : {}) })
+  }
+  async getGoal(): Promise<Goal | null> { return store.get(this.id)?.goal ?? null }
+  async restoreGoal(goal: Goal): Promise<void> { this.goalEpoch++; this.updateGoal({ ...goal, status: goal.status === 'active' ? 'paused' : goal.status, updatedAt: nowIso() }) }
+  async setGoal(objective: string, options?: { tokenBudget?: number }): Promise<Goal> {
+    const goal: Goal = { objective, status: 'active', rounds: 0, tokensUsed: 0, ...(options?.tokenBudget !== undefined ? { tokenBudget: options.tokenBudget } : {}), updatedAt: nowIso() }
+    this.updateGoal(goal)
+    this.runGoal(++this.goalEpoch)
+    return goal
+  }
+  async clearGoal(): Promise<void> { this.goalEpoch++; this.updateGoal(null) }
+  async pauseGoal(): Promise<Goal> {
+    const goal = await this.getGoal()
+    if (!goal) throw new Error('no goal')
+    this.goalEpoch++
+    const paused: Goal = { ...goal, status: 'paused', updatedAt: nowIso() }
+    this.updateGoal(paused)
+    return paused
+  }
+  async resumeGoal(): Promise<Goal> {
+    const goal = await this.getGoal()
+    if (!goal || goal.status !== 'paused') throw new Error('no paused goal')
+    const resumed: Goal = { ...goal, status: 'active', updatedAt: nowIso() }
+    this.updateGoal(resumed)
+    this.runGoal(++this.goalEpoch)
+    return resumed
+  }
+  private runGoal(epoch: number): void {
+    void (async () => {
+      while (epoch === this.goalEpoch) {
+        const goal = await this.getGoal()
+        if (!goal || goal.status !== 'active') return
+        const { turnId } = await this.startTurn(`Goal: ${goal.objective} [slow]`)
+        const running = this.turn
+        if (running) await running.done.promise
+        if (epoch !== this.goalEpoch) return
+        const rounds = (goal.rounds ?? 0) + 1
+        const tokensUsed = (goal.tokensUsed ?? 0) + goal.objective.length + 20
+        const status: Goal['status'] = goal.tokenBudget !== undefined && tokensUsed >= goal.tokenBudget ? 'limited' : rounds >= (goal.objective.includes('[goal-stall]') ? 3 : 2) ? (goal.objective.includes('[goal-stall]') ? 'blocked' : 'complete') : 'active'
+        this.updateGoal({ ...goal, rounds, tokensUsed, status, ...(status === 'blocked' ? { reason: 'mock goal stalled' } : {}), updatedAt: nowIso() }, turnId)
+      }
+    })().catch(() => undefined)
+  }
+
   async interrupt() {
     const turn = this.turn
     if (!turn) return
@@ -255,7 +306,7 @@ class MockSession implements ProviderSession {
       timeline = timeline.slice(0, index)
     }
     const id = randomUUID()
-    store.set(id, { ...entry, timeline: structuredClone(timeline), updatedAt: new Date() })
+    store.set(id, { ...entry, goal: null, timeline: structuredClone(timeline), updatedAt: new Date() })
     return { provider: 'mock', sessionId: id, cwd: this.config.cwd }
   }
   async compact(input: { instructions?: string }) {
@@ -266,6 +317,7 @@ class MockSession implements ProviderSession {
     this.events.emit({ type: 'timeline', provider: 'mock', item: { type: 'compaction', status: 'completed' }, timestamp: new Date().toISOString() })
   }
   async close() {
+    this.goalEpoch++
     await this.interrupt()
     this.events.clear()
   }

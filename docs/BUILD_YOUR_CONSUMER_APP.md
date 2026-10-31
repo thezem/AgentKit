@@ -199,6 +199,7 @@ state = reduceTranscript(state, event)     // live events keep working on a part
 | `usage` | tokens, cost, `contextWindowUsedTokens` / `contextWindowMaxTokens` |
 | `modeId`, `model`, `thinkingOptionId`, `fast` | keep pickers in sync with reality |
 | `lastError` | error banner |
+| `goal` | objective, status and reason for ongoing goal work (§7b) |
 | `planUsage` | latest plan rate-limit numbers the provider pushed (Codex); see §7 |
 | `itemsOffset` | > 0 when you hold a page, not the whole thread |
 
@@ -304,6 +305,47 @@ const { text } = await kit.transcribe('claude', { data: wavBytes })
 - Show `interim` text live in the composer, then put the final text there; never send on its own.
 - Errors are typed and never thrown out of the stream: `SIGNED_OUT` ("Open Claude once to turn on dictation"; AgentKit lets `claude auth status` refresh an expired sign-in first, it never rotates tokens itself), `TRANSCRIBE_FAILED` (endpoint changed, blocked or down: hide the mic, keep typing), `INVALID_INPUT`, `ABORTED`.
 - It is Claude Code's own voice endpoint (`/api/ws/speech_to_text/voice_stream`), not a public API: it can change with a CLI update. Treat it like the other optional controls.
+
+---
+
+## 7b. Goals
+
+A goal lets an agent keep working toward an objective without a prompt for each step. It can run unattended: always show the current goal, spend or token usage, and a Stop button while it is active. Suggest a token budget where the session supports one; the provider table below explains its limits.
+
+```ts
+// Read the attached session's capabilities, which can depend on the server.
+if (session.capabilities.goals) {
+  session.on((event) => {
+    if (event.type === 'goal_updated') console.log('goal changed:', event.goal)
+    if (event.type === 'usage') console.log('reported usage:', event.usage)
+  })
+  const objective = 'Implement the parser and verify it with the existing tests.'
+  const goal = await session.setGoal(objective,
+    session.capabilities.goalBudget ? { tokenBudget: 25_000 } : {})
+  console.log(goal.status, session.transcript.goal) // also use the transcript on reconnect
+}
+
+// Wire these to separate Stop and Resume buttons.
+const stop = () => session.interrupt()
+const resume = async () => {
+  const held = await session.getGoal()
+  if (held?.status === 'paused' && session.capabilities.goalPause) await session.resumeGoal()
+}
+// Claude has no native pause/resume: after Stop, use setGoal(held.objective)
+// when the user chooses to start it again. Use clearGoal() to discard a goal.
+```
+
+`goal_updated` and `transcript.goal` expose the objective, status (`active`, `paused`, `complete`, `limited` or `blocked`) and, when available, reason, rounds and token use. Use `session.getGoal()` to read it and `session.clearGoal()` to remove it. `session.pauseGoal()` and `session.resumeGoal()` require `session.capabilities.goalPause`. `setGoal` starts work and rejects with `SESSION_BUSY` if work is running or queued. A queued prompt goes before the next goal turn; the current goal turn can finish first. After a restart the goal is kept paused and the user decides whether to resume; a fork does not inherit it.
+
+For OpenCode, check **`session.capabilities`**, not `kit.capabilities('opencode')`: support depends on whether the attached server lists the `goal` command (observed in OpenCode 2.2.4). An older server's session reports goals unsupported.
+
+| Provider | Loop and completion decision | Limits | Pause | Budget |
+| --- | --- | --- | --- | --- |
+| Codex | Native goal turns continue across host-visible turns; Codex decides when the objective is complete. | A token budget can end the goal as `limited`. | Native pause and resume; Stop pauses before interrupting. | `tokenBudget` is **soft**: a probe with budget 1 used 8,091 tokens. |
+| Claude | One host-visible turn; Claude's goal Stop check decides completion. AgentKit reads `/goal` privately after the result. | The CLI has a capped-check path, but its numeric cap is unknown; SDK turn and cost limits can also apply. | Stop clears the native goal and holds its objective paused. To resume, call `setGoal` again with that objective. | No goal token budget. |
+| OpenCode | One execution and host-visible turn; a reviewer decides whether to continue or finish. | Default cap 50 rounds; the goal pauses on stalled progress with a reason. | Native pause and resume. | No goal token budget. Reviewer calls are not included in reported session totals observed in the probe. |
+
+Claude's goal integration parses CLI response text. If that wording changes, goal calls can fail with `AgentKitError` code `GOAL_PROTOCOL`; a failed post-turn check leaves the goal unconfirmed and emits a warning notice. A CLI update can therefore require a compatibility update.
 
 ---
 
@@ -428,7 +470,8 @@ kit.hub.addTools('app', [{
 | `UNKNOWN_PROVIDER` | not registered | bug in your app |
 | `PROVIDER_UNAVAILABLE` | CLI missing / not signed in | link to setup / doctor |
 | `UNSUPPORTED_CAPABILITY` | you called something the provider lacks | hide the control (§7) |
-| `SESSION_BUSY` | `reject` while running | offer queue/steer |
+| `SESSION_BUSY` | `reject` while running, or `setGoal` while busy | offer queue/steer for prompts; wait before setting a goal |
+| `GOAL_PROTOCOL` | Claude goal command response could not be interpreted | show the error and check CLI compatibility |
 | `SESSION_CLOSED` | used after `close()` | reopen with `restore` |
 | `INVALID_INPUT` | bad args (e.g. unknown store key) | validation |
 
@@ -442,6 +485,7 @@ Turn failures are not exceptions: they arrive as `turn_failed` (transcript `stat
 - [ ] Every send carries a client-generated `requestId`
 - [ ] User can type while the agent works: steer or visible, withdrawable, reorderable inbox
 - [ ] Interrupt is always one click away while `status` is running
+- [ ] Goals show status, reported spend and Stop; offer a supported budget and let the user decide after recovery
 - [ ] Permission cards show the real command/diff; questions are answerable
 - [ ] Transcript rendered from events via `reduceTranscript`, snapshot on reconnect
 - [ ] `store` configured; `restore(key)` on demand; interrupted turns shown with a retry, never auto-resent
@@ -474,6 +518,7 @@ When you add or change a primitive, in the same change:
 3. Add a changelog line below.
 
 ### Changelog
+- **0.2 + goals** — `setGoal`, `getGoal`, `clearGoal`, `pauseGoal`, `resumeGoal`, `goal_updated` and `transcript.goal`; provider-specific pause and budget rules.
 - **0.2** — sessions, events, transcript, permissions/policies, access levels, modes/model/thinking/fast, steer/queue, resume, history, rewind, slash commands.
 - **0.2 + durable** — `store`, `submit({ whenBusy, requestId })`, inbox + withdraw, `kit.restore`, `kit.submission`, crash recovery, `fork`, `compact`.
 - **0.2 + context** — `contextWindow()`, `contextWindowMaxTokens` in usage and catalogs.

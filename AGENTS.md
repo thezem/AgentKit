@@ -11,7 +11,7 @@ AgentKit = one TypeScript layer over locally signed-in Claude Code, Codex and Op
   - `opencode`: `opencode serve` (shared, ref-counted; dedicated when MCP) + `@opencode/client` v2. Events + snapshot diffing (`internals/server.ts`, `session.ts`, `timeline.ts`).
   - `mock`: deterministic, all capabilities; prompt directives `[tool] [ask] [fail] [slow]`.
 - `src/`: AgentKit proper. `kit.ts` (registry, access→mode mapping, catalog cache, resume/list), `session.ts` (guards, `submit` + inbox + steer fallback, fork/compact, policies, transcript), `skills.ts` + `skill-tags.ts` (discovery, search, `$skill` expansion; tags are browser-safe), `store.ts` (node:sqlite durable store: commit-before-show, submission intent/outcome, crash recovery), `hub.ts` (MCP hub: one loopback server per provider session, upstream connections with backoff, native tools, `readCliServers`/TOML import), `transcript.ts` (pure reducer), `attachment-tags.ts`, `policy.ts`, `errors.ts`. `src/index.ts` is the public surface; `package.json` `exports` also ships `/capsules/*`, `/contract`, `/transcript`, `/attachment-tags`, `/skill-tags`.
-- `examples/`: `quickstart.ts`, `doctor.ts` (`npm run doctor`), `harness-server.ts`, and a web UI (`npm run ui:api` + `npm run ui`). `test/e2e/FAILURE_MODES.md` lists every failure mode and the check that covers it (numbered #1–#84; add rows before the code).
+- `examples/`: `quickstart.ts`, `doctor.ts` (`npm run doctor`), `harness-server.ts`, and a web UI (`npm run ui:api` + `npm run ui`). `test/e2e/FAILURE_MODES.md` lists every failure mode and the check that covers it (numbered #1–#91; add rows before the code).
 
 ## Rules
 - Capsules import only `../shared/*` and their own SDK. Only `src/` knows about several providers.
@@ -24,7 +24,7 @@ AgentKit = one TypeScript layer over locally signed-in Claude Code, Codex and Op
 ## Verify
 ```bash
 npm test                               # = npm run verify; what CI and publish run
-npm run verify                         # typecheck + mock conformance/durable/host + hub-retry + inbox-reorder + lifecycle (free, no models)
+npm run verify                         # typecheck + mock conformance/durable/host + hub-retry + inbox-reorder + lifecycle + goals (free, no models)
 node test/e2e/conformance.ts claude    # real, uses your sign-in; artifact in test/e2e/artifacts/
 node test/e2e/extras.ts codex          # steer, structured output, system prompt, queue, commands
 node test/e2e/durable.ts codex         # kill -9 mid-turn, requestId idempotency, inbox, fork, compact
@@ -32,6 +32,10 @@ node test/e2e/skills.ts                # skill discovery/visibility vs each CLI,
 node test/e2e/hub.ts                   # MCP hub: each CLI sees only hub servers, status, toggles, persist, import
 node test/e2e/inbox-reorder.ts         # reorderInbox: queued prompts run in the host's order (mock; runs in verify)
 node test/e2e/hub-retry.ts             # HTTP upstreams: honest errors, SSE fallback only on 4xx, reconnect with backoff, close while connecting (no models; runs in verify)
+node test/e2e/goals.ts mock            # goal lifecycle, stop, crash recovery (free; runs in verify)
+node test/e2e/goals.ts codex           # live goals, gpt-5.6-luna low; about 16 turn starts
+node test/e2e/goals.ts claude          # live goals, haiku; uses model turns
+node test/e2e/goals.ts opencode        # live goals; AGENTKIT_E2E_OPENCODE_MODEL overrides stock free default
 node test/e2e/lifecycle.ts             # stream() ends on close, stored submissions stop polling, TOML ` #` in strings (mock; runs in verify)
 node test/e2e/claude-interrupt.ts      # a Claude CLI that ignores Stop is closed after 10s; next turn resumes (haiku)
 node test/e2e/claude-tool-drafts.ts    # Claude tool calls show while their arguments stream (haiku)
@@ -67,3 +71,6 @@ npm run doctor                         # install/sign-in status per provider
 - `session.stream()` ends on `close()` (readers are woken); `kit.submission(id).wait()` for another process's turn polls only while awaited and settles `canceled` if the row is deleted.
 - Env that matters: `AGENTKIT_INHERIT_ENV` (comma list of host vars MCP servers may see), `CLAUDE_CONFIG_DIR` (Claude sign-in location for dictation), `CODEX_HOME` (where `config.toml` is read for hub import and exclusivity), `VOICE_STREAM_BASE_URL` (dictation endpoint override, used by tests).
 - Claude prompt-cache TTL (5m vs 1h) is chosen by the CLI, not AgentKit; the kit only reads `cache_read_input_tokens`. `claude.env` reaches the CLI, but a TTL override through it has not been verified.
+
+- Goals: re-run `test/e2e/goals.ts` for the affected provider after a CLI upgrade. Codex uses `thread/goal/*`, has host-visible continuation turns, and its token budget is soft (budget 1 used 8,091 tokens). Claude uses `/goal`, parses CLI text and reads status after a result; Stop clears and holds the objective, `goalPause` and `goalBudget` are false, and its numeric cap is unknown. OpenCode uses `goal` commands, `opencode.goal/get` RPC and goal-changed events; check `session.capabilities` because command availability depends on the server (observed in 2.2.4). Its reviewer calls were not included in the observed session totals; its default cap is 50 rounds with a stall pause.
+- The OpenCode goal suite defaults to `opencode/deepseek-v4.1-flash-free`; set `AGENTKIT_E2E_OPENCODE_MODEL` to override. The free model can hit a usage limit, reported as `SKIPPED-blocked`, which does not prove support. The goal proof so far used the non-stock `vercel/inception/mercury-3` model after the free model hit its limit.
